@@ -141,39 +141,46 @@ bool SEEL_Node::dup_msg_check(SEEL_Message* msg)
 
 bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi)
 {
+    bool valid_msg = false;
+
     // Message is available
     if (_rf95_ptr->available())
     { 
         uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
-        uint8_t buf_len = sizeof(buf);
+        uint8_t buf_len;
 
         // Load message into buffer
         if (_rf95_ptr->recv(buf, &buf_len))
         {
-            // Converts raw msg buffer to SEEL_Message
-            buf_to_SEEL_msg(msg, buf);
-
-            // Check if the message has already been seen, to prevent a loop
             SEEL_Print::print(F(">>R: "));
-            if (!dup_msg_check(msg))
+            for (uint32_t i = 0; i < buf_len; ++i)
             {
-                rssi = _rf95_ptr->lastRssi();
-
-                // A valid msg was received
-                print_msg(msg);
-                SEEL_Print::print(F("RSSI: ")); SEEL_Print::println(rssi);
-                return true;
+                SEEL_Print::print(buf[i]); SEEL_Print::print(F(" "));
             }
-            else
+            rssi = _rf95_ptr->lastRssi();
+            SEEL_Print::print(F("RSSI: ")); SEEL_Print::println(rssi);
+
+            if (buf_len == SEEL_MSG_TOTAL_SIZE) // Potential SEEL message
             {
-                SEEL_Print::println(F("Duplicate message")); 
+                // Converts raw msg buffer to SEEL_Message
+                buf_to_SEEL_msg(msg, buf);
+
+                // Check if the message has already been seen, to prevent a loop
+                if (!dup_msg_check(msg))
+                {
+                    valid_msg = true;
+                }
+                else
+                {
+                    SEEL_Print::println(F("Duplicate message")); 
+                }
             }
             SEEL_Print::flush();
         }
     }
 
     // No valid msg was received
-    return false;
+    return valid_msg;
 }
 
 void SEEL_Node::enqueue_ack(SEEL_Message* prev_msg)
