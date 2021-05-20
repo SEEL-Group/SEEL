@@ -8,8 +8,9 @@ const uint8_t SEEL_TDMA_SLOT_ASSIGNMENT = 0; // TDMA transmission slot, ignored 
 
 // Dictates how long SNODEs will be awake/asleep for. Sleep time is calculated by cycle time - awake time, both are converted to millis during calculation
 // Make sure awake/sleep times can be converted to millis without overflow
-const uint32_t SEEL_BCAST_PERIOD_MILLIS = 60000;
-const uint32_t SEEL_SNODE_AWAKE_TIME_SECONDS = 30; // Units are in seconds to minimally fit in bcast packet
+ // Units are in seconds to reduce field sizes in msg packet
+const uint32_t SEEL_CYCLE_PERIOD_SECS = 60;
+const uint32_t SEEL_SNODE_AWAKE_TIME_SECS = 30;
 
 /* RF95 Pin Assignments */
 const uint8_t RFM95_CS = 10; // Don't change these if using Dragino LG01
@@ -111,7 +112,7 @@ void setup()
   seel_gnode.init(&seel_scheduler,  // Scheduler reference
     user_callback_broadcast, user_callback_data, // Callback functions
     RFM95_CS, RFM95_INT, // Pins
-    SEEL_BCAST_PERIOD_MILLIS, SEEL_SNODE_AWAKE_TIME_SECONDS, // Cycle info
+    SEEL_CYCLE_PERIOD_SECS, SEEL_SNODE_AWAKE_TIME_SECS, // Cycle info
     SEEL_TDMA_SLOT_ASSIGNMENT); // TDMA slot assignment
 
   // Run main loop inside SEEL_Scheduler

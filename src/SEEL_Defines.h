@@ -36,8 +36,8 @@ const uint8_t SEEL_MSG_CMD_SIZE   = 1;
 const uint8_t SEEL_MSG_SEQ_INDEX  = 3;
 const uint8_t SEEL_MSG_SEQ_SIZE   = 1;
 const uint8_t SEEL_MSG_MISC_INDEX = 4;
-const uint8_t SEEL_MSG_MISC_SIZE  = 12;
-const uint8_t SEEL_MSG_USER_INDEX = 16; // USER_SIZE defined in SEEL_Params.h
+const uint8_t SEEL_MSG_MISC_SIZE  = 17;
+const uint8_t SEEL_MSG_USER_INDEX = 21; // USER_SIZE defined in SEEL_Params.h
 const uint8_t SEEL_MSG_DATA_SIZE = SEEL_MSG_MISC_SIZE + SEEL_MSG_USER_SIZE;
 const uint8_t SEEL_MSG_TOTAL_SIZE = SEEL_MSG_TARG_SIZE + SEEL_MSG_SEND_SIZE + SEEL_MSG_CMD_SIZE
     + SEEL_MSG_SEQ_SIZE + SEEL_MSG_MISC_SIZE + SEEL_MSG_USER_SIZE;
@@ -57,19 +57,21 @@ const uint8_t SEEL_MSG_DATA_ID_ENCRYPT_INDEX = 1;
 const uint8_t SEEL_MSG_DATA_ID_ENCRYPT_SIZE = 4;
 
 // For CMD: BCAST
-const uint8_t SEEL_MSG_DATA_TIME_SYNC_INDEX = 0;
+const uint8_t SEEL_MSG_DATA_FIRST_BCAST_INDEX = 0;
+const uint8_t SEEL_MSG_DATA_FIRST_BCAST_SIZE = 1;
+const uint8_t SEEL_MSG_DATA_TIME_SYNC_INDEX = 1;
 const uint8_t SEEL_MSG_DATA_TIME_SYNC_SIZE = 4;
-const uint8_t SEEL_MSG_DATA_AWAKE_TIME_SECONDS_INDEX = 4;
-const uint8_t SEEL_MSG_DATA_AWAKE_TIME_SECONDS_SIZE = 2;
-const uint8_t SEEL_MSG_DATA_SLEEP_TIME_SECONDS_INDEX = 6;
-const uint8_t SEEL_MSG_DATA_SLEEP_TIME_SECONDS_SIZE = 2;
-const uint8_t SEEL_MSG_DATA_HOP_COUNT_INDEX = 8;
+const uint8_t SEEL_MSG_DATA_AWAKE_TIME_SECONDS_INDEX = 5;
+const uint8_t SEEL_MSG_DATA_AWAKE_TIME_SECONDS_SIZE = 4;
+const uint8_t SEEL_MSG_DATA_SLEEP_TIME_SECONDS_INDEX = 9;
+const uint8_t SEEL_MSG_DATA_SLEEP_TIME_SECONDS_SIZE = 4;
+const uint8_t SEEL_MSG_DATA_HOP_COUNT_INDEX = 13;
 const uint8_t SEEL_MSG_DATA_HOP_COUNT_SIZE = 1;
-const uint8_t SEEL_MSG_DATA_RSSI_INDEX = 9;
+const uint8_t SEEL_MSG_DATA_RSSI_INDEX = 14;
 const uint8_t SEEL_MSG_DATA_RSSI_SIZE = 1;
-const uint8_t SEEL_MSG_DATA_ID_FEEDBACK_INDEX = 10; // Variable size, default is two. Expand with user size
+const uint8_t SEEL_MSG_DATA_ID_FEEDBACK_INDEX = 15; // Variable size, default is two. Expand with user size
 const uint8_t SEEL_MSG_DATA_ID_FEEDBACK_DEFAULT_SIZE = 2; // Actual size is 2*floor((SEEL_MSG_DATA_ID_FEEDBACK_DEFAULT_SIZE + SEEL_MSG_USER_SIZE) / 2.0)
-const uint8_t SEEL_MSG_DATA_USER_INDEX = 12;  // USER_SIZE defined in SEEL_Params.h
+const uint8_t SEEL_MSG_DATA_USER_INDEX = 17;  // USER_SIZE defined in SEEL_Params.h
 const uint8_t SEEL_MSG_DATA_ID_FEEDBACK_TOTAL_SIZE = SEEL_MSG_DATA_ID_FEEDBACK_DEFAULT_SIZE + SEEL_MSG_USER_SIZE;
 
 /* ID Info */

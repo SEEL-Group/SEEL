@@ -113,10 +113,11 @@ private:
     SEEL_Queue<SEEL_ID_BCAST> _pending_bcast_ids;
     user_callback_broadcast_t _user_cb_broadcast;
     user_callback_data_t _user_cb_data;
+    uint32_t _cycle_period_secs;
     uint32_t _snode_awake_time_secs;
     uint32_t _snode_sleep_time_secs;
-    uint32_t _user_bcast_period;
     uint8_t _bcast_count;
+    bool _first_bcast;
 };
 
 #endif // SEEL_GNode_h

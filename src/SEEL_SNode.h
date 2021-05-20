@@ -78,7 +78,7 @@ private:
     // Generates random ID, excluding 0 (reserved for gateway)
     uint32_t generate_id();
 
-    void bcast_setup(SEEL_Message &msg);
+    bool bcast_setup(SEEL_Message &msg);
 
     bool bcast_id_check(SEEL_Message* msg);
 
