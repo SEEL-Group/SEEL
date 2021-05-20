@@ -147,7 +147,7 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi)
     if (_rf95_ptr->available())
     { 
         uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
-        uint8_t buf_len;
+        uint8_t buf_len = sizeof(buf);
 
         // Load message into buffer
         if (_rf95_ptr->recv(buf, &buf_len))

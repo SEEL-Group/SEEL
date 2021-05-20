@@ -12,7 +12,7 @@ File purpose:   See SEEL_GNode.h
 void SEEL_GNode::init(  SEEL_Scheduler* ref_scheduler, 
             user_callback_broadcast_t user_cb_broadcast, user_callback_data_t user_cb_data, 
             uint8_t cs_pin, uint8_t int_pin, 
-            uint32_t cycle_period_millis, uint32_t snode_awake_time_secs, 
+            uint32_t cycle_period_secs, uint32_t snode_awake_time_secs, 
             uint32_t tdma_slot)
 {
     SEEL_Node::init(SEEL_GNODE_ID, tdma_slot);
@@ -23,11 +23,12 @@ void SEEL_GNode::init(  SEEL_Scheduler* ref_scheduler,
     _user_cb_broadcast = user_cb_broadcast;
     _user_cb_data = user_cb_data;
     _snode_awake_time_secs = snode_awake_time_secs;
-    _snode_sleep_time_secs = (cycle_period_millis / SEEL_SECS_TO_MILLIS) - snode_awake_time_secs;
-    _user_bcast_period = cycle_period_millis;
+    _snode_sleep_time_secs = cycle_period_secs - snode_awake_time_secs;
+    _cycle_period_secs = cycle_period_secs;
     _bcast_count = 0;
     _hop_count = 0;
     _path_rssi = 0;
+    _first_bcast = true;
 
     // Initialize tasks with this inst
     _task_bcast.set_inst(this);
@@ -218,13 +219,21 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
         }
     }
 
+    // Note whether this bcast is the first bcast for the network, used for initialization
+    to_send.data[SEEL_MSG_DATA_FIRST_BCAST_INDEX] = _inst->_first_bcast ? 1 : 0;
+
     // Update cycle information, information stored big endian
-    to_send.data[SEEL_MSG_DATA_AWAKE_TIME_SECONDS_INDEX] = (uint8_t) (_inst->_snode_awake_time_secs >> 8);
-    to_send.data[SEEL_MSG_DATA_AWAKE_TIME_SECONDS_INDEX + 1] = (uint8_t) (_inst->_snode_awake_time_secs);
+    to_send.data[SEEL_MSG_DATA_AWAKE_TIME_SECONDS_INDEX] = (uint8_t) (_inst->_snode_awake_time_secs >> 24);
+    to_send.data[SEEL_MSG_DATA_AWAKE_TIME_SECONDS_INDEX + 1] = (uint8_t) (_inst->_snode_awake_time_secs >> 16);
+    to_send.data[SEEL_MSG_DATA_AWAKE_TIME_SECONDS_INDEX + 2] = (uint8_t) (_inst->_snode_awake_time_secs >> 8);
+    to_send.data[SEEL_MSG_DATA_AWAKE_TIME_SECONDS_INDEX + 3] = (uint8_t) (_inst->_snode_awake_time_secs);
 
-    to_send.data[SEEL_MSG_DATA_SLEEP_TIME_SECONDS_INDEX] = (uint8_t) (_inst->_snode_sleep_time_secs >> 8);
-    to_send.data[SEEL_MSG_DATA_SLEEP_TIME_SECONDS_INDEX + 1] = (uint8_t) (_inst->_snode_sleep_time_secs);
+    to_send.data[SEEL_MSG_DATA_SLEEP_TIME_SECONDS_INDEX] = (uint8_t) (_inst->_snode_sleep_time_secs >> 24);
+    to_send.data[SEEL_MSG_DATA_SLEEP_TIME_SECONDS_INDEX + 1] = (uint8_t) (_inst->_snode_sleep_time_secs >> 16);
+    to_send.data[SEEL_MSG_DATA_SLEEP_TIME_SECONDS_INDEX + 2] = (uint8_t) (_inst->_snode_sleep_time_secs >> 8);
+    to_send.data[SEEL_MSG_DATA_SLEEP_TIME_SECONDS_INDEX + 3] = (uint8_t) (_inst->_snode_sleep_time_secs);
 
+    // Parent selection info
     to_send.data[SEEL_MSG_DATA_HOP_COUNT_INDEX] = (uint8_t) (_inst->_hop_count);
     to_send.data[SEEL_MSG_DATA_RSSI_INDEX] = (uint8_t) (0); // Filled out later by SNODEs
 
@@ -240,7 +249,8 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
     _inst->_user_cb_broadcast(to_send.data);
 
     ++_inst->_bcast_count;
+    _inst->_first_bcast = false;
 
     // Re-add bcast task, with cycle delay
-    _inst->_ref_scheduler->add_task(&_inst->_task_bcast, _inst->_user_bcast_period);
+    _inst->_ref_scheduler->add_task(&_inst->_task_bcast, _inst->_cycle_period_secs * SEEL_SECS_TO_MILLIS);
 }
