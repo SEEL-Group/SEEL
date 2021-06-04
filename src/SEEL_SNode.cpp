@@ -41,9 +41,11 @@ void SEEL_SNode::init(  SEEL_Scheduler* ref_scheduler,
     _bcast_last_seqnum = 0;
     _sleep_time_estimate_millis = SEEL_ADJUSTED_SLEEP_INITAL_ESTIMATE_MILLIS;
     _sleep_time_offset_millis = 0;
+    _missed_bcasts = 0;
     _id_verified = false;
     _system_sync = false;
     _acked = true;
+    _WD_adjusted = false;
 
     // Set task instances
     _task_wake.set_inst(this);
@@ -51,6 +53,7 @@ void SEEL_SNode::init(  SEEL_Scheduler* ref_scheduler,
     _task_enqueue_msg.set_inst(this);
     _task_user.set_inst(this);
     _task_sleep.set_inst(this);
+    _task_force_sleep.set_inst(this);
 
     _ref_scheduler->add_task(&_task_wake);
 }
@@ -65,7 +68,7 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
     _inst->_parent_sync = false;
     _inst->_cb_info.first_callback = true; // Allows ability to only send 1 message per cycle
     _inst->_bcast_avail = false;
-    _inst->_bcast_sent = false;
+    _inst->_bcast_sent = false; // Set to true in SEEL_Node.cpp when bcast msg sent out
 
     _inst->_hop_count = UINT32_MAX;
     _inst->_path_rssi = INT8_MIN;
@@ -73,11 +76,27 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
     // Clear ack queue
     _inst->_ack_queue.clear();
 
-    _inst->_ref_scheduler->set_user_task_enable(false); // Disables user tasks from running until critical LoRa tasks are done
+    // Disables user tasks from running until critical LoRa tasks are done
+    _inst->_ref_scheduler->set_user_task_enable(false); 
 
     // Add cycle tasks to scheduler
     _inst->_ref_scheduler->add_task(&_inst->_task_receive);
-    // TODO: Add max time awake check, so SNODE can sleep even if it misses the bcast
+
+    // Force sleep, so SNODE can sleep even if it misses the bcast
+    // Cannot force sleep until WD timer is properly adjusted
+    // After SEEL_FORCE_SLEEP_RESET_COUNT of missed bcasts, disable forced sleep
+    if (_inst->_WD_adjusted &&_inst-> _missed_bcasts < SEEL_FORCE_SLEEP_RESET_COUNT)
+    {
+        _inst->_ref_scheduler->add_task(&_inst->_task_force_sleep,
+            SEEL_FORCE_SLEEP_AWAKE_MULT * _inst->_snode_awake_time_secs * SEEL_SECS_TO_MILLIS *
+            pow(SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE, _inst->_missed_bcasts));
+    }
+    else
+    {
+        // WD_adjusted turns from true to false here if there are too many missed bcasts
+        // With too many missed bcasts, the WD timer may have drifted too far, so force re-adjust
+        _inst->_WD_adjusted = false;
+    }
 }
 
 bool SEEL_SNode::bcast_setup(SEEL_Message &msg)
@@ -145,7 +164,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
 
     // Prioritize bcast check over everything else
     // Possible to receive bcast msgs from multiple nodes; action depends on parent selection mode
-    if (msg.cmd == SEEL_CMD_BCAST && !_inst->_bcast_sent)
+    if (msg.cmd == SEEL_CMD_BCAST)
     {
         // "_acked" is only false here if the node never slept last cycle. Used to check if we never slept and received another bcast (missed a cycle)
         // acked may get set to false when node receives multiple bcasts in the same cycle (from diff nodes due to the blacklist system),
@@ -158,14 +177,15 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
         }
         _inst->_acked = false; 
         _inst->_bcast_last_seqnum = msg.seq_num;
+        uint32_t prev_missed_bcasts = _inst->_missed_bcasts;
+        _inst->_missed_bcasts = 0;
 
         // Check to make sure sender is not in the broadcast blacklist. A blacklist is needed because
         // node sends (typically GNODE to SNODE) is sometimes asymmetrical in transmission distance.
         // So the sender could reach this node, but this node may not reach the sender. Using a blacklist
         // ensures previous parents that could not be reached are not tried again. The blacklist is cleared
         // if no one was able to reach this node; thus, a parent is not permanently blocked if it's
-        // the only possible solution.
-
+        // the only possible solution
         if(_inst->_bcast_blacklist.find(msg.send_id) == NULL)
         {
             uint32_t incoming_hop_count = msg.data[SEEL_MSG_DATA_HOP_COUNT_INDEX] + 1;
@@ -227,8 +247,10 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                 
                 SEEL_Print::print(F("WTB: ")); SEEL_Print::println(_inst->_cb_info.wtb_millis);
 
-                //Adjusting sleep-time
-                if(_inst->_system_sync == true)
+                // Adjusting sleep-time, only adjust if we already have wtb data
+                // Dont adjust sleep if previous bcast was missed, since we do not know how long we actually slept for;
+                // there is no bcast reference to measure against
+                if(_inst->_system_sync == true && prev_missed_bcasts == 0)
                 {
                     uint32_t cycle_time_millis = (_inst->_snode_awake_time_secs + _inst->_snode_sleep_time_secs) * SEEL_SECS_TO_MILLIS;
                     uint32_t prev_sleep_counts = ((prev_sleep_time_secs * SEEL_SECS_TO_MILLIS) - 
@@ -256,8 +278,9 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                     _inst->_sleep_time_estimate_millis = (prev_sleep_counts > 0) ? 
                         actual_sleep_time_millis / prev_sleep_counts : _inst->_sleep_time_estimate_millis;
                     SEEL_Print::print(F("Watchdog estimate: ")); SEEL_Print::println(_inst->_sleep_time_estimate_millis);
+                    _inst->_WD_adjusted = true;
                 }
-                else // First configuration or GNODE was refreshed
+                else if (!_inst->_system_sync)// First configuration or GNODE was refreshed
                 {
                     // Keep the previous estimate of WD duration
                     _inst->_sleep_time_offset_millis = 0;
@@ -367,13 +390,11 @@ void SEEL_SNode::SEEL_Task_SNode_User::run()
 
 void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
 {
-    // Cannot clear blacklist here since this task is never reached if no bcast is received
-
     // Store any info messages
     _inst->_cb_info.prev_data_transmissions = _inst->_data_msgs_sent;
 
     // A parent was selected and a (ack-needed) msg was sent to parent, but parent never responded back
-    if (!_inst->_acked && _inst->_parent_sync && _inst->_data_msgs_sent > 0) 
+    if (_inst->_parent_sync && !_inst->_acked && _inst->_data_msgs_sent > 0) 
     {
         // Blacklist the parent
         SEEL_Print::print(F("Blacklisted NODE: ")); SEEL_Print::println(_inst->_parent_id); // Blacklist: parent ID
@@ -381,7 +402,7 @@ void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
         _inst->_acked = true;
     }
 
-    // Clear buffer and prepare for wakeup
+    // Clear any remaining tasks and prepare for wakeup
     _inst->_ref_scheduler->clear_tasks();
 
     // Add in wakeup now
@@ -392,6 +413,21 @@ void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
 
     // Call user sleep, order matters because code flow blocks in sleep()
     _inst->sleep();
+}
+
+void SEEL_SNode::SEEL_Task_SNode_Force_Sleep::run()
+{
+    // If bcast received, then no need to force sleep
+    if (_inst->_bcast_received)
+    {
+        return;
+    }
+
+    SEEL_Print::println(F("Force Sleep"));
+    ++_inst->_missed_bcasts;
+    // Force sleep is necessary, run regular sleep function
+    _inst->_ref_scheduler->clear_tasks(); // Guarentee sleep to be next task
+    _inst->_ref_scheduler->add_task(&_inst->_task_sleep);
 }
 
 bool SEEL_SNode::bcast_id_check(SEEL_Message* msg)
@@ -420,22 +456,24 @@ bool SEEL_SNode::bcast_id_check(SEEL_Message* msg)
         }
     }
 
-    for (uint32_t i = 0; (i + 1) < SEEL_MSG_USER_SIZE && !found; i += 2) // Make sure both slots exist
-    {
-        if ((SEEL_MSG_DATA_USER_INDEX + i + 1) >= sizeof(msg->data)) // msg->data contains bytes, so sizeof by itself works
+    #if SEEL_MSG_USER_SIZE > 0 // Compiler conditional otherwise there is warning about unsigned comparison
+        for (uint32_t i = 0; (i + 1) < SEEL_MSG_USER_SIZE && !found; i += 2) // Make sure both slots exist
         {
-            // Safety check, error can occur when snode and gnode are not updated at the same time and
-            // snode has more user slots than gnode. Leads to array access in unallocated memory.
-            SEEL_Print::println(F("Error - Slot Mismatch")); // Error - Slot mismatch
-            break;
-        }
+            if ((SEEL_MSG_DATA_USER_INDEX + i + 1) >= sizeof(msg->data)) // msg->data contains bytes, so sizeof by itself works
+            {
+                // Safety check, error can occur when snode and gnode are not updated at the same time and
+                // snode has more user slots than gnode. Leads to array access in unallocated memory.
+                SEEL_Print::println(F("Error - Slot Mismatch")); // Error - Slot mismatch
+                break;
+            }
 
-        if (msg->data[SEEL_MSG_DATA_USER_INDEX + i] == _node_id)
-        {
-            suggested_id = msg->data[SEEL_MSG_DATA_USER_INDEX + i + 1];
-            found = true;
+            if (msg->data[SEEL_MSG_DATA_USER_INDEX + i] == _node_id)
+            {
+                suggested_id = msg->data[SEEL_MSG_DATA_USER_INDEX + i + 1];
+                found = true;
+            }
         }
-    }
+    #endif
 
     if (found)
     {
@@ -526,7 +564,19 @@ void SEEL_SNode::sleep()
     // Puts Arduino into low power state
     // Uses watchdog timer for wakeup checks, SLEEP_8S is the longest
     // period the watchdog time can sleep for
-    uint32_t sleep_counts = ((_snode_sleep_time_secs * SEEL_SECS_TO_MILLIS) - SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS - _sleep_time_offset_millis) / _sleep_time_estimate_millis;
+    int32_t sleep_counts = ((_snode_sleep_time_secs * SEEL_SECS_TO_MILLIS) - 
+        SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS - _sleep_time_offset_millis) / _sleep_time_estimate_millis;
+
+    if (_missed_bcasts > 0)
+    {
+        // Make signed int since awake duration could be smaller than specified, then sleep longer
+        int32_t extra_awake_time_millis = (SEEL_FORCE_SLEEP_AWAKE_MULT * pow(SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE, _missed_bcasts - 1) - 1) * _snode_awake_time_secs * SEEL_SECS_TO_MILLIS;
+        SEEL_Print::print(F("DEBUG: ")); SEEL_Print::println(extra_awake_time_millis); 
+        // Sleep needs to be calculated a different way since SNODE stayed awake longer than specified
+        sleep_counts = ((_snode_sleep_time_secs * SEEL_SECS_TO_MILLIS) - extra_awake_time_millis -
+        SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS - _sleep_time_offset_millis) / _sleep_time_estimate_millis;
+    }
+    sleep_counts = (sleep_counts < 0) ? 0 : sleep_counts; // min sleep counts should be 0
 
     SEEL_Print::print(F("Sleeping for ")); SEEL_Print::print(sleep_counts); SEEL_Print::println(F(" counts"));
     SEEL_Print::flush();

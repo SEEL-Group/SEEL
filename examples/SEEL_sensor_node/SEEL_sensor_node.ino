@@ -64,7 +64,7 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
   }
 
   // Pseudo check for if we're using the right message size to prevent out of bounds access
-  if (SEEL_MSG_DATA_SIZE >= SEEL_MSG_MISC_SIZE)
+  if (SEEL_MSG_MISC_SIZE >= 10)
   {
     msg_data[0] = (uint8_t)(info->wtb_millis >> 24);
     msg_data[1] = (uint8_t)(info->wtb_millis >> 16);
@@ -76,15 +76,17 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
     msg_data[7] = 0; // Also set in fwd function by parent node
     msg_data[8] = (uint8_t)(send_count >> 8);
     msg_data[9] = (uint8_t)(send_count);
-    for (uint8_t i = 0; i < SEEL_MSG_USER_SIZE; ++i)
+
+    // Fill rest with zeros
+    for (uint32_t i = 10; i < SEEL_MSG_DATA_SIZE; ++i)
     {
       if (send_queue_full)
       {
-          msg_data[SEEL_MSG_MISC_SIZE + i] = 1;
+        msg_data[i] = 1;
       }
       else
       {
-        msg_data[SEEL_MSG_MISC_SIZE + i] = 0;
+        msg_data[i] = 0;
       }
     }
   }
