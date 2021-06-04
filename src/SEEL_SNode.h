@@ -72,6 +72,9 @@ private:
     class SEEL_Task_SNode_Sleep : public SEEL_Task_SNode {virtual void run();};
     SEEL_Task_SNode_Sleep _task_sleep;
 
+    class SEEL_Task_SNode_Force_Sleep : public SEEL_Task_SNode {virtual void run();};
+    SEEL_Task_SNode_Force_Sleep _task_force_sleep;
+
     // ***************************************************
     // Member functions
 
@@ -104,10 +107,12 @@ private:
     uint32_t _sleep_time_estimate_millis; // Time estimate for single watch-dog sleep
     uint32_t _sleep_time_offset_millis; // Offset used for future sleeps when SNODE misses broadcast
     uint8_t _bcast_last_seqnum;
+    uint8_t _missed_bcasts;
     bool _bcast_received; // Set to false on wake-up, set to true on first broadcast received
     bool _parent_sync;  // Set to false on wake-up, set to true on first non-blacklist broadcast received
     bool _system_sync; // Set to false on Snode start-up, set to true on first non-blacklist broadcast received
     bool _acked;
+    bool _WD_adjusted; // Set to true after WD timer gets corrected (more accurate sleep times)
 };
 
 #endif // SEEL_SNode_h
