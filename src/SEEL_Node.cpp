@@ -36,7 +36,7 @@ void SEEL_Node::rfm_param_init(uint8_t cs_pin, uint8_t int_pin, uint8_t TX_power
     _rf95_ptr->setSignalBandwidth(SEEL_RFM95_BW);
     _rf95_ptr->setTxPower(TX_power);
     _rf95_ptr->setCodingRate4(coding_rate);
-    SEEL_Print::println(F("Parameters:")); // Parameters
+    SEEL_Print::println(F("Parameters:"));
     SEEL_Print::print(F("\tFq: ")); SEEL_Print::println(SEEL_RFM95_FREQ);
     SEEL_Print::print(F("\tSF: ")); SEEL_Print::println(SEEL_RFM95_SF);
     SEEL_Print::print(F("\tBW: ")); SEEL_Print::println(SEEL_RFM95_BW);
@@ -258,13 +258,14 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
 
     // Prioritize bcast msgs, then ack msgs, then data/id_check msgs
     // Note messages in _data_queue may be from previous cycles
-    if (_inst->_bcast_avail)
+    // Send only one bcast msg per cycle to avoid pollution
+    if (_inst->_bcast_avail && !_inst->_bcast_sent)
     {
         to_send_ptr = &_inst->_bcast_msg;
 
         to_send_ptr->send_id = _inst->_node_id;
 
-        to_send_ptr->data[SEEL_MSG_DATA_HOP_COUNT_INDEX] = _inst->_hop_count;
+        to_send_ptr->data[SEEL_MSG_DATA_HOP_COUNT_INDEX] = _inst->_cb_info.hop_count;
         to_send_ptr->data[SEEL_MSG_DATA_RSSI_INDEX] = _inst->_path_rssi;
 
         // Update time info right before the send
@@ -293,7 +294,7 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
 
         _inst->try_send(to_send_ptr, true);
     }
-    else // DATA or ID_CHECK or FORWARDED message
+    else if (!_inst->_data_queue.empty())// DATA or ID_CHECK or FORWARDED message
     {
         to_send_ptr = _inst->_data_queue.front();
         uint32_t msg_cmd = to_send_ptr->cmd;

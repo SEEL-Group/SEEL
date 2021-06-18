@@ -11,6 +11,7 @@ File purpose:   Queue implementation based on ring buffered arrays
 #define SEEL_Queue_h
 
 #include "SEEL_Params.h"
+#include "SEEL_Print.h"
 
 template <class T>
 class SEEL_Queue

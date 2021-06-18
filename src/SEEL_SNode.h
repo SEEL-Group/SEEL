@@ -97,8 +97,7 @@ private:
     bool enqueue_data();
     // ***************************************************
     // Member variables
-    SEEL_Queue<int> _bcast_blacklist;
-    SEEL_CB_Info _cb_info;
+    SEEL_Queue<uint8_t> _bcast_blacklist;
     user_callback_load_t _user_cb_load;
     user_callback_forwarding_t _user_cb_forwarding;
     uint32_t _snode_awake_time_secs; // How long node should be awake for, set with bcast

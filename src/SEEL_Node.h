@@ -27,10 +27,11 @@ public:
     struct SEEL_CB_Info
     {
         uint32_t wtb_millis; // Time between waking up and this NODE receiving the broadcast message
-        uint32_t prev_data_transmissions; // Number of data/id_check/fwd tranmissions in the PREVIOUS cycle
+        uint8_t prev_data_transmissions; // Number of data/id_check/fwd tranmissions in the PREVIOUS cycle
+        uint8_t hop_count;
         bool first_callback; // Whether this callback call is the first one this cycle (allows for initialization)
 
-        SEEL_CB_Info() : wtb_millis(0), prev_data_transmissions(0), first_callback(false) {}
+        SEEL_CB_Info() : wtb_millis(0), prev_data_transmissions(0), hop_count(0), first_callback(false) {}
     };
 
     // ***************************************************
@@ -93,17 +94,17 @@ protected:
     RH_RF95* _rf95_ptr;
 
     SEEL_Queue<SEEL_Message> _data_queue; // includes ID_CHECK and FWD msgs
-    SEEL_Queue<int> _ack_queue;
+    SEEL_Queue<uint8_t> _ack_queue;
     SEEL_Message _bcast_msg;
+    SEEL_CB_Info _cb_info;
 
-    uint32_t _node_id;
-    uint32_t _parent_id;
-    uint32_t _tdma_slot; // TDMA
     uint32_t _last_msg_sent_time; // Exponential Backoff (EB), how long ago last msg was sent
     uint32_t _msg_send_delay; // EB, how long to delay until next transmission attempt
     uint32_t _unack_msgs; // EB, number of unacked msgs so far, reset to 0 on msg ack
-    uint32_t _hop_count;
     uint32_t _data_msgs_sent; // includes ID_CHECK and FWD msgs, tracks how many data msgs we sent
+    uint8_t _node_id;
+    uint8_t _parent_id;
+    uint8_t _tdma_slot; // TDMA
     uint8_t _seq_num; // Note: Will overflow after 255, but overflow does not affect functionality since seq_num serves to differentiate msgs
     int8_t _path_rssi; // changes based on parent selection mode
     bool _id_verified;

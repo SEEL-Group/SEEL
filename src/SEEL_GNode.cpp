@@ -26,7 +26,7 @@ void SEEL_GNode::init(  SEEL_Scheduler* ref_scheduler,
     _snode_sleep_time_secs = cycle_period_secs - snode_awake_time_secs;
     _cycle_period_secs = cycle_period_secs;
     _bcast_count = 0;
-    _hop_count = 0;
+    _cb_info.hop_count = 0;
     _path_rssi = 0;
     _first_bcast = true;
 
@@ -132,7 +132,7 @@ void SEEL_GNode::SEEL_Task_GNode_Receive::run()
 {
     SEEL_Message msg;
     int8_t msg_rssi;
-    // Check if there is even a message available
+    // Check if there is a message available
     if (!_inst->rfm_receive_msg(&msg, msg_rssi))
     {
         // No message is available
@@ -234,7 +234,7 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
     to_send.data[SEEL_MSG_DATA_SLEEP_TIME_SECONDS_INDEX + 3] = (uint8_t) (_inst->_snode_sleep_time_secs);
 
     // Parent selection info
-    to_send.data[SEEL_MSG_DATA_HOP_COUNT_INDEX] = (uint8_t) (_inst->_hop_count);
+    to_send.data[SEEL_MSG_DATA_HOP_COUNT_INDEX] = (uint8_t) (_inst->_cb_info.hop_count);
     to_send.data[SEEL_MSG_DATA_RSSI_INDEX] = (uint8_t) (0); // Filled out later by SNODEs
 
     uint32_t system_time = millis();
