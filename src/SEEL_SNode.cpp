@@ -64,13 +64,14 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
     _inst->_cb_info.wtb_millis = millis();
     _inst->_msg_send_delay = 0;
     _inst->_unack_msgs = 0;
+    _inst->_data_msgs_sent = 0;
     _inst->_bcast_received = false;
     _inst->_parent_sync = false;
     _inst->_cb_info.first_callback = true; // Allows ability to only send 1 message per cycle
     _inst->_bcast_avail = false;
     _inst->_bcast_sent = false; // Set to true in SEEL_Node.cpp when bcast msg sent out
 
-    _inst->_hop_count = UINT32_MAX;
+    _inst->_cb_info.hop_count = UINT8_MAX;
     _inst->_path_rssi = INT8_MIN;
 
     // Clear ack queue
@@ -111,6 +112,7 @@ bool SEEL_SNode::bcast_setup(SEEL_Message &msg)
     millis_update += (uint32_t)msg.data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 1] << 16;
     millis_update += (uint32_t)msg.data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 2] << 8;
     millis_update += (uint32_t)msg.data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 3];
+    millis_update += SEEL_TRANSMISSION_DURATION_MILLIS; // Account for transmission delay
     uint32_t millis_old = millis();
     _ref_scheduler->set_millis(millis_update);
 
@@ -136,7 +138,7 @@ bool SEEL_SNode::bcast_setup(SEEL_Message &msg)
     _snode_sleep_time_secs += (uint32_t)msg.data[SEEL_MSG_DATA_SLEEP_TIME_SECONDS_INDEX + 2] << 8;
     _snode_sleep_time_secs += (uint32_t)msg.data[SEEL_MSG_DATA_SLEEP_TIME_SECONDS_INDEX + 3];
 
-    // Add sleep ASAP to keep time consistent, should be done AFTER local and awake times are updated
+    // Add sleep ASAP to keep awake time accurate, should be done AFTER local and awake times are updated
     _ref_scheduler->add_task(&_task_sleep, _snode_awake_time_secs * SEEL_SECS_TO_MILLIS); // Delay sleep task by time node should be awake
 
     return first_bcast;
@@ -175,7 +177,10 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
             SEEL_Print::println(F("Blacklist clear")); // Blacklist: clear
             _inst->_bcast_blacklist.clear();
         }
-        _inst->_acked = false; 
+        if (!_inst->_parent_sync)
+        {
+            _inst->_acked = false;
+        }
         _inst->_bcast_last_seqnum = msg.seq_num;
         uint32_t prev_missed_bcasts = _inst->_missed_bcasts;
         _inst->_missed_bcasts = 0;
@@ -196,7 +201,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                 {
                     _inst->_parent_id = msg.send_id;
                     _inst->_path_rssi = msg_rssi;
-                    _inst->_hop_count = incoming_hop_count;
+                    _inst->_cb_info.hop_count = incoming_hop_count;
                     new_parent = true;
                 }
             } 
@@ -215,11 +220,11 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
 
                 // A parent is considered better if it has a lower hop count to the GNODE, 
                 // with ties broken by RSSI (RSSI value used depends on the PSEL mode)
-                if(incoming_hop_count < _inst->_hop_count || 
-                    (_inst->_hop_count == incoming_hop_count && rssi_mode_value > _inst->_path_rssi))
+                if(incoming_hop_count < _inst->_cb_info.hop_count || 
+                    (_inst->_cb_info.hop_count == incoming_hop_count && rssi_mode_value > _inst->_path_rssi))
                 {
                     _inst->_parent_id = msg.send_id;
-                    _inst->_hop_count = incoming_hop_count;
+                    _inst->_cb_info.hop_count = incoming_hop_count;
                     _inst->_path_rssi = rssi_mode_value;
                     new_parent = true;
                 }
@@ -227,17 +232,18 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
 
             if (new_parent)
             {
+                _inst->_acked = false;
+                _inst->_bcast_msg = msg;
+                _inst->_bcast_avail = true;
                 SEEL_Print::print(F("Parent: ")); // Parent
                 SEEL_Print::print(_inst->_parent_id);
                 SEEL_Print::print(F(", RSSI: ")); // RSSI
                 SEEL_Print::print(_inst->_path_rssi);
                 SEEL_Print::print(F(", Hop Count: "));
-                SEEL_Print::println(_inst->_hop_count); // Hop Count
+                SEEL_Print::println(_inst->_cb_info.hop_count); // Hop Count
             }
 
-            _inst->_bcast_msg = msg;
-            _inst->_bcast_avail = true;
-
+            // Only do the following tasks on the first parent connected
             if(!_inst->_parent_sync)
             {
                 uint32_t prev_sleep_time_secs = _inst->_snode_sleep_time_secs;
@@ -308,7 +314,6 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
             // Logic described above with the other call to bcast_setup
             _inst->_system_sync &= _inst->bcast_setup(msg);
         }
-
     } // end message is bcast
     else if (msg.cmd == SEEL_CMD_ACK && _inst->_unack_msgs > 0) // Only ack if ack is needed, acks have no target
     {
@@ -456,24 +461,23 @@ bool SEEL_SNode::bcast_id_check(SEEL_Message* msg)
         }
     }
 
-    #if SEEL_MSG_USER_SIZE > 0 // Compiler conditional otherwise there is warning about unsigned comparison
-        for (uint32_t i = 0; (i + 1) < SEEL_MSG_USER_SIZE && !found; i += 2) // Make sure both slots exist
+    // TODO: There is warning about unsigned comparison
+    for (uint32_t i = 0; (i + 1) < SEEL_MSG_USER_SIZE && !found; i += 2) // Make sure both slots exist
+    {
+        if ((SEEL_MSG_DATA_USER_INDEX + i + 1) >= sizeof(msg->data)) // msg->data contains bytes, so sizeof by itself works
         {
-            if ((SEEL_MSG_DATA_USER_INDEX + i + 1) >= sizeof(msg->data)) // msg->data contains bytes, so sizeof by itself works
-            {
-                // Safety check, error can occur when snode and gnode are not updated at the same time and
-                // snode has more user slots than gnode. Leads to array access in unallocated memory.
-                SEEL_Print::println(F("Error - Slot Mismatch")); // Error - Slot mismatch
-                break;
-            }
-
-            if (msg->data[SEEL_MSG_DATA_USER_INDEX + i] == _node_id)
-            {
-                suggested_id = msg->data[SEEL_MSG_DATA_USER_INDEX + i + 1];
-                found = true;
-            }
+            // Safety check, error can occur when snode and gnode are not updated at the same time and
+            // snode has more user slots than gnode. Leads to array access in unallocated memory.
+            SEEL_Print::println(F("Error - Slot Mismatch")); // Error - Slot mismatch
+            break;
         }
-    #endif
+
+        if (msg->data[SEEL_MSG_DATA_USER_INDEX + i] == _node_id)
+        {
+            suggested_id = msg->data[SEEL_MSG_DATA_USER_INDEX + i + 1];
+            found = true;
+        }
+    }
 
     if (found)
     {
@@ -571,7 +575,6 @@ void SEEL_SNode::sleep()
     {
         // Make signed int since awake duration could be smaller than specified, then sleep longer
         int32_t extra_awake_time_millis = (SEEL_FORCE_SLEEP_AWAKE_MULT * pow(SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE, _missed_bcasts - 1) - 1) * _snode_awake_time_secs * SEEL_SECS_TO_MILLIS;
-        SEEL_Print::print(F("DEBUG: ")); SEEL_Print::println(extra_awake_time_millis); 
         // Sleep needs to be calculated a different way since SNODE stayed awake longer than specified
         sleep_counts = ((_snode_sleep_time_secs * SEEL_SECS_TO_MILLIS) - extra_awake_time_millis -
         SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS - _sleep_time_offset_millis) / _sleep_time_estimate_millis;
@@ -580,7 +583,7 @@ void SEEL_SNode::sleep()
 
     SEEL_Print::print(F("Sleeping for ")); SEEL_Print::print(sleep_counts); SEEL_Print::println(F(" counts"));
     SEEL_Print::flush();
-    for (uint32_t i = 0; i < sleep_counts; ++i)
+    for (int32_t i = 0; i < sleep_counts; ++i)
     {
         LowPower.powerDown(SEEL_WD_TIMER_DUR, ADC_OFF, BOD_OFF);
     }

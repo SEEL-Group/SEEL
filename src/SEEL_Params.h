@@ -27,7 +27,7 @@ const int8_t SEEL_RFM95_SNODE_CR = 5; // 5 to 8
 // Influences the ToA of a message, which may require changing TDMA parameters (if using TDMA)
 // More allocated bytes lets users send more data at a time, allows more SNODEs to join the network per cycle,
 // and increases the number of NODEs that can be ACK'd per ACK message
-const uint32_t SEEL_MSG_USER_SIZE = 0;
+const uint32_t SEEL_MSG_USER_SIZE = 2;
 
 // Duplicate msg holder
 // How many messages to hold when checking for duplicates
@@ -37,7 +37,7 @@ const uint8_t SEEL_DUP_MSG_SIZE = 3;
 /* SEEL_GNode */
 
 // Maximum of 2^(targ_id/send_id size)
-// HIGH impact on device memory
+// HIGH impact on device memory for GNODE
 const uint16_t SEEL_MAX_NODES = 128;
 
 // Node kick-out
@@ -48,6 +48,10 @@ const uint8_t SEEL_MAX_CYCLE_MISSES = 10;
 
 // ***************************************************
 /* SEEL_SNode */
+
+// Upperbound transmission duration estimate used to create TDMA slot widths and correct for 
+// transmission delay when time sychronizing
+const uint32_t SEEL_TRANSMISSION_DURATION_MILLIS = 800;
 
 // When to timeout node when sending function not returning
 const uint32_t SEEL_SEND_TIMEOUT_MILLIS = 5000;
@@ -86,7 +90,7 @@ enum SEEL_PARENT_SELECTION_MODE
 {
     SEEL_PSEL_FIRST_BROADCAST, // Selects parent based off of sender of first received broadcast message
     SEEL_PSEL_IMMEDIATE_RSSI,  // Selects parent based off of the immediate sender with the largest RSSI among received broadcast messages
-    SEEL_PSEL_PATH_RSSI // Selects parent with the best path RSSI, where path RSSI is determined by the worse RSSI along the path
+    SEEL_PSEL_PATH_RSSI // Selects parent with the best path RSSI, where path RSSI is determined by the worst RSSI along the path
 };
 // If enabled, collects broadcasts for a duration of SEEL_SMART_PARENT_DURATION_MILLIS and chooses node with highest RSSI to be parent. 
 // If SEEL_SMART_PARENT_DURATION_MILLIS=0 then SNode will collect broadcasts until it's time to send broadcast.
@@ -98,10 +102,9 @@ const uint32_t SEEL_PSEL_DURATION_MILLIS = 0; // Should be much less than awake 
 // Pros: Shorter wait window, more predictable performance
 // Cons: Requires user setup and calculation unique to each deployment
 const bool SEEL_TDMA_USE_TDMA = true; // Otherwise uses Exponential backoff
-const uint8_t SEEL_TDMA_SLOTS = 5; // Maximum group of nodes, first slot begins at 0
-const uint32_t SEEL_TDMA_TRANSMISSION_DURATION_MILLIS = 1000; // Max transmission duration used to create TDMA slot widths
-const uint32_t SEEL_TDMA_BUFFER_MILLIS = 500; // Buffer time between scheduled TMDA transmissions
-const uint32_t SEEL_TDMA_SLOT_WAIT_MILLIS = SEEL_TDMA_TRANSMISSION_DURATION_MILLIS + SEEL_TDMA_BUFFER_MILLIS;
+const uint8_t SEEL_TDMA_SLOTS = 10; // Maximum group of nodes, first slot begins at 0
+const uint32_t SEEL_TDMA_BUFFER_MILLIS = 200; // Buffer time between scheduled TMDA transmissions
+const uint32_t SEEL_TDMA_SLOT_WAIT_MILLIS = SEEL_TRANSMISSION_DURATION_MILLIS + SEEL_TDMA_BUFFER_MILLIS;
 const uint32_t SEEL_TDMA_CYCLE_TIME_MILLIS = SEEL_TDMA_SLOT_WAIT_MILLIS * SEEL_TDMA_SLOTS;
 
 // Collision avoidance scheme 2: Exponential backoff 
@@ -117,6 +120,6 @@ const uint8_t SEEL_RANDOM_SEED_PIN = 0;
 
 // ***************************************************
 /* SEEL_Queue */
-const uint8_t SEEL_QUEUE_ALLOCATION_SIZE = 8; // Allocation size of ALL queues used in SEEL
+const uint8_t SEEL_QUEUE_ALLOCATION_SIZE = 7; // Allocation size of ALL queues used in SEEL
 
 #endif // SEEL_Params

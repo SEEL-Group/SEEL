@@ -95,6 +95,8 @@ bool SEEL_Queue<T>::add(const T& val, bool wrap)
 {
     if (wrap && _q_size >= SEEL_QUEUE_ALLOCATION_SIZE)
     {
+        SEEL_Print::println(F("QUEUE FULL")); 
+        SEEL_Print::flush();
         pop_front();
     }
 
