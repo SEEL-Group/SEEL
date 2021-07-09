@@ -170,11 +170,13 @@ def main():
         connections = [0] * len(node_assignments)
         connections_rssi = [0] * len(node_assignments)
         queue_full_counter = 0
+        first_wtb = True
 
-        total_bcasts_for_node = total_bcasts - bcast_instances[node_id]
+        total_bcasts_for_node = total_bcasts - bcast_instances[node_id] + 1
 
+        print("Node " + str(node_id))
         for msg in node:
-
+            print(msg)
             if msg.bcast_num != prev_bcast_num:
                 connection_count += 1
                 prev_bcast_num = msg.bcast_num
@@ -191,7 +193,6 @@ def main():
                 # not a duplicate message
                 duplicate_msg_tracker[msg.send_count] = msg.bcast_num
 
-
             if not dup:
                 # remove previously missed packet if the packet came in late
                 if dropped_packet_tracker.count(msg.send_count) > 0:
@@ -204,7 +205,11 @@ def main():
                         dropped_packet_tracker.append(i)
                 send_count_tracker = msg.send_count
 
-                wtb.append(msg.wtb)
+                # Ignore first WTB during analysis since not system sync'd yet
+                if not first_wtb:
+                    wtb.append(msg.wtb)
+                else:
+                    first_wtb = False
 
                 # Not all sent msgs are received, "prev_trans" indicates how many total transmissions 
                 # were done by the node in the previous cycle. Duplicates within a cycle can exist
@@ -219,12 +224,11 @@ def main():
                 if msg.queue_full > 0:
                     queue_full_counter += 1
 
-        print("Node " + str(node_id))
         print("\tJoined Network on Bcast: " + str(bcast_instances[node_id]))
         print("\tTotal Received Messages: " + str(node_msgs))
         print("\tDuplicate Messages: " + str(duplicate_msg))
-        print("\tDropped Packets: " + str(dropped_packets))
-        print("\tDropped Packets2: " + str(total_bcasts_for_node - (node_msgs - duplicate_msg)))
+        #print("\tDropped Packets: " + str(dropped_packets))
+        print("\tDropped Packets: " + str(total_bcasts_for_node - (node_msgs - duplicate_msg)))
         print("\tConnection Percentage: " + str(connection_count / total_bcasts_for_node))
         print("\tReceived Percentage: " + str((node_msgs - duplicate_msg) / total_bcasts_for_node))
         print("\tMean WTB: " + str(statistics.mean(wtb)))
