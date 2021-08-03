@@ -21,3 +21,9 @@ Check the documentation file (provided in this repository) for more details.
 5) See advanced install instructions (such as logging setup) in SEEL_documentation.pdf
 
 *****************************************************************************
+
+If you are interested in discussing commercial applications of SEEL, please contact:
+zboyang@umich.edu or dickrp@umich.edu
+
+Please contact the University of Michigan Office of Technology Transfer for a quote and licensing options.
+techtransfer@umich.edu
