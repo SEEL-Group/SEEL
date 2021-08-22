@@ -29,9 +29,12 @@ public:
         uint32_t wtb_millis; // Time between waking up and this NODE receiving the broadcast message
         uint8_t prev_data_transmissions; // Number of data/id_check/fwd tranmissions in the PREVIOUS cycle
         uint8_t hop_count;
+        uint8_t missed_bcasts;
+        uint8_t data_queue_size;
         bool first_callback; // Whether this callback call is the first one this cycle (allows for initialization)
 
-        SEEL_CB_Info() : wtb_millis(0), prev_data_transmissions(0), hop_count(0), first_callback(false) {}
+        SEEL_CB_Info() : wtb_millis(0), prev_data_transmissions(0), hop_count(0), missed_bcasts(0), 
+        data_queue_size(0), first_callback(false) {}
     };
 
     // ***************************************************
@@ -102,6 +105,7 @@ protected:
     uint32_t _msg_send_delay; // EB, how long to delay until next transmission attempt
     uint32_t _unack_msgs; // EB, number of unacked msgs so far, reset to 0 on msg ack
     uint32_t _data_msgs_sent; // includes ID_CHECK and FWD msgs, tracks how many data msgs we sent
+    uint32_t _tranmission_ToA; // estimate on ToA based on last measured transmission. Should be consistent since transmission parameters are consistent
     uint8_t _node_id;
     uint8_t _parent_id;
     uint8_t _tdma_slot; // TDMA

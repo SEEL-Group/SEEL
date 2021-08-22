@@ -74,9 +74,10 @@ const uint8_t SEEL_MSG_DATA_ID_FEEDBACK_DEFAULT_SIZE = 2; // Actual size is 2*fl
 const uint8_t SEEL_MSG_DATA_USER_INDEX = 17;  // USER_SIZE defined in SEEL_Params.h
 const uint8_t SEEL_MSG_DATA_ID_FEEDBACK_TOTAL_SIZE = SEEL_MSG_DATA_ID_FEEDBACK_DEFAULT_SIZE + SEEL_MSG_USER_SIZE;
 
-/* ID Info */
+/* MSG Info and Signals */
 const uint8_t SEEL_GNODE_ID = 0;
 const uint8_t SEEL_ID_CHECK_ERROR = 0;
+const uint8_t SEEL_BCAST_FB = 1; // Signals the system has restarted and that the bcast msg is the first one (for init purposes). Otherwise 0.
 
 /* MISC */
 const uint32_t SEEL_SECS_TO_MILLIS = 1000;

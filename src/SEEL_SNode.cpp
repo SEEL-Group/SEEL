@@ -42,6 +42,7 @@ void SEEL_SNode::init(  SEEL_Scheduler* ref_scheduler,
     _sleep_time_estimate_millis = SEEL_ADJUSTED_SLEEP_INITAL_ESTIMATE_MILLIS;
     _sleep_time_offset_millis = 0;
     _missed_bcasts = 0;
+    _last_parent = 0;
     _id_verified = false;
     _system_sync = false;
     _acked = true;
@@ -86,33 +87,39 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
     // Force sleep, so SNODE can sleep even if it misses the bcast
     // Cannot force sleep until WD timer is properly adjusted
     // After SEEL_FORCE_SLEEP_RESET_COUNT of missed bcasts, disable forced sleep
-    if (_inst->_WD_adjusted &&_inst-> _missed_bcasts < SEEL_FORCE_SLEEP_RESET_COUNT)
+    if (_inst->_WD_adjusted && _inst->_missed_bcasts < SEEL_FORCE_SLEEP_RESET_COUNT)
     {
         _inst->_ref_scheduler->add_task(&_inst->_task_force_sleep,
             SEEL_FORCE_SLEEP_AWAKE_MULT * _inst->_snode_awake_time_secs * SEEL_SECS_TO_MILLIS *
-            pow(SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE, _inst->_missed_bcasts));
+            pow(SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE, _inst->_missed_bcasts + 1));
     }
     else
     {
         // WD_adjusted turns from true to false here if there are too many missed bcasts
         // With too many missed bcasts, the WD timer may have drifted too far, so force re-adjust
         _inst->_WD_adjusted = false;
+
+        // Reset sleep estimate since the oversleep issue could be due to inaccurate sleep time estimate
+        // Not reset the estimate may cause a over-sleep loop since estimate not adjusted normally after missed bcasts
+        _inst->_sleep_time_estimate_millis = SEEL_ADJUSTED_SLEEP_INITAL_ESTIMATE_MILLIS;
     }
 }
 
-bool SEEL_SNode::bcast_setup(SEEL_Message &msg)
+void SEEL_SNode::bcast_setup(SEEL_Message &msg)
 {
+    SEEL_Print::println(F("DEBUG: BCAST SETUP RUNNING"));
     // Calculate wakeup-to-bcast time before time shift
+    SEEL_Print::println(_cb_info.wtb_millis);
     _cb_info.wtb_millis = millis() - _cb_info.wtb_millis;
-
+    SEEL_Print::println(_cb_info.wtb_millis);
     // Update system with values from bcast, values stored in Big Endian (MSB in lower address)
-    // Update local time
+    
+    // Update local time, transmission delay is accounted for on sender side
     uint32_t millis_update = 0;
     millis_update += (uint32_t)msg.data[SEEL_MSG_DATA_TIME_SYNC_INDEX] << 24;
     millis_update += (uint32_t)msg.data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 1] << 16;
     millis_update += (uint32_t)msg.data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 2] << 8;
     millis_update += (uint32_t)msg.data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 3];
-    millis_update += SEEL_TRANSMISSION_DURATION_MILLIS; // Account for transmission delay
     uint32_t millis_old = millis();
     _ref_scheduler->set_millis(millis_update);
 
@@ -123,7 +130,9 @@ bool SEEL_SNode::bcast_setup(SEEL_Message &msg)
     // Note: Large time jumps (a difference bigger than int32_max) may cause tasks to run earlier than scheduled
     _ref_scheduler->offset_task_times((int32_t)millis_update - (int32_t)millis_old);
 
-    bool first_bcast = (msg.data[SEEL_MSG_DATA_FIRST_BCAST_INDEX] > 0);
+    // SEEL_MSG_DATA_FIRST_BCAST_INDEX index is 1 if first bcast, otherwise 0
+    // system_sync should only be true if it was previously sync'd and the msg is NOT a first_bcast
+    _system_sync &= (msg.data[SEEL_MSG_DATA_FIRST_BCAST_INDEX] != SEEL_BCAST_FB);
 
     // Update awake time, stored time in seconds, big Endian
     _snode_awake_time_secs = 0;
@@ -139,9 +148,17 @@ bool SEEL_SNode::bcast_setup(SEEL_Message &msg)
     _snode_sleep_time_secs += (uint32_t)msg.data[SEEL_MSG_DATA_SLEEP_TIME_SECONDS_INDEX + 3];
 
     // Add sleep ASAP to keep awake time accurate, should be done AFTER local and awake times are updated
-    _ref_scheduler->add_task(&_task_sleep, _snode_awake_time_secs * SEEL_SECS_TO_MILLIS); // Delay sleep task by time node should be awake
-
-    return first_bcast;
+    // Parenting off a new SNODE parent may cause delays to miss original nodes
+    // so stay awake less (by diff) if WTB greater than SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS
+    uint32_t awake_offset = 0;
+    if (_system_sync && _cb_info.missed_bcasts == 0 && _last_parent != _parent_id && 
+        _cb_info.wtb_millis >= SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS)
+    {
+        awake_offset = _cb_info.wtb_millis - SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS;
+    }
+    awake_offset = min(awake_offset, _snode_awake_time_secs * SEEL_SECS_TO_MILLIS); // Safety to prevent uint32 wraparound
+    SEEL_Print::print(F("DEBUG: AWAKE OFFSET: ")); SEEL_Print::println(awake_offset);
+    _ref_scheduler->add_task(&_task_sleep, _snode_awake_time_secs * SEEL_SECS_TO_MILLIS - awake_offset); // Delay sleep task by time node should be awake
 }
 
 void SEEL_SNode::SEEL_Task_SNode_Receive::run()
@@ -182,8 +199,6 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
             _inst->_acked = false;
         }
         _inst->_bcast_last_seqnum = msg.seq_num;
-        uint32_t prev_missed_bcasts = _inst->_missed_bcasts;
-        _inst->_missed_bcasts = 0;
 
         // Check to make sure sender is not in the broadcast blacklist. A blacklist is needed because
         // node sends (typically GNODE to SNODE) is sometimes asymmetrical in transmission distance.
@@ -246,17 +261,26 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
             // Only do the following tasks on the first parent connected
             if(!_inst->_parent_sync)
             {
+                _inst->_cb_info.missed_bcasts = _inst->_missed_bcasts;
+                _inst->_missed_bcasts = 0;
+
                 uint32_t prev_sleep_time_secs = _inst->_snode_sleep_time_secs;
                 
-                // bcast_setup returns true if the bcast is the first bcast from a GNODE (network restarted)
-                _inst->_system_sync &= !_inst->bcast_setup(msg); //efficiency runs twice on valid-first bcast
+                // bcast_setup may have already run from a blacklisted node, so check to
+                // make sure it only runs once
+                if (!_inst->_bcast_received)
+                {
+                    // bcast_setup returns true if the bcast is the first bcast from a GNODE (network restarted)
+                    _inst->bcast_setup(msg);
+                }
                 
                 SEEL_Print::print(F("WTB: ")); SEEL_Print::println(_inst->_cb_info.wtb_millis);
 
                 // Adjusting sleep-time, only adjust if we already have wtb data
                 // Dont adjust sleep if previous bcast was missed, since we do not know how long we actually slept for;
                 // there is no bcast reference to measure against
-                if(_inst->_system_sync == true && prev_missed_bcasts == 0)
+                // Make sure we have the same parent, otherwise WTB could be confounded by TDMA bcast delay
+                if(_inst->_system_sync && _inst->_cb_info.missed_bcasts == 0 && _inst->_last_parent == _inst->_parent_id)
                 {
                     uint32_t cycle_time_millis = (_inst->_snode_awake_time_secs + _inst->_snode_sleep_time_secs) * SEEL_SECS_TO_MILLIS;
                     uint32_t prev_sleep_counts = ((prev_sleep_time_secs * SEEL_SECS_TO_MILLIS) - 
@@ -268,6 +292,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                     uint32_t actual_sleep_time_millis = ((prev_sleep_time_secs * SEEL_SECS_TO_MILLIS) - wtb_trimmed_millis);
                     
                     // SNODE woke up too late if trimmed WTB is longer than specified sleep time
+                    // Does not activate if SNODE is sleeping early
                     if (wtb_trimmed_millis > prev_sleep_time_secs * SEEL_SECS_TO_MILLIS)
                     {
                         // Adjust the sleep time offset to prevent oversleeping again
@@ -309,12 +334,12 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                 _inst->_ref_scheduler->add_task(&_inst->_task_send); // Only start sending messages when broadcast is received and processed
             }
         }
-        else if(!_inst->_bcast_received)
+        else if(!_inst->_bcast_received) // Received bcast from blacklist node, but can still take time sync and sleep info
         {
             // Logic described above with the other call to bcast_setup
-            _inst->_system_sync &= _inst->bcast_setup(msg);
+            _inst->bcast_setup(msg);
         }
-    } // end message is bcast
+    } // End Bcast Msg block
     else if (msg.cmd == SEEL_CMD_ACK && _inst->_unack_msgs > 0) // Only ack if ack is needed, acks have no target
     {
         // Check if ACK involves this node
@@ -397,6 +422,7 @@ void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
 {
     // Store any info messages
     _inst->_cb_info.prev_data_transmissions = _inst->_data_msgs_sent;
+    _inst->_last_parent = _inst->_parent_id;
 
     // A parent was selected and a (ack-needed) msg was sent to parent, but parent never responded back
     if (_inst->_parent_sync && !_inst->_acked && _inst->_data_msgs_sent > 0) 
@@ -550,7 +576,8 @@ bool SEEL_SNode::enqueue_data()
     // Returns (true/false) whether the message should be sent out
     if (_id_verified)
     {
-        bool enqueue_user_message = _user_cb_load(msg_data, &_cb_info, _data_queue.size() >= _data_queue.max_size());
+        _cb_info.data_queue_size = _data_queue.size();
+        bool enqueue_user_message = _user_cb_load(msg_data, &_cb_info);
         _cb_info.first_callback = false;
 
         if (enqueue_user_message)
@@ -574,7 +601,7 @@ void SEEL_SNode::sleep()
     if (_missed_bcasts > 0)
     {
         // Make signed int since awake duration could be smaller than specified, then sleep longer
-        int32_t extra_awake_time_millis = (SEEL_FORCE_SLEEP_AWAKE_MULT * pow(SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE, _missed_bcasts - 1) - 1) * _snode_awake_time_secs * SEEL_SECS_TO_MILLIS;
+        int32_t extra_awake_time_millis = (SEEL_FORCE_SLEEP_AWAKE_MULT * pow(SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE, _missed_bcasts) - 1) * _snode_awake_time_secs * SEEL_SECS_TO_MILLIS;
         // Sleep needs to be calculated a different way since SNODE stayed awake longer than specified
         sleep_counts = ((_snode_sleep_time_secs * SEEL_SECS_TO_MILLIS) - extra_awake_time_millis -
         SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS - _sleep_time_offset_millis) / _sleep_time_estimate_millis;

@@ -49,8 +49,8 @@ const uint8_t SEEL_MAX_CYCLE_MISSES = 10;
 // ***************************************************
 /* SEEL_SNode */
 
-// Upperbound transmission duration estimate used to create TDMA slot widths and correct for 
-// transmission delay when time sychronizing
+// Upperbound transmission duration used to create TDMA slot widths. Also used as initial estimate 
+// to correct for transmission delay when time sychronizing; value will be updated with measured msg send ToA
 const uint32_t SEEL_TRANSMISSION_DURATION_MILLIS = 800;
 
 // When to timeout node when sending function not returning
@@ -66,18 +66,18 @@ const period_t SEEL_WD_TIMER_DUR = SLEEP_8S; // From LowPower.h
 const uint32_t SEEL_ADJUSTED_SLEEP_INITAL_ESTIMATE_MILLIS = 10000;
 // How early to wake up SNODE to prepare for bcast
 // Consider making this value bigger as the sleep time increases to have a safer margin of error from WD's deviation
-const uint32_t SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS = 1000;
+const uint32_t SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS = 10000;
 
 // Enabling force sleep makes SNODEs go to sleep after being awake for the maximum awake time
 // Note awake time for force sleep starts taking awake time since wake up, not when the bcast msg was received
 // Thus (max awake) = (specified awake time * SEEL_FORCE_SLEEP_AWAKE_MULT) + (WTB time)
 // Note SEEL_FORCE_SLEEP_AWAKE_MULT should be greater than one (to account for WTB time) and the total max awake time should be less than the specified sleep time
 // Since (if set correctly) force sleep activating means the broadcast msg was missed, the SNODE may use old specified sleep values
-const float SEEL_FORCE_SLEEP_AWAKE_MULT = 1;
+const float SEEL_FORCE_SLEEP_AWAKE_MULT = 1.0f;
 // Adjust awake duration multiplicatively by SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE since force sleep
 // wakes up SNODE earlier and earlier each bcast miss due to WTB
 // awake duration = (specified awake duration) * (SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE ^ (missed bcasts)) 
-const float SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE = 1.1;
+const float SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE = 1.25f;
 // After SEEL_FORCE_SLEEP_RESET_COUNT bcasts are missed, force sleep is disabled and the SNODE stays awake
 // until receiving the next bcast
 // On receiving a bcast, the missed bcast counter is set to 0
@@ -103,7 +103,7 @@ const uint32_t SEEL_PSEL_DURATION_MILLIS = 0; // Should be much less than awake 
 // Cons: Requires user setup and calculation unique to each deployment
 const bool SEEL_TDMA_USE_TDMA = true; // Otherwise uses Exponential backoff
 const uint8_t SEEL_TDMA_SLOTS = 10; // Maximum group of nodes, first slot begins at 0
-const uint32_t SEEL_TDMA_BUFFER_MILLIS = 200; // Buffer time between scheduled TMDA transmissions
+const uint32_t SEEL_TDMA_BUFFER_MILLIS = 1000; // Buffer time between scheduled TMDA transmissions
 const uint32_t SEEL_TDMA_SLOT_WAIT_MILLIS = SEEL_TRANSMISSION_DURATION_MILLIS + SEEL_TDMA_BUFFER_MILLIS;
 const uint32_t SEEL_TDMA_CYCLE_TIME_MILLIS = SEEL_TDMA_SLOT_WAIT_MILLIS * SEEL_TDMA_SLOTS;
 

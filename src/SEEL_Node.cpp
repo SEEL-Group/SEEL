@@ -20,6 +20,7 @@ void SEEL_Node::init(uint32_t n_id, uint32_t ts)
     }
 
     _id_verified = true;
+    _tranmission_ToA = SEEL_TRANSMISSION_DURATION_MILLIS;
 
     _task_send.set_inst(this);
 }
@@ -89,13 +90,14 @@ bool SEEL_Node::rfm_send_msg(SEEL_Message* msg, uint8_t seq_num, uint16_t timeou
         }
     }
 
-    uint32_t send_time_end = millis();
+    // ToA should be consistent among transmissions since packet size and LoRa parameters are fixed
+    _tranmission_ToA = millis() - send_time_start;
     SEEL_Print::print(F("<<S: "));
     print_msg(msg);
     SEEL_Print::print(F(", Time: "));
     SEEL_Print::print(send_time_start);
     SEEL_Print::print(F(", ToA: ")); // Send duration (ToA, time in TX state) estimate
-    SEEL_Print::println(send_time_end - send_time_start);
+    SEEL_Print::println(_tranmission_ToA);
     SEEL_Print::flush();
 
     return true; // Message sent out
@@ -239,6 +241,8 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
     if (SEEL_TDMA_USE_TDMA)
     {
         uint32_t current_slot = (time_millis % SEEL_TDMA_CYCLE_TIME_MILLIS) / SEEL_TDMA_SLOT_WAIT_MILLIS;
+
+        // Compare with buffer because NODE should not send message if the msg is expected to finish after the slot
         can_send = (current_slot == _inst->_tdma_slot) && ((time_millis % SEEL_TDMA_SLOT_WAIT_MILLIS) < SEEL_TDMA_BUFFER_MILLIS);
     }
     else // Exponential Backoff
@@ -269,7 +273,8 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
         to_send_ptr->data[SEEL_MSG_DATA_RSSI_INDEX] = _inst->_path_rssi;
 
         // Update time info right before the send
-        uint32_t time_millis  = millis();
+        uint32_t time_millis = millis();
+        time_millis += _inst->_tranmission_ToA; // account for transmission delay beforehand
         to_send_ptr->data[SEEL_MSG_DATA_TIME_SYNC_INDEX] = (uint8_t) (time_millis >> 24);
         to_send_ptr->data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 1] = (uint8_t) (time_millis >> 16);
         to_send_ptr->data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 2] = (uint8_t) (time_millis >> 8);
