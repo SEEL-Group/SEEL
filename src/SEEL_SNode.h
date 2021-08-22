@@ -18,7 +18,7 @@ class SEEL_SNode: public SEEL_Node
 {
 public:
     // Typedefs
-    typedef bool (*user_callback_load_t)(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_CB_Info* info, const bool send_queue_full);
+    typedef bool (*user_callback_load_t)(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_CB_Info* info);
     typedef void (*user_callback_forwarding_t)(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const int8_t msg_rssi);
     
     // ***************************************************
@@ -81,7 +81,7 @@ private:
     // Generates random ID, excluding 0 (reserved for gateway)
     uint32_t generate_id();
 
-    bool bcast_setup(SEEL_Message &msg);
+    void bcast_setup(SEEL_Message &msg);
 
     bool bcast_id_check(SEEL_Message* msg);
 
@@ -107,6 +107,7 @@ private:
     uint32_t _sleep_time_offset_millis; // Offset used for future sleeps when SNODE misses broadcast
     uint8_t _bcast_last_seqnum;
     uint8_t _missed_bcasts;
+    uint8_t _last_parent;
     bool _bcast_received; // Set to false on wake-up, set to true on first broadcast received
     bool _parent_sync;  // Set to false on wake-up, set to true on first non-blacklist broadcast received
     bool _system_sync; // Set to false on Snode start-up, set to true on first non-blacklist broadcast received
