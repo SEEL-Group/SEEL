@@ -160,7 +160,8 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi)
                 SEEL_Print::print(buf[i]); SEEL_Print::print(F(" "));
             }
             rssi = _rf95_ptr->lastRssi();
-            SEEL_Print::print(F("RSSI: ")); SEEL_Print::println(rssi);
+            SEEL_Print::print(F("RSSI: ")); SEEL_Print::print(rssi);
+            SEEL_Print::print(F(", Time: ")); SEEL_Print::println(millis());
 
             if (buf_len == SEEL_MSG_TOTAL_SIZE) // Potential SEEL message
             {

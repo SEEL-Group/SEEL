@@ -120,15 +120,10 @@ void SEEL_SNode::bcast_setup(SEEL_Message &msg)
     millis_update += (uint32_t)msg.data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 1] << 16;
     millis_update += (uint32_t)msg.data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 2] << 8;
     millis_update += (uint32_t)msg.data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 3];
-    uint32_t millis_old = millis();
-    _ref_scheduler->set_millis(millis_update);
+    _ref_scheduler->adjust_time(millis_update);
 
     // Bcast will be modified such that sender becomes this node
     _bcast_received = true; // resets every cycle
-
-    // Correct times in Scheduler with updated times
-    // Note: Large time jumps (a difference bigger than int32_max) may cause tasks to run earlier than scheduled
-    _ref_scheduler->offset_task_times((int32_t)millis_update - (int32_t)millis_old);
 
     // SEEL_MSG_DATA_FIRST_BCAST_INDEX index is 1 if first bcast, otherwise 0
     // system_sync should only be true if it was previously sync'd and the msg is NOT a first_bcast
