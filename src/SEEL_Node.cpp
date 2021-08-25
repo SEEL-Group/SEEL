@@ -20,7 +20,7 @@ void SEEL_Node::init(uint32_t n_id, uint32_t ts)
     }
 
     _id_verified = true;
-    _tranmission_ToA = SEEL_TRANSMISSION_DURATION_MILLIS;
+    _tranmission_ToA = SEEL_TRANSMISSION_UB_DUR_MILLIS; // Set to upperbound initially and adjust dynamically
 
     _task_send.set_inst(this);
 }
@@ -94,7 +94,7 @@ bool SEEL_Node::rfm_send_msg(SEEL_Message* msg, uint8_t seq_num, uint16_t timeou
     _tranmission_ToA = millis() - send_time_start;
     SEEL_Print::print(F("<<S: "));
     print_msg(msg);
-    SEEL_Print::print(F(", Time: "));
+    SEEL_Print::print(F(", Start Time: "));
     SEEL_Print::print(send_time_start);
     SEEL_Print::print(F(", ToA: ")); // Send duration (ToA, time in TX state) estimate
     SEEL_Print::println(_tranmission_ToA);
