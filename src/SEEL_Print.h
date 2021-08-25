@@ -24,6 +24,18 @@ public:
     }
 
     template<typename T>
+    static size_t debug_value(T t)
+    {
+        if (_print_stream == NULL)
+        {
+            return 0;
+        }
+        
+        SEEL_Print::print(F("DEBUG: "));
+        return _print_stream->println(t);
+    }
+
+    template<typename T>
     static size_t print(T t)
     {
         if (_print_stream == NULL)

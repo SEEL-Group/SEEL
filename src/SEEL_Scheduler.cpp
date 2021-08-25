@@ -12,14 +12,14 @@ File purpose:   See SEEL_Scheduler.h
 bool SEEL_Scheduler::add_task(SEEL_Task* tf, uint32_t task_delay)
 {
     uint32_t tid = assign_task_id();
-    uint32_t current_time_millis = millis();
-    uint32_t time_to_run = current_time_millis + task_delay;
+    uint32_t current_millis = millis();
+    uint32_t time_to_run = current_millis + task_delay;
     
-    if (time_to_run < current_time_millis)
+    if (time_to_run < current_millis)
     {
         // Overflow will occur
-        handle_overflow();
-        time_to_run = millis() + task_delay;
+        zero_millis_timer();
+        time_to_run = current_millis + task_delay;
     }
     
     SEEL_Sched_Unit u(tf, time_to_run, task_delay, tid);
@@ -40,17 +40,18 @@ bool SEEL_Scheduler::get_task_info(uint32_t* ret_task_start_time, uint32_t* ret_
     return true;
 }
 
-void SEEL_Scheduler::offset_task_times(int32_t time_offset_millis)
+void SEEL_Scheduler::offset_task_times(int32_t offset_millis)
 {
+    uint32_t current_millis = millis();
     for (uint32_t i = 0; i < _scheduler_queue.size(); ++i)
     {
-        uint32_t ttr = _scheduler_queue.front()->time_to_run + time_offset_millis;
+        uint32_t ttr = _scheduler_queue.front()->time_to_run + offset_millis;
         
-        if (time_offset_millis > 0 && ttr < _scheduler_queue.front()->time_to_run)
+        if (offset_millis > 0 && ttr < current_millis)
         {
             // Overflow will occur
-            handle_overflow();
-            _scheduler_queue.front()->time_to_run += time_offset_millis;
+            zero_millis_timer();
+            _scheduler_queue.front()->time_to_run += offset_millis;
         }
         else
         {
@@ -61,16 +62,37 @@ void SEEL_Scheduler::offset_task_times(int32_t time_offset_millis)
     }
 }
 
-void SEEL_Scheduler::handle_overflow()
+// Need a function to reset the millis() timer since we do uint comparisons
+// System will likely get un-sync'd on overflow until next cycle
+void SEEL_Scheduler::zero_millis_timer()
 {   
     uint32_t original_millis = millis();
     set_millis(0);
 
     for (uint32_t i = 0; i < _scheduler_queue.size(); ++i)
     {
-        _scheduler_queue.front()->time_to_run -= original_millis;
+        if (_scheduler_queue.front()->time_to_run < original_millis)
+        {
+            // Task is overdue to run
+            _scheduler_queue.front()->time_to_run = 0;
+        }
+        else
+        {
+            _scheduler_queue.front()->time_to_run -= original_millis;
+        }
         _scheduler_queue.recycle_front();
     }
+}
+
+void SEEL_Scheduler::adjust_time(uint32_t new_millis)
+{
+    uint32_t old_millis = millis();
+
+    set_millis(new_millis);
+
+    // Correct times in Scheduler with updated times
+    // Note: Large time jumps (a difference bigger than int32_max) may cause tasks to run earlier than scheduled
+    offset_task_times((int32_t)new_millis - (int32_t)old_millis);
 }
 
 void SEEL_Scheduler::set_millis(uint32_t new_millis)

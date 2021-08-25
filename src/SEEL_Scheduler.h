@@ -54,10 +54,9 @@ public:
     
     // Millis() overflows in ~50 days; on overflow, tasks can run before they are scheduled
     // This method handles overflow by setting millis() to 0 and tasks to their relative run times
-    void handle_overflow();
+    void zero_millis_timer();
     
-    // Sets system time
-    void set_millis(uint32_t new_millis);
+    void adjust_time(uint32_t new_millis);
 private:
     // Structs & Classes
     
@@ -79,6 +78,9 @@ private:
         SEEL_Sched_Unit(SEEL_Task* rt, uint32_t ttr, uint32_t delay, uint32_t tid) 
         : ref_task(rt), time_to_run(ttr), delay_millis(delay), task_id(tid) {}
     };
+
+    // Sets system time
+    void set_millis(uint32_t new_millis);
 
     // Member variables
     SEEL_Queue<SEEL_Sched_Unit> _scheduler_queue;

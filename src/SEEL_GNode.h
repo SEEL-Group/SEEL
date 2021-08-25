@@ -32,6 +32,9 @@ public:
                 uint8_t cs_pin, uint8_t int_pin, 
                 uint32_t cycle_period_millis, uint32_t snode_awake_time_secs,
                 uint32_t tdma_slot);
+
+    // Tracks cumulative GNODE time since millis() is used for TDMA resets
+    uint32_t GNODE_millis() {return _cumulative_timer_millis;}
 private:
     // Structs & Classes
 
@@ -116,6 +119,7 @@ private:
     uint32_t _cycle_period_secs;
     uint32_t _snode_awake_time_secs;
     uint32_t _snode_sleep_time_secs;
+    uint32_t _cumulative_timer_millis;
     uint8_t _bcast_count;
     bool _first_bcast;
 };
