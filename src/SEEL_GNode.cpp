@@ -237,8 +237,8 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
     to_send.data[SEEL_MSG_DATA_HOP_COUNT_INDEX] = (uint8_t) (_inst->_cb_info.hop_count);
     to_send.data[SEEL_MSG_DATA_RSSI_INDEX] = (uint8_t) (0); // Filled out later by SNODEs
 
-    //uint32_t system_time = millis();
-    uint32_t system_time = 0; // Use a system time of 0 for better determinism and less TDMA collision chances
+    _ref_scheduler->set_millis(0); // Use a system time of 0 for better determinism and less TDMA collision chances
+    uint32_t system_time = millis();
     system_time += _inst->_tranmission_ToA; // account for transmission delay beforehand
     to_send.data[SEEL_MSG_DATA_TIME_SYNC_INDEX] = (uint8_t) (system_time >> 24);
     to_send.data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 1] = (uint8_t) (system_time >> 16);

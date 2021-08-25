@@ -51,7 +51,7 @@ const uint8_t SEEL_MAX_CYCLE_MISSES = 10;
 
 // Upperbound transmission duration used to create TDMA slot widths. Also used as initial estimate 
 // to correct for transmission delay when time sychronizing; value will be updated with measured msg send ToA
-const uint32_t SEEL_TRANSMISSION_DURATION_MILLIS = 800;
+const uint32_t SEEL_TRANSMISSION_UB_DUR_MILLIS = 800;
 
 // When to timeout node when sending function not returning
 const uint32_t SEEL_SEND_TIMEOUT_MILLIS = 5000;
@@ -103,8 +103,8 @@ const uint32_t SEEL_PSEL_DURATION_MILLIS = 0; // Should be much less than awake 
 // Cons: Requires user setup and calculation unique to each deployment
 const bool SEEL_TDMA_USE_TDMA = true; // Otherwise uses Exponential backoff
 const uint8_t SEEL_TDMA_SLOTS = 10; // Maximum group of nodes, first slot begins at 0
-const uint32_t SEEL_TDMA_BUFFER_MILLIS = 1000; // Buffer time between scheduled TMDA transmissions
-const uint32_t SEEL_TDMA_SLOT_WAIT_MILLIS = SEEL_TRANSMISSION_DURATION_MILLIS + SEEL_TDMA_BUFFER_MILLIS;
+const uint32_t SEEL_TDMA_BUFFER_MILLIS = 200; // Buffer time between scheduled TMDA transmissions
+const uint32_t SEEL_TDMA_SLOT_WAIT_MILLIS = SEEL_TRANSMISSION_UB_DUR_MILLIS + SEEL_TDMA_BUFFER_MILLIS;
 const uint32_t SEEL_TDMA_CYCLE_TIME_MILLIS = SEEL_TDMA_SLOT_WAIT_MILLIS * SEEL_TDMA_SLOTS;
 
 // Collision avoidance scheme 2: Exponential backoff 
