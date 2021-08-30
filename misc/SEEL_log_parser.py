@@ -133,7 +133,7 @@ def main():
                 if join_id != 0:
                     response = line[INDEX_BD_SNODE_JOIN_RESPONSE + repeat_index]
                     if response != 0: # Reponse of 0 means error
-                        print("join id: " + str(join_id) + " response: " + str(response) + " BT: " + str(bcast_times[-1]))
+                        print("join id: " + str(join_id) + " response: " + str(response) + " B. Join: " + str(len(bcast_times)))
                         node_mapping[response] = join_id
                         if node_assignments.count(join_id) == 0:
                             node_assignments.append(join_id)

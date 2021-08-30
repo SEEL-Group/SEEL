@@ -103,7 +103,7 @@ const uint32_t SEEL_PSEL_DURATION_MILLIS = 0; // Should be much less than awake 
 // Cons: Requires user setup and calculation unique to each deployment
 const bool SEEL_TDMA_USE_TDMA = true; // Otherwise uses Exponential backoff
 const uint8_t SEEL_TDMA_SLOTS = 10; // Maximum group of nodes, first slot begins at 0
-const uint32_t SEEL_TDMA_BUFFER_MILLIS = 200; // Buffer time between scheduled TMDA transmissions
+const uint32_t SEEL_TDMA_BUFFER_MILLIS = 700; // Buffer time between scheduled TMDA transmissions
 const uint32_t SEEL_TDMA_SLOT_WAIT_MILLIS = SEEL_TRANSMISSION_UB_DUR_MILLIS + SEEL_TDMA_BUFFER_MILLIS;
 const uint32_t SEEL_TDMA_CYCLE_TIME_MILLIS = SEEL_TDMA_SLOT_WAIT_MILLIS * SEEL_TDMA_SLOTS;
 
