@@ -9,8 +9,8 @@ const uint8_t SEEL_TDMA_SLOT_ASSIGNMENT = 0; // TDMA transmission slot, ignored 
 // Dictates how long SNODEs will be awake/asleep for. Sleep time is calculated by cycle time - awake time, both are converted to millis during calculation
 // Make sure awake/sleep times can be converted to millis without overflow
  // Units are in seconds to reduce field sizes in msg packet
-const uint32_t SEEL_CYCLE_PERIOD_SECS = 300;
-const uint32_t SEEL_SNODE_AWAKE_TIME_SECS = 45;
+const uint32_t SEEL_CYCLE_PERIOD_SECS = 3600;
+const uint32_t SEEL_SNODE_AWAKE_TIME_SECS = 120;
 
 /* RF95 Pin Assignments */
 const uint8_t RFM95_CS = 10; // Don't change these if using Dragino LG01
@@ -80,7 +80,7 @@ void user_callback_data(const uint8_t msg_data[SEEL_MSG_DATA_SIZE], const int8_t
   {
     uint8_t field_value = msg_data[i];
     // Record GNODE reception RSSI if GNODE is first parent
-    if (i == 7 && msg_data[6] == SEEL_GNODE_ID) // Corresponds to message locations hard-coded in the SNODE .ino file
+    if (i == 3 && msg_data[2] == SEEL_GNODE_ID) // Corresponds to message locations hard-coded in the SNODE .ino file
     {
       field_value = msg_rssi;
     }

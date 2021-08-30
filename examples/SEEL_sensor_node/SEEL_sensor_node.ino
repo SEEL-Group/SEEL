@@ -5,9 +5,10 @@
 const uint8_t SEEL_SNODE_ID = 1; // 0 is reserved for gateway nodes, use 0 to randomly generate ID
 const uint8_t SEEL_TDMA_SLOT_ASSIGNMENT = 1; // TDMA transmission slot, ignored if not using TDMA sending scheme. See SEEL documentation for advised slot configuration.
 
-/* RF95 Pin Assignments */
-const uint8_t SEEL_RFM95_CS = 10;
-const uint8_t SEEL_RFM95_INT = 2;
+/* Pin Assignments */
+const uint8_t SEEL_RFM95_CS_PIN = 10;
+const uint8_t SEEL_RFM95_INT_PIN = 2;
+const uint8_t SEEL_RNG_SEED_PIN = 0; // Make sure this pin is NOT connected
 
 /* SEEL Variables */
 SEEL_Scheduler seel_sched;
@@ -45,7 +46,7 @@ void user_function()
 // Read-Only Parameter: "info" contains misc SEEL info, defined in SEEL_Node.h
 // Read-Only Parameter: "send_queue_full" denotes whether send_queue for this device is full
 // Returns: true if the data message should be sent out
-bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::SEEL_CB_Info* info, const bool send_queue_full)
+bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::SEEL_CB_Info* info)
 {
   // The contents of this function are an example of what one can do with this CB function
   
@@ -53,7 +54,7 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
   {
     seel_sched.add_task(&user_task);
     send_ready = false;
-    
+
     return false;
   }
 
@@ -64,30 +65,26 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
   }
 
   // Pseudo check for if we're using the right message size to prevent out of bounds access
-  if (SEEL_MSG_MISC_SIZE >= 10)
+  if (SEEL_MSG_MISC_SIZE >= 13)
   {
-    msg_data[0] = (uint8_t)(info->wtb_millis >> 24);
-    msg_data[1] = (uint8_t)(info->wtb_millis >> 16);
-    msg_data[2] = (uint8_t)(info->wtb_millis >> 8);
-    msg_data[3] = (uint8_t)(info->wtb_millis);
-    msg_data[4] = info->prev_data_transmissions;
-    msg_data[5] = seel_snode.get_node_id();
-    msg_data[6] = SEEL_GNODE_ID; // Set to 0 (since if GNODE is parent, no modification necessary) for now, modify in fwd function by first parent node
-    msg_data[7] = 0; // Also set in fwd function by parent node
-    msg_data[8] = (uint8_t)(send_count >> 8);
-    msg_data[9] = (uint8_t)(send_count);
+    msg_data[0] = SEEL_SNODE_ID; // original ID
+    msg_data[1] = seel_snode.get_node_id(); // assigned ID
+    msg_data[2] = SEEL_GNODE_ID; // parent ID. Set to 0 (since if GNODE is parent, no modification necessary) for now, modify in fwd function by first parent node
+    msg_data[3] = 0; // parent RSSI. Also set in fwd function by parent node
+    msg_data[4] = (uint8_t)(info->wtb_millis >> 24); // WTB
+    msg_data[5] = (uint8_t)(info->wtb_millis >> 16);
+    msg_data[6] = (uint8_t)(info->wtb_millis >> 8);
+    msg_data[7] = (uint8_t)(info->wtb_millis);
+    msg_data[8] = info->prev_data_transmissions;
+    msg_data[9] = info->missed_bcasts;
+    msg_data[10] = info->data_queue_size;
+    msg_data[11] = (uint8_t)(send_count >> 8);
+    msg_data[12] = (uint8_t)(send_count);
 
     // Fill rest with zeros
-    for (uint32_t i = 10; i < SEEL_MSG_DATA_SIZE; ++i)
+    for (uint32_t i = 13; i < SEEL_MSG_DATA_SIZE; ++i)
     {
-      if (send_queue_full)
-      {
-        msg_data[i] = 1;
-      }
-      else
-      {
         msg_data[i] = 0;
-      }
     }
   }
 
@@ -106,18 +103,18 @@ void user_callback_forwarding(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const int8_t
 {
   // The contents of this function are an example of what one can do with this CB function
   
-  if (msg_data[6] == SEEL_GNODE_ID) // Only set for FIRST parent (If first parent is GNODE, already set)
+  if (msg_data[2] == SEEL_GNODE_ID) // Only set for FIRST parent (If first parent is GNODE, already set)
   {
     // Sets the immediate forwarder SNODE's ID and RSSI, to be seen by the GNODE for network debugging and analysis
-    msg_data[6] = seel_snode.get_node_id();
-    msg_data[7] = msg_rssi;
+    msg_data[2] = seel_snode.get_node_id();
+    msg_data[3] = msg_rssi;
   }
 }
 
 void setup()
 {
   // Not a great source of entropy: https://www.academia.edu/1161820/Ardrand_The_Arduino_as_a_Hardware_Random-Number_Generator
-  randomSeed(random() * analogRead(0)); // Make sure pin 0 is not used
+  randomSeed(random() * analogRead(SEEL_RNG_SEED_PIN)); // Make sure pin 0 is not used
   
   // Intialize USER variables
   user_task = SEEL_Task(user_function);
@@ -130,7 +127,7 @@ void setup()
   // Initialize sensor node and link response function
   seel_snode.init(&seel_sched, // Scheduler reference
   user_callback_load, user_callback_forwarding, // User callback functions
-  SEEL_RFM95_CS, SEEL_RFM95_INT, // Pins
+  SEEL_RFM95_CS_PIN, SEEL_RFM95_INT_PIN, // Pins
   SEEL_SNODE_ID, SEEL_TDMA_SLOT_ASSIGNMENT); // ID and TDMA slot assignments
 
   // Run main loop inside SEEL_Scheduler
