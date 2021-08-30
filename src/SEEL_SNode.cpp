@@ -107,12 +107,10 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
 
 void SEEL_SNode::bcast_setup(SEEL_Message &msg)
 {
-    SEEL_Print::println(F("DEBUG: BCAST SETUP RUNNING"));
     // Calculate wakeup-to-bcast time before time shift
-    SEEL_Print::println(_cb_info.wtb_millis);
     _cb_info.wtb_millis = millis() - _cb_info.wtb_millis;
-    SEEL_Print::println(_cb_info.wtb_millis);
-    // Update system with values from bcast, values stored in Big Endian (MSB in lower address)
+
+    /* Update system with values from bcast, values stored in Big Endian (MSB in lower address) */
     
     // Update local time, transmission delay is accounted for on sender side
     uint32_t millis_update = 0;
@@ -145,6 +143,7 @@ void SEEL_SNode::bcast_setup(SEEL_Message &msg)
     // Add sleep ASAP to keep awake time accurate, should be done AFTER local and awake times are updated
     // Parenting off a new SNODE parent may cause delays to miss original nodes
     // so stay awake less (by diff) if WTB greater than SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS
+    /*
     uint32_t awake_offset = 0;
     if (_system_sync && _cb_info.missed_bcasts == 0 && _last_parent != _parent_id && 
         _cb_info.wtb_millis >= SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS)
@@ -153,7 +152,8 @@ void SEEL_SNode::bcast_setup(SEEL_Message &msg)
     }
     awake_offset = min(awake_offset, _snode_awake_time_secs * SEEL_SECS_TO_MILLIS); // Safety to prevent uint32 wraparound
     SEEL_Print::print(F("DEBUG: AWAKE OFFSET: ")); SEEL_Print::println(awake_offset);
-    _ref_scheduler->add_task(&_task_sleep, _snode_awake_time_secs * SEEL_SECS_TO_MILLIS - awake_offset); // Delay sleep task by time node should be awake
+    */
+    _ref_scheduler->add_task(&_task_sleep, _snode_awake_time_secs * SEEL_SECS_TO_MILLIS); // - awake_offset); // Delay sleep task by time node should be awake
 }
 
 void SEEL_SNode::SEEL_Task_SNode_Receive::run()
