@@ -25,11 +25,11 @@ uint32_t SEEL_SNode::generate_id()
 void SEEL_SNode::init(  SEEL_Scheduler* ref_scheduler,
             user_callback_load_t user_cb_load, 
             user_callback_forwarding_t user_cb_forwarding,
-            uint8_t cs_pin, uint8_t int_pin, 
+            uint8_t cs_pin, uint8_t reset_pin, uint8_t int_pin, 
             uint32_t snode_id, uint32_t tdma_slot)
 {
     SEEL_Node::init((snode_id == SEEL_GNODE_ID) ? generate_id() : snode_id, tdma_slot);
-    rfm_param_init(cs_pin, int_pin, SEEL_RFM95_SNODE_TX, SEEL_RFM95_SNODE_CR);
+    rfm_param_init(cs_pin, reset_pin, int_pin, SEEL_RFM95_SNODE_TX, SEEL_RFM95_SNODE_CR);
 
     // Initialize member variables
     _ref_scheduler = ref_scheduler;
@@ -435,7 +435,7 @@ void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
     _inst->_ref_scheduler->add_task(&_inst->_task_wake);
 
     // Call LoRa sleep
-    _inst->_rf95_ptr->sleep();
+    _inst->_LoRaPHY_ptr->sleep();
 
     // Call user sleep, order matters because code flow blocks in sleep()
     _inst->sleep();
