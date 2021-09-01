@@ -26,17 +26,13 @@ public:
     void init(  SEEL_Scheduler* ref_scheduler,
                 user_callback_load_t user_cb_load, 
                 user_callback_forwarding_t user_cb_forwarding,
-                uint8_t cs_pin, uint8_t int_pin, 
+                uint8_t cs_pin, uint8_t reset_pin, uint8_t int_pin, 
                 uint32_t snode_id, uint32_t tdma_slot);
     
     void blacklist_add(uint8_t node_id)
     {
         _bcast_blacklist.add(node_id);
     }
-
-    // ***************************************************
-    // Destructor
-    ~SEEL_SNode() {delete _rf95_ptr;} // TODO: Resolve polymorphic non-virtual error (Issue relayed to Dragino library, patch incoming)
 private:
     // Tasks
     class SEEL_Task_SNode : public SEEL_Task

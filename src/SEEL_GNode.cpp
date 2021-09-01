@@ -11,12 +11,12 @@ File purpose:   See SEEL_GNode.h
 
 void SEEL_GNode::init(  SEEL_Scheduler* ref_scheduler, 
             user_callback_broadcast_t user_cb_broadcast, user_callback_data_t user_cb_data, 
-            uint8_t cs_pin, uint8_t int_pin, 
+            uint8_t cs_pin, uint8_t reset_pin, uint8_t int_pin, 
             uint32_t cycle_period_secs, uint32_t snode_awake_time_secs, 
             uint32_t tdma_slot)
 {
     SEEL_Node::init(SEEL_GNODE_ID, tdma_slot);
-    rfm_param_init(cs_pin, int_pin, SEEL_RFM95_GNODE_TX, SEEL_RFM95_GNODE_CR);
+    rfm_param_init(cs_pin, reset_pin, int_pin, SEEL_RFM95_GNODE_TX, SEEL_RFM95_GNODE_CR);
 
     // Initialize member variables
     _ref_scheduler = ref_scheduler;

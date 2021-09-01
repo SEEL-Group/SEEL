@@ -10,8 +10,8 @@ File purpose:   Base class for GNODE and SNODE
 #ifndef SEEL_Node_h
 #define SEEL_Node_h
 
-// Radiohead library
-#include <RH_RF95.h>
+// LoRa library by Sandeep Mistry. https://github.com/sandeepmistry/arduino-LoRa.
+#include <LoRa.h>
 
 #include "SEEL_Defines.h"
 #include "SEEL_Scheduler.h"
@@ -52,7 +52,9 @@ public:
 
     // Converts raw msg buffer from RFM95 to SEEL msg format
     void buf_to_SEEL_msg(SEEL_Message* msg, uint8_t const * buf);
-
+    // ***************************************************
+    // Destructor
+    virtual ~SEEL_Node() {_LoRaPHY_ptr->end();}
 protected:
     // Tasks
     class SEEL_Task_Node : public SEEL_Task
@@ -78,10 +80,10 @@ protected:
 
     void init(uint32_t n_id, uint32_t ts);
 
-    void rfm_param_init(uint8_t cs_pin, uint8_t int_pin, uint8_t TX_power, uint8_t coding_rate);
+    void rfm_param_init(uint8_t cs_pin, uint8_t reset_pin, uint8_t int_pin, uint8_t TX_power, uint8_t coding_rate);
 
-    // Returns if message was sent out. If timeout == 0, no timeout is used
-    bool rfm_send_msg(SEEL_Message* rfm_send_msg, uint8_t seq_num, uint16_t timeout = 0);
+    // Returns if message was sent out
+    bool rfm_send_msg(SEEL_Message* rfm_send_msg, uint8_t seq_num);
 
     bool rfm_receive_msg(SEEL_Message* rec_msg, int8_t& rssi);
 
@@ -94,7 +96,7 @@ protected:
     // ***************************************************
     // Member variables
     SEEL_Scheduler* _ref_scheduler;
-    RH_RF95* _rf95_ptr;
+    LoRaClass* _LoRaPHY_ptr; // Transceiver library pointer
 
     SEEL_Queue<SEEL_Message> _data_queue; // includes ID_CHECK and FWD msgs
     SEEL_Queue<uint8_t> _ack_queue;

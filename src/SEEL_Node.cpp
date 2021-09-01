@@ -25,25 +25,26 @@ void SEEL_Node::init(uint32_t n_id, uint32_t ts)
     _task_send.set_inst(this);
 }
 
-void SEEL_Node::rfm_param_init(uint8_t cs_pin, uint8_t int_pin, uint8_t TX_power, uint8_t coding_rate)
+void SEEL_Node::rfm_param_init(uint8_t cs_pin, uint8_t reset_pin, uint8_t int_pin, uint8_t TX_power, uint8_t coding_rate)
 {
     // Create and initialize RFM module
-    _rf95_ptr = new RH_RF95(cs_pin, int_pin);
-    _rf95_ptr->init() ? SEEL_Print::println(F("RF95 Init Success")) : SEEL_Print::println(F("RF95 Init Fail")); // Init - Success : Init - Fail
+    _LoRaPHY_ptr = &LoRa; // LoRa class already creates LoRa object
+    _LoRaPHY_ptr->setPins(cs_pin, reset_pin, int_pin);
+    _LoRaPHY_ptr->begin(SEEL_RFM95_FREQ) ? SEEL_Print::println(F("LoRaPHY Init Success")) : SEEL_Print::println(F("LoRaPHY Init Fail"));
 
     // Set LoRa params, defined in 
-    _rf95_ptr->setFrequency(SEEL_RFM95_FREQ);
-    _rf95_ptr->setSpreadingFactor(SEEL_RFM95_SF);
-    _rf95_ptr->setSignalBandwidth(SEEL_RFM95_BW);
-    _rf95_ptr->setTxPower(TX_power);
-    _rf95_ptr->setCodingRate4(coding_rate);
+    _LoRaPHY_ptr->setSpreadingFactor(SEEL_RFM95_SF);
+    _LoRaPHY_ptr->setSignalBandwidth(SEEL_RFM95_BW);
+    _LoRaPHY_ptr->setTxPower(TX_power, PA_OUTPUT_PA_BOOST_PIN);
+    _LoRaPHY_ptr->setCodingRate4(coding_rate);
+
     SEEL_Print::println(F("Parameters:"));
     SEEL_Print::print(F("\tFq: ")); SEEL_Print::println(SEEL_RFM95_FREQ);
     SEEL_Print::print(F("\tSF: ")); SEEL_Print::println(SEEL_RFM95_SF);
     SEEL_Print::print(F("\tBW: ")); SEEL_Print::println(SEEL_RFM95_BW);
     SEEL_Print::print(F("\tTX: ")); SEEL_Print::println(TX_power);
     SEEL_Print::print(F("\tCR: ")); SEEL_Print::println(coding_rate);
-    SEEL_Print::print(F("\tPayload Size (Does not include LoRa headers): ")); SEEL_Print::println(SEEL_MSG_TOTAL_SIZE);
+    SEEL_Print::print(F("\tPayload Size: ")); SEEL_Print::println(SEEL_MSG_TOTAL_SIZE);
 }
 
 void SEEL_Node::create_msg(SEEL_Message* msg, const uint8_t targ_id, 
@@ -71,23 +72,22 @@ void SEEL_Node::buf_to_SEEL_msg(SEEL_Message* msg, uint8_t const * buf)
     memcpy(msg->data, buf+SEEL_MSG_MISC_INDEX, SEEL_MSG_DATA_SIZE*sizeof(*buf));
 }
 
-bool SEEL_Node::rfm_send_msg(SEEL_Message* msg, uint8_t seq_num, uint16_t timeout)
+bool SEEL_Node::rfm_send_msg(SEEL_Message* msg, uint8_t seq_num)
 {
+    uint32_t send_time_start = millis();
+    
     msg->seq_num = seq_num;
 
-    _rf95_ptr->send((uint8_t *)msg, SEEL_MSG_TOTAL_SIZE);
-    uint32_t send_time_start = millis();
-    if (timeout == 0)
+    if (!_LoRaPHY_ptr->beginPacket(true)) // true sets implicit header mode (no payload length, CR, CRC present info)
     {
-        _rf95_ptr->waitPacketSent();
+        SEEL_Print::println(F("Error: Transceiver not ready to send"));
+        return false;
     }
-    else
+    _LoRaPHY_ptr->write((uint8_t *)msg, SEEL_MSG_TOTAL_SIZE);
+    if (!_LoRaPHY_ptr->endPacket(false)) // false sets async mode, code blocks here until msg sent
     {
-        // Returns false if timed out
-        if (!_rf95_ptr->waitPacketSent(timeout))
-        {
-            return false; // Message not sent out
-        }
+        SEEL_Print::println(F("Error: Transceiver send failure"));
+        return false;
     }
 
     // ToA should be consistent among transmissions since packet size and LoRa parameters are fixed
@@ -141,45 +141,39 @@ bool SEEL_Node::dup_msg_check(SEEL_Message* msg)
     return message_duplicate;
 }
 
+// Return RSSI through pass by reference via "rssi"
 bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi)
 {
     bool valid_msg = false;
 
-    // Message is available
-    if (_rf95_ptr->available())
+    uint8_t msg_len = _LoRaPHY_ptr->parsePacket(SEEL_MSG_TOTAL_SIZE);
+    if (msg_len > 0) // Message is available
     { 
-        uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
-        uint8_t buf_len = sizeof(buf);
+        uint8_t buf[SEEL_MSG_TOTAL_SIZE];
 
-        // Load message into buffer
-        if (_rf95_ptr->recv(buf, &buf_len))
+        SEEL_Print::print(F(">>R: "));
+        for (uint8_t i = 0; i < msg_len; ++i)
         {
-            SEEL_Print::print(F(">>R: "));
-            for (uint32_t i = 0; i < buf_len; ++i)
-            {
-                SEEL_Print::print(buf[i]); SEEL_Print::print(F(" "));
-            }
-            rssi = _rf95_ptr->lastRssi();
-            SEEL_Print::print(F("RSSI: ")); SEEL_Print::print(rssi);
-            SEEL_Print::print(F(", Time: ")); SEEL_Print::println(millis());
-
-            if (buf_len == SEEL_MSG_TOTAL_SIZE) // Potential SEEL message
-            {
-                // Converts raw msg buffer to SEEL_Message
-                buf_to_SEEL_msg(msg, buf);
-
-                // Check if the message has already been seen, to prevent a loop
-                if (!dup_msg_check(msg))
-                {
-                    valid_msg = true;
-                }
-                else
-                {
-                    SEEL_Print::println(F("Duplicate message")); 
-                }
-            }
-            SEEL_Print::flush();
+            buf[i] = _LoRaPHY_ptr->read();
+            SEEL_Print::print(buf[i]); SEEL_Print::print(F(" "));
         }
+        rssi = _LoRaPHY_ptr->packetRssi();
+        SEEL_Print::print(F("RSSI: ")); SEEL_Print::print(rssi);
+        SEEL_Print::print(F(", Time: ")); SEEL_Print::println(millis());
+
+        // Converts raw msg buffer to SEEL_Message
+        buf_to_SEEL_msg(msg, buf);
+
+        // Check if the message has already been seen, to prevent a loop
+        if (!dup_msg_check(msg))
+        {
+            valid_msg = true;
+        }
+        else
+        {
+            SEEL_Print::println(F("Duplicate message")); 
+        }
+        SEEL_Print::flush();
     }
 
     // No valid msg was received
@@ -217,7 +211,7 @@ bool SEEL_Node::try_send(SEEL_Message* to_send_ptr, bool seq_inc)
 
     // Not waiting for ack or wait has timed out
     // If timed out, re-send the same message because it has not been popped
-    if (rfm_send_msg(to_send_ptr, seq_num, SEEL_SEND_TIMEOUT_MILLIS))
+    if (rfm_send_msg(to_send_ptr, seq_num))
     {
         // Code reaches here if msg was sent out
         

@@ -29,7 +29,7 @@ public:
 
     void init(  SEEL_Scheduler* ref_scheduler, 
                 user_callback_broadcast_t user_cb_broadcast, user_callback_data_t user_cb_data, 
-                uint8_t cs_pin, uint8_t int_pin, 
+                uint8_t cs_pin, uint8_t reset_pin, uint8_t int_pin, 
                 uint32_t cycle_period_millis, uint32_t snode_awake_time_secs,
                 uint32_t tdma_slot);
 
