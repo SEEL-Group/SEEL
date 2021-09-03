@@ -7,6 +7,7 @@ const uint8_t SEEL_TDMA_SLOT_ASSIGNMENT = 1; // TDMA transmission slot, ignored 
 
 /* Pin Assignments */
 const uint8_t SEEL_RFM95_CS_PIN = 10;
+const uint8_t SEEL_RFM95_RESET_PIN = 9;
 const uint8_t SEEL_RFM95_INT_PIN = 2;
 const uint8_t SEEL_RNG_SEED_PIN = 0; // Make sure this pin is NOT connected
 
@@ -49,7 +50,7 @@ void user_function()
 bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::SEEL_CB_Info* info)
 {
   // The contents of this function are an example of what one can do with this CB function
-  
+
   if (info->first_callback)
   {
     seel_sched.add_task(&user_task);
@@ -84,7 +85,7 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
     // Fill rest with zeros
     for (uint32_t i = 13; i < SEEL_MSG_DATA_SIZE; ++i)
     {
-        msg_data[i] = 0;
+      msg_data[i] = 0;
     }
   }
 
@@ -102,7 +103,7 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
 void user_callback_forwarding(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const int8_t msg_rssi)
 {
   // The contents of this function are an example of what one can do with this CB function
-  
+
   if (msg_data[2] == SEEL_GNODE_ID) // Only set for FIRST parent (If first parent is GNODE, already set)
   {
     // Sets the immediate forwarder SNODE's ID and RSSI, to be seen by the GNODE for network debugging and analysis
@@ -115,7 +116,7 @@ void setup()
 {
   // Not a great source of entropy: https://www.academia.edu/1161820/Ardrand_The_Arduino_as_a_Hardware_Random-Number_Generator
   randomSeed(random() * analogRead(SEEL_RNG_SEED_PIN)); // Make sure pin 0 is not used
-  
+
   // Intialize USER variables
   user_task = SEEL_Task(user_function);
   send_count = 0;
@@ -126,9 +127,9 @@ void setup()
 
   // Initialize sensor node and link response function
   seel_snode.init(&seel_sched, // Scheduler reference
-  user_callback_load, user_callback_forwarding, // User callback functions
-  SEEL_RFM95_CS_PIN, SEEL_RFM95_INT_PIN, // Pins
-  SEEL_SNODE_ID, SEEL_TDMA_SLOT_ASSIGNMENT); // ID and TDMA slot assignments
+                  user_callback_load, user_callback_forwarding, // User callback functions
+                  SEEL_RFM95_CS_PIN, SEEL_RFM95_RESET_PIN, SEEL_RFM95_INT_PIN, // Pins
+                  SEEL_SNODE_ID, SEEL_TDMA_SLOT_ASSIGNMENT); // ID and TDMA slot assignments
 
   // Run main loop inside SEEL_Scheduler
   seel_sched.run();
