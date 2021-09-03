@@ -14,6 +14,7 @@ const uint32_t SEEL_SNODE_AWAKE_TIME_SECS = 120;
 
 /* RF95 Pin Assignments */
 const uint8_t RFM95_CS = 10; // Don't change these if using Dragino LG01
+const uint8_t RFM95_RESET = 9; // Don't change these if using Dragino LG01
 const uint8_t RFM95_INT = 2; // Don't change these if using Dragino LG01
 
 /* File Write Paramters */
@@ -111,7 +112,7 @@ void setup()
   // Initialize gateway node and link logging function
   seel_gnode.init(&seel_scheduler,  // Scheduler reference
     user_callback_broadcast, user_callback_data, // Callback functions
-    RFM95_CS, RFM95_INT, // Pins
+    RFM95_CS, RFM95_RESET, RFM95_INT, // Pins
     SEEL_CYCLE_PERIOD_SECS, SEEL_SNODE_AWAKE_TIME_SECS, // Cycle info
     SEEL_TDMA_SLOT_ASSIGNMENT); // TDMA slot assignment
 
