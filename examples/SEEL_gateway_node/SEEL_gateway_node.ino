@@ -12,10 +12,11 @@ const uint8_t SEEL_TDMA_SLOT_ASSIGNMENT = 0; // TDMA transmission slot, ignored 
 const uint32_t SEEL_CYCLE_PERIOD_SECS = 3600;
 const uint32_t SEEL_SNODE_AWAKE_TIME_SECS = 120;
 
-/* RF95 Pin Assignments */
-const uint8_t RFM95_CS = 10; // Don't change these if using Dragino LG01
-const uint8_t RFM95_RESET = 9; // Don't change these if using Dragino LG01
-const uint8_t RFM95_INT = 2; // Don't change these if using Dragino LG01
+/* LoRaPHY Tranceiver Pin Assignments */
+const uint8_t SEEL_LoRaPHY_CS_PIN = 10; // Don't change these if using Dragino LG01
+const uint8_t SEEL_LoRaPHY_RESET_PIN = 9; // Don't change these if using Dragino LG01
+const uint8_t SEEL_LoRaPHY_INT_PIN = 2; // Don't change these if using Dragino LG01
+const uint8_t SEEL_RNG_SEED_PIN = 0; // Make sure this pin is NOT connected
 
 /* File Write Paramters */
 const char* LOG_FILE_PATH = ""; // Path on gateway node file system
@@ -94,7 +95,7 @@ void user_callback_data(const uint8_t msg_data[SEEL_MSG_DATA_SIZE], const int8_t
 void setup()
 {
   // Not a great source of entropy: https://www.academia.edu/1161820/Ardrand_The_Arduino_as_a_Hardware_Random-Number_Generator
-  randomSeed(random() * analogRead(0)); // Make sure pin 0 is not used
+  randomSeed(random() * analogRead(SEEL_RNG_SEED_PIN)); // Make sure pin 0 is not used
   
   // Enables file logging
   FileSystem.begin();
@@ -112,7 +113,7 @@ void setup()
   // Initialize gateway node and link logging function
   seel_gnode.init(&seel_scheduler,  // Scheduler reference
     user_callback_broadcast, user_callback_data, // Callback functions
-    RFM95_CS, RFM95_RESET, RFM95_INT, // Pins
+    SEEL_LoRaPHY_CS_PIN, SEEL_LoRaPHY_RESET_PIN, SEEL_LoRaPHY_INT_PIN, // Pins
     SEEL_CYCLE_PERIOD_SECS, SEEL_SNODE_AWAKE_TIME_SECS, // Cycle info
     SEEL_TDMA_SLOT_ASSIGNMENT); // TDMA slot assignment
 
