@@ -5,10 +5,10 @@
 const uint8_t SEEL_SNODE_ID = 1; // 0 is reserved for gateway nodes, use 0 to randomly generate ID
 const uint8_t SEEL_TDMA_SLOT_ASSIGNMENT = 1; // TDMA transmission slot, ignored if not using TDMA sending scheme. See SEEL documentation for advised slot configuration.
 
-/* Pin Assignments */
-const uint8_t SEEL_RFM95_CS_PIN = 10;
-const uint8_t SEEL_RFM95_RESET_PIN = 9;
-const uint8_t SEEL_RFM95_INT_PIN = 2;
+/* LoRaPHY Tranceiver Pin Assignments */
+const uint8_t SEEL_LoRaPHY_CS_PIN = 10;
+const uint8_t SEEL_LoRaPHY_RESET_PIN = 9;
+const uint8_t SEEL_LoRaPHY_INT_PIN = 2;
 const uint8_t SEEL_RNG_SEED_PIN = 0; // Make sure this pin is NOT connected
 
 /* SEEL Variables */
@@ -128,7 +128,7 @@ void setup()
   // Initialize sensor node and link response function
   seel_snode.init(&seel_sched, // Scheduler reference
                   user_callback_load, user_callback_forwarding, // User callback functions
-                  SEEL_RFM95_CS_PIN, SEEL_RFM95_RESET_PIN, SEEL_RFM95_INT_PIN, // Pins
+                  SEEL_LoRaPHY_CS_PIN, SEEL_LoRaPHY_RESET_PIN, SEEL_LoRaPHY_INT_PIN, // Pins
                   SEEL_SNODE_ID, SEEL_TDMA_SLOT_ASSIGNMENT); // ID and TDMA slot assignments
 
   // Run main loop inside SEEL_Scheduler
