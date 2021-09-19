@@ -76,11 +76,12 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
     msg_data[5] = (uint8_t)(info->wtb_millis >> 16);
     msg_data[6] = (uint8_t)(info->wtb_millis >> 8);
     msg_data[7] = (uint8_t)(info->wtb_millis);
-    msg_data[8] = info->prev_data_transmissions;
-    msg_data[9] = info->missed_bcasts;
-    msg_data[10] = info->data_queue_size;
-    msg_data[11] = (uint8_t)(send_count >> 8);
-    msg_data[12] = (uint8_t)(send_count);
+    msg_data[8] = (uint8_t)(send_count >> 8);
+    msg_data[9] = (uint8_t)(send_count);
+    msg_data[10] = info->prev_data_transmissions;
+    msg_data[11] = info->missed_bcasts;
+    msg_data[12] = info->data_queue_size;
+    msg_data[13] = info->prev_CRC_fails;
 
     // Fill rest with zeros
     for (uint32_t i = 13; i < SEEL_MSG_DATA_SIZE; ++i)

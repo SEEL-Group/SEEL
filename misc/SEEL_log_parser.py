@@ -6,6 +6,8 @@
 
 # Tested with Python 3.5.2
 
+# Only compatible with log files made after 09/19/2021
+
 # To run: python3 <path_to_this_file>/SEEL_log_parser.py <path_to_data_file>/<data_file>
 
 # Expected input format (All <> is 1 byte):
@@ -49,11 +51,12 @@ INDEX_DATA_WTB_0 = 4
 INDEX_DATA_WTB_1 = 5
 INDEX_DATA_WTB_2 = 6
 INDEX_DATA_WTB_3 = 7
-INDEX_DATA_PREV_TRANS = 8
-INDEX_DATA_MISSED_BCASTS = 9
-INDEX_DATA_QUEUE_SIZE = 10
-INDEX_DATA_SEND_COUNT_0 = 11
-INDEX_DATA_SEND_COUNT_1 = 12
+INDEX_DATA_SEND_COUNT_0 = 8
+INDEX_DATA_SEND_COUNT_1 = 9
+INDEX_DATA_PREV_TRANS = 10
+INDEX_DATA_MISSED_BCASTS = 11
+INDEX_DATA_QUEUE_SIZE = 12
+INDEX_DATA_CRC_FAILS = 13
 
 # Misc Params
 PARAM_COUNT_WRAP_SAFETY = 10 # Send count will not have wrapped within this many counts, keep it lower to account for node restarts too
@@ -68,7 +71,7 @@ class Bcast_Info:
         return "System time: " + str(self.sys_time) + " Awake time: " + str(self.awk_time) + " Sleep time: " + str(self.slp_time)
 
 class Node_Info:
-    def __init__(self, bcast_num, wtb, prev_trans, node_id, parent_id, parent_rssi, send_count, queue_size, missed_bcasts):
+    def __init__(self, bcast_num, wtb, prev_trans, node_id, parent_id, parent_rssi, send_count, queue_size, missed_bcasts, crc_fails):
         self.bcast_num = bcast_num
         self.wtb = wtb
         self.prev_trans = prev_trans
@@ -78,11 +81,13 @@ class Node_Info:
         self.send_count = send_count
         self.queue_size = queue_size
         self.missed_bcasts = missed_bcasts
+        self.crc_fails = crc_fails
 
     def __str__(self):
         return "Node ID: " + str(self.node_id) + "\tParent ID: " + str(self.parent_id) + "\tSend Count: " + \
             str(self.send_count) + "\tParent RSSI: " + str(self.parent_rssi) + "\tPrevious Transmissions: " + \
-            str(self.prev_trans) + "\tWTB: " + str(self.wtb) + "\tQ Size: " + str(self.queue_size) + "\tMissed Bcasts: " + str(self.missed_bcasts)
+            str(self.prev_trans) + "\tWTB: " + str(self.wtb) + "\tQ Size: " + str(self.queue_size) + "\tMissed Bcasts: " + \
+            str(self.missed_bcasts) + "\tCRC Fails: " + str(self.crc_fails)
 
 def main():
     bcast_times = []
@@ -151,7 +156,7 @@ def main():
             send_count += line[INDEX_DATA_SEND_COUNT_1]
             original_node_id = node_mapping[line[INDEX_DATA_ASSIGNED_ID]]
             node_info[node_assignments.index(original_node_id)].append(Node_Info(len(bcast_times), wtb, line[INDEX_DATA_PREV_TRANS], original_node_id, 
-                line[INDEX_DATA_PARENT_ID], line[INDEX_DATA_PARENT_RSSI] - 256, send_count, line[INDEX_DATA_QUEUE_SIZE], line[INDEX_DATA_MISSED_BCASTS]))
+                line[INDEX_DATA_PARENT_ID], line[INDEX_DATA_PARENT_RSSI] - 256, send_count, line[INDEX_DATA_QUEUE_SIZE], line[INDEX_DATA_MISSED_BCASTS], line[INDEX_DATA_CRC_FAILS]))
         current_line += 1
 
     # Analysis
@@ -177,6 +182,7 @@ def main():
         connections_rssi = [0] * len(node_assignments)
         queue_size_counter = 0
         max_queue_size = 0
+        total_crc_fails = 0
         first_wtb = True
 
         total_bcasts_for_node = total_bcasts - bcast_instances[node_id] + 1
@@ -223,6 +229,7 @@ def main():
                 # were done by the node in the previous cycle. Duplicates within a cycle can exist
 
                 total_transmissions += msg.prev_trans
+                total_crc_fails += msg.crc_fails
 
                 if msg.parent_rssi != -256: # Impossible value, used to flag RSSI unavailable
                     total_parent_rssi += msg.parent_rssi
@@ -247,6 +254,7 @@ def main():
         print("\tAvg Transmissions per cycle: " + str(total_transmissions / total_bcasts_for_node))
         print("\tAvg Data Queue Size: " + str(queue_size_counter / total_bcasts_for_node))
         print("\tMax Data Queue Size: " + str(max_queue_size))
+        print("\tAvg CRC fails per cycle: " + str(total_crc_fails / total_bcasts_for_node))
         print("\tConnections: ")
         for i in range(len(node_assignments)):
             print("\t\t" + str(node_assignments[i]) + ":\t" + str(connections[i]))

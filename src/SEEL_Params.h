@@ -13,9 +13,9 @@ File purpose:   Contains adjustable parameters (along with recommended defaults)
 #include <LowPower.h> // To access LowPower.h constants
 
 // LoRa LoRa Params
-const long SEEL_RFM95_FREQ = 915E6;
+const uint32_t SEEL_RFM95_FREQ = 915E6;
 const int8_t SEEL_RFM95_SF = 12;
-const uint32_t SEEL_RFM95_BW = 125E3;
+const uint32_t SEEL_RFM95_BW = 250E3;
 const int8_t SEEL_RFM95_GNODE_TX = 20; // 2 to 20 for PA Boost
 const int8_t SEEL_RFM95_GNODE_CR = 5; // 5 to 8
 const int8_t SEEL_RFM95_SNODE_TX = 20; // 2 to 20 for PA Boost
@@ -51,7 +51,7 @@ const uint8_t SEEL_MAX_CYCLE_MISSES = 10;
 
 // Upperbound transmission duration used to create TDMA slot widths. Also used as initial estimate 
 // to correct for transmission delay when time sychronizing; value will be updated with measured msg send ToA
-const uint32_t SEEL_TRANSMISSION_UB_DUR_MILLIS = 1400;
+const uint32_t SEEL_TRANSMISSION_UB_DUR_MILLIS = 600;
 
 // How long Arduino watchdog timer can sleep at a time
 // Only select values can be used, check Arduino WD specs (SLEEP_8S is maximum duration per sleep instance)
@@ -74,12 +74,12 @@ const float SEEL_FORCE_SLEEP_AWAKE_MULT = 1.0f;
 // Adjust awake duration multiplicatively by SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE since force sleep
 // wakes up SNODE earlier and earlier each bcast miss due to WTB
 // awake duration = (specified awake duration) * (SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE ^ (missed bcasts)) 
-const float SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE = 1.25f;
+const float SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE = 1.5f;
 // After SEEL_FORCE_SLEEP_RESET_COUNT bcasts are missed, force sleep is disabled and the SNODE stays awake
 // until receiving the next bcast
 // On receiving a bcast, the missed bcast counter is set to 0
 // Set this value to 0 to disable force sleep (always stay on waiting for bcast)
-const uint32_t SEEL_FORCE_SLEEP_RESET_COUNT = 3;
+const uint32_t SEEL_FORCE_SLEEP_RESET_COUNT = 5;
 
 // RSSI-based Parent Selection
 // Selection Modes
@@ -100,7 +100,7 @@ const uint32_t SEEL_PSEL_DURATION_MILLIS = 0; // Should be much less than awake 
 // Cons: Requires user setup and calculation unique to each deployment
 const bool SEEL_TDMA_USE_TDMA = true; // Otherwise uses Exponential backoff
 const uint8_t SEEL_TDMA_SLOTS = 10; // Maximum group of nodes, first slot begins at 0
-const uint32_t SEEL_TDMA_BUFFER_MILLIS = 600; // Buffer time between scheduled TMDA transmissions
+const uint32_t SEEL_TDMA_BUFFER_MILLIS = 400; // Buffer time between scheduled TMDA transmissions
 const uint32_t SEEL_TDMA_SLOT_WAIT_MILLIS = SEEL_TRANSMISSION_UB_DUR_MILLIS + SEEL_TDMA_BUFFER_MILLIS;
 const uint32_t SEEL_TDMA_CYCLE_TIME_MILLIS = SEEL_TDMA_SLOT_WAIT_MILLIS * SEEL_TDMA_SLOTS;
 
@@ -110,10 +110,6 @@ const uint32_t SEEL_TDMA_CYCLE_TIME_MILLIS = SEEL_TDMA_SLOT_WAIT_MILLIS * SEEL_T
 const uint32_t SEEL_EB_INIT_MILLIS = 10000; // How long first backoff max is
 const uint32_t SEEL_EB_MIN_MILLIS = 0;
 const float SEEL_EB_EXP_SCALE = 2.0f;
-
-// Misc
-// Reads from this analog pin to seed RNG. Assign an unused pin
-const uint8_t SEEL_RANDOM_SEED_PIN = 0;
 
 // ***************************************************
 /* SEEL_Queue */

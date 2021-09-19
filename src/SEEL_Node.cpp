@@ -45,6 +45,8 @@ void SEEL_Node::rfm_param_init(uint8_t cs_pin, uint8_t reset_pin, uint8_t int_pi
     SEEL_Print::print(F("\tTX: ")); SEEL_Print::println(TX_power);
     SEEL_Print::print(F("\tCR: ")); SEEL_Print::println(coding_rate);
     SEEL_Print::print(F("\tPayload Size: ")); SEEL_Print::println(SEEL_MSG_TOTAL_SIZE);
+
+    _LoRaPHY_ptr->enableCrc(); // Checks for bit flips to reduce erroneous packets received (16bit overhead)
 }
 
 void SEEL_Node::create_msg(SEEL_Message* msg, const uint8_t targ_id, 
@@ -146,7 +148,9 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi)
 {
     bool valid_msg = false;
 
-    uint8_t msg_len = _LoRaPHY_ptr->parsePacket(SEEL_MSG_TOTAL_SIZE);
+    bool crc_valid = true;
+    uint8_t msg_len = _LoRaPHY_ptr->parsePacket(crc_valid, SEEL_MSG_TOTAL_SIZE); // TODO: Requires modified version of LoRa lib to get crc_valid info
+
     if (msg_len > 0) // Message is available
     { 
         uint8_t buf[SEEL_MSG_TOTAL_SIZE];
@@ -174,6 +178,15 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi)
             SEEL_Print::println(F("Duplicate message")); 
         }
         SEEL_Print::flush();
+    }
+    else
+    {
+        // No msg available, but CRC was invalid, means received a msg but CRC error
+        if (!crc_valid)
+        {
+            SEEL_Print::println("Invalid Packet CRC");
+            ++_CRC_fails;
+        }
     }
 
     // No valid msg was received
