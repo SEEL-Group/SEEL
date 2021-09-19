@@ -66,6 +66,7 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
     _inst->_msg_send_delay = 0;
     _inst->_unack_msgs = 0;
     _inst->_data_msgs_sent = 0;
+    _inst->_CRC_fails = 0;
     _inst->_bcast_received = false;
     _inst->_parent_sync = false;
     _inst->_cb_info.first_callback = true; // Allows ability to only send 1 message per cycle
@@ -417,6 +418,7 @@ void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
 {
     // Store any info messages
     _inst->_cb_info.prev_data_transmissions = _inst->_data_msgs_sent;
+    _inst->_cb_info.prev_CRC_fails = _inst->_CRC_fails;
     _inst->_last_parent = _inst->_parent_id;
 
     // A parent was selected and a (ack-needed) msg was sent to parent, but parent never responded back
