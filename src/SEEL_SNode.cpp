@@ -106,7 +106,7 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
     }
 }
 
-void SEEL_SNode::bcast_setup(SEEL_Message &msg)
+void SEEL_SNode::bcast_setup(SEEL_Message &msg, uint32_t receive_offset)
 {
     // Calculate wakeup-to-bcast time before time shift
     _cb_info.wtb_millis = millis() - _cb_info.wtb_millis;
@@ -114,11 +114,13 @@ void SEEL_SNode::bcast_setup(SEEL_Message &msg)
     /* Update system with values from bcast, values stored in Big Endian (MSB in lower address) */
     
     // Update local time, transmission delay is accounted for on sender side
+    // Account for reception time via receive offset, the time taken in the rfm receive method
     uint32_t millis_update = 0;
     millis_update += (uint32_t)msg.data[SEEL_MSG_DATA_TIME_SYNC_INDEX] << 24;
     millis_update += (uint32_t)msg.data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 1] << 16;
     millis_update += (uint32_t)msg.data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 2] << 8;
     millis_update += (uint32_t)msg.data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 3];
+    millis_update += receive_offset;
     _ref_scheduler->adjust_time(millis_update);
 
     // Bcast will be modified such that sender becomes this node
@@ -161,8 +163,9 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
 {
     SEEL_Message msg;
     int8_t msg_rssi;
+    uint32_t receive_offset;
     // Check if there is a message available
-    if (!_inst->rfm_receive_msg(&msg, msg_rssi)) // Stores the returned msg in msg
+    if (!_inst->rfm_receive_msg(&msg, msg_rssi, receive_offset)) // Stores the returned msg in msg
     {
         // No message is available
         _inst->_ref_scheduler->add_task(&_inst->_task_receive);
@@ -267,7 +270,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                 if (!_inst->_bcast_received)
                 {
                     // bcast_setup returns true if the bcast is the first bcast from a GNODE (network restarted)
-                    _inst->bcast_setup(msg);
+                    _inst->bcast_setup(msg, receive_offset);
                 }
                 
                 SEEL_Print::print(F("WTB: ")); SEEL_Print::println(_inst->_cb_info.wtb_millis);
@@ -332,8 +335,9 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
         }
         else if(!_inst->_bcast_received) // Received bcast from blacklist node, but can still take time sync and sleep info
         {
+            SEEL_Print::println(F("Blacklisted Node Bcast"));
             // Logic described above with the other call to bcast_setup
-            _inst->bcast_setup(msg);
+            _inst->bcast_setup(msg, receive_offset);
         }
     } // End Bcast Msg block
     else if (msg.cmd == SEEL_CMD_ACK && _inst->_unack_msgs > 0) // Only ack if ack is needed, acks have no target

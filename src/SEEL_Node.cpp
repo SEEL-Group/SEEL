@@ -144,15 +144,18 @@ bool SEEL_Node::dup_msg_check(SEEL_Message* msg)
 }
 
 // Return RSSI through pass by reference via "rssi"
-bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi)
+// and time taken in this method via "buf_cpy_time"
+bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& method_time)
 {
     bool valid_msg = false;
 
     bool crc_valid = true;
+
     uint8_t msg_len = _LoRaPHY_ptr->parsePacket(crc_valid, SEEL_MSG_TOTAL_SIZE); // TODO: Requires modified version of LoRa lib to get crc_valid info
 
     if (msg_len > 0) // Message is available
     { 
+        uint32_t receive_time = millis();
         uint8_t buf[SEEL_MSG_TOTAL_SIZE];
 
         SEEL_Print::print(F(">>R: "));
@@ -162,8 +165,6 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi)
             SEEL_Print::print(buf[i]); SEEL_Print::print(F(" "));
         }
         rssi = _LoRaPHY_ptr->packetRssi();
-        SEEL_Print::print(F("RSSI: ")); SEEL_Print::print(rssi);
-        SEEL_Print::print(F(", Time: ")); SEEL_Print::println(millis());
 
         // Converts raw msg buffer to SEEL_Message
         buf_to_SEEL_msg(msg, buf);
@@ -177,6 +178,10 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi)
         {
             SEEL_Print::println(F("Duplicate message")); 
         }
+
+        method_time = millis() - receive_time;
+        SEEL_Print::print(F("RSSI: ")); SEEL_Print::print(rssi);
+        SEEL_Print::print(F(", Rec. Time: ")); SEEL_Print::println(method_time);
         SEEL_Print::flush();
     }
     else

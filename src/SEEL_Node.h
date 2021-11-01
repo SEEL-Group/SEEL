@@ -86,7 +86,7 @@ protected:
     // Returns if message was sent out
     bool rfm_send_msg(SEEL_Message* rfm_send_msg, uint8_t seq_num);
 
-    bool rfm_receive_msg(SEEL_Message* rec_msg, int8_t& rssi);
+    bool rfm_receive_msg(SEEL_Message* rec_msg, int8_t& rssi, uint32_t& method_time);
 
     void print_msg(SEEL_Message* msg);
 
