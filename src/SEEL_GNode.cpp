@@ -132,8 +132,9 @@ void SEEL_GNode::SEEL_Task_GNode_Receive::run()
 {
     SEEL_Message msg;
     int8_t msg_rssi;
+    uint32_t receive_offset;
     // Check if there is a message available
-    if (!_inst->rfm_receive_msg(&msg, msg_rssi))
+    if (!_inst->rfm_receive_msg(&msg, msg_rssi, receive_offset))
     {
         // No message is available
         _inst->_ref_scheduler->add_task(&_inst->_task_receive);
