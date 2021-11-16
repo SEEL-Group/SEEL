@@ -455,8 +455,9 @@ void SEEL_SNode::SEEL_Task_SNode_Force_Sleep::run()
         return;
     }
 
-    SEEL_Print::println(F("Force Sleep"));
+    SEEL_Print::println(F("Force Sleep, clearing blacklist"));
     ++_inst->_missed_bcasts;
+    _inst->_bcast_blacklist.clear();
     // Force sleep is necessary, run regular sleep function
     _inst->_ref_scheduler->clear_tasks(); // Guarentee sleep to be next task
     _inst->_ref_scheduler->add_task(&_inst->_task_sleep);
@@ -596,18 +597,34 @@ void SEEL_SNode::sleep()
     // Puts Arduino into low power state
     // Uses watchdog timer for wakeup checks, SLEEP_8S is the longest
     // period the watchdog time can sleep for
-    int32_t sleep_counts = ((_snode_sleep_time_secs * SEEL_SECS_TO_MILLIS) - 
-        SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS - _sleep_time_offset_millis) / _sleep_time_estimate_millis;
+    uint32_t sleep_counts = 0;
+    uint32_t snode_sleep_time_millis = _snode_sleep_time_secs * SEEL_SECS_TO_MILLIS;
+    if (snode_sleep_time_millis > (SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _sleep_time_offset_millis))
+    {
+        sleep_counts = (snode_sleep_time_millis
+            - SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS
+            - _sleep_time_offset_millis) / _sleep_time_estimate_millis;
+    }
 
     if (_missed_bcasts > 0)
     {
         // Make signed int since awake duration could be smaller than specified, then sleep longer
-        int32_t extra_awake_time_millis = (SEEL_FORCE_SLEEP_AWAKE_MULT * pow(SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE, _missed_bcasts) - 1) * _snode_awake_time_secs * SEEL_SECS_TO_MILLIS;
+        int32_t extra_awake_time_millis = (SEEL_FORCE_SLEEP_AWAKE_MULT * 
+            pow(SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE, _missed_bcasts) - 1) * 
+            _snode_awake_time_secs * SEEL_SECS_TO_MILLIS;
         // Sleep needs to be calculated a different way since SNODE stayed awake longer than specified
-        sleep_counts = ((_snode_sleep_time_secs * SEEL_SECS_TO_MILLIS) - extra_awake_time_millis -
-        SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS - _sleep_time_offset_millis) / _sleep_time_estimate_millis;
+        if (snode_sleep_time_millis > (extra_awake_time_millis +
+            SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _sleep_time_offset_millis))
+        {
+            sleep_counts = (snode_sleep_time_millis - (extra_awake_time_millis + 
+                SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _sleep_time_offset_millis)) / 
+                _sleep_time_estimate_millis;
+        }
+        else
+        {
+            sleep_counts = 0;
+        }
     }
-    sleep_counts = (sleep_counts < 0) ? 0 : sleep_counts; // min sleep counts should be 0
 
     SEEL_Print::print(F("Sleeping for ")); SEEL_Print::print(sleep_counts); SEEL_Print::println(F(" counts"));
     SEEL_Print::flush();

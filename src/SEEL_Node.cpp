@@ -190,7 +190,7 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
         if (!crc_valid)
         {
             SEEL_Print::println("Invalid Packet CRC");
-            ++_CRC_fails;
+            ++_CRC_fails; // Number of packets RECEIVED with invalid CRC
         }
     }
 
