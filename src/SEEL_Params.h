@@ -74,13 +74,13 @@ const uint32_t SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS = 10000;
 const float SEEL_FORCE_SLEEP_AWAKE_MULT = 1.0f;
 // Adjust awake duration multiplicatively by SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE since force sleep
 // wakes up SNODE earlier and earlier each bcast miss due to WTB
-// awake duration = (specified awake duration) * (SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE ^ (missed bcasts)) 
+// awake duration = (specified awake duration) * (SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE ^ (missed bcasts))
 const float SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE = 1.5f;
 // After SEEL_FORCE_SLEEP_RESET_COUNT bcasts are missed, force sleep is disabled and the SNODE stays awake
 // until receiving the next bcast
 // On receiving a bcast, the missed bcast counter is set to 0
 // Set this value to 0 to disable force sleep (always stay on waiting for bcast)
-const uint32_t SEEL_FORCE_SLEEP_RESET_COUNT = 5;
+const uint32_t SEEL_FORCE_SLEEP_RESET_COUNT = 3;
 
 // RSSI-based Parent Selection
 // Selection Modes
