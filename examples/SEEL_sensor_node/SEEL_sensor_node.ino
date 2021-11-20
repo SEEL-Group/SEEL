@@ -84,7 +84,7 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
     msg_data[13] = info->prev_CRC_fails;
 
     // Fill rest with zeros
-    for (uint32_t i = 13; i < SEEL_MSG_DATA_SIZE; ++i)
+    for (uint32_t i = 14; i < SEEL_MSG_DATA_SIZE; ++i)
     {
       msg_data[i] = 0;
     }
