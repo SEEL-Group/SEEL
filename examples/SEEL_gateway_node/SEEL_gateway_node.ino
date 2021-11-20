@@ -100,15 +100,17 @@ void setup()
   // Enables file logging
   FileSystem.begin();
 
-  /*
+  ///*
   // Initialize Serial (Serial based comms)
   Serial.begin(9600);
-  SEEL_Print.init(&Serial);
-  */
+  SEEL_Print::init(&Serial);
+  //*/
+  /*
   // Initialize Console (Console bridge based comms, Dragino)
   Bridge.begin(115200);
   Console.begin();
   SEEL_Print::init(&Console);
+  */
 
   // Initialize gateway node and link logging function
   seel_gnode.init(&seel_scheduler,  // Scheduler reference
