@@ -84,6 +84,7 @@ const uint32_t SEEL_FORCE_SLEEP_RESET_COUNT = 3;
 
 // RSSI-based Parent Selection
 // Selection Modes
+// Ties in RSSI modes broken by lowest hop count
 enum SEEL_PARENT_SELECTION_MODE
 {
     SEEL_PSEL_FIRST_BROADCAST, // Selects parent based off of sender of first received broadcast message
