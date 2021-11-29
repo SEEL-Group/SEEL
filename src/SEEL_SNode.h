@@ -19,12 +19,14 @@ class SEEL_SNode: public SEEL_Node
 public:
     // Typedefs
     typedef bool (*user_callback_load_t)(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_CB_Info* info);
-    typedef void (*user_callback_forwarding_t)(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const int8_t msg_rssi);
+    typedef void (*user_callback_forwarding_t)(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_CB_Info* info);
+    // user_callback_presend_t defined in SEEL_Node.h
     
     // ***************************************************
     // Member functions
     void init(  SEEL_Scheduler* ref_scheduler,
                 user_callback_load_t user_cb_load, 
+                user_callback_presend_t user_cb_presend,
                 user_callback_forwarding_t user_cb_forwarding,
                 uint8_t cs_pin, uint8_t reset_pin, uint8_t int_pin, 
                 uint32_t snode_id, uint32_t tdma_slot);
@@ -85,12 +87,12 @@ private:
 
     // Enqueue messages: These are messages that can be sent with delay and need to be ack'd 
     // Returns true if the message was added to send queue
-    //void enqueue_bcast(SEEL_Message* prev_msg); // Does not need to be ack'd
-    bool enqueue_forwarding_msg(SEEL_Message* prev_msg, int8_t msg_rssi);
+    bool enqueue_forwarding_msg(SEEL_Message* prev_msg);
 
     bool enqueue_node_id();
 
     bool enqueue_data();
+    
     // ***************************************************
     // Member variables
     SEEL_Queue<uint8_t> _bcast_blacklist;

@@ -20,6 +20,7 @@ void SEEL_GNode::init(  SEEL_Scheduler* ref_scheduler,
 
     // Initialize member variables
     _ref_scheduler = ref_scheduler;
+    _user_cb_presend = NULL;
     _user_cb_broadcast = user_cb_broadcast;
     _user_cb_data = user_cb_data;
     _snode_awake_time_secs = snode_awake_time_secs;
