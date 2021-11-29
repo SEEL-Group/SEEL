@@ -24,6 +24,7 @@ uint32_t SEEL_SNode::generate_id()
 
 void SEEL_SNode::init(  SEEL_Scheduler* ref_scheduler,
             user_callback_load_t user_cb_load, 
+            user_callback_presend_t user_cb_presend,
             user_callback_forwarding_t user_cb_forwarding,
             uint8_t cs_pin, uint8_t reset_pin, uint8_t int_pin, 
             uint32_t snode_id, uint32_t tdma_slot)
@@ -35,6 +36,7 @@ void SEEL_SNode::init(  SEEL_Scheduler* ref_scheduler,
     _ref_scheduler = ref_scheduler;
     _user_cb_load = user_cb_load;
     _user_cb_forwarding = user_cb_forwarding;
+    _user_cb_presend = user_cb_presend;
     _unique_key = random(0, UINT32_MAX);
     _snode_awake_time_secs = 0;
     _snode_sleep_time_secs = 0;
@@ -369,7 +371,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
     {
         // Node cannot be the recipient of another node
         // Continue to forward msg
-        if(_inst->enqueue_forwarding_msg(&msg, msg_rssi))
+        if(_inst->enqueue_forwarding_msg(&msg))
         {
             // Only acknowledge the msg if msg was added to the send queue (failure results if send queue is full)
             _inst->enqueue_ack(&msg);
@@ -532,18 +534,18 @@ bool SEEL_SNode::bcast_id_check(SEEL_Message* msg)
 }
 
 
-bool SEEL_SNode::enqueue_forwarding_msg(SEEL_Message* prev_msg, int8_t msg_rssi)
+bool SEEL_SNode::enqueue_forwarding_msg(SEEL_Message* prev_msg)
 {
     bool added = false;
     // We know ID/Data msgs ultimately end up at the Gnode, so we can use relative sender and target id's
     // to faciliate acknowledgements and message travel. To send original sender ID, use data section 
     uint32_t original_target = prev_msg->targ_id;
     uint32_t original_sender = prev_msg->send_id;
-    prev_msg->targ_id = _parent_id; // Gets corrected later at msg SEND time
+    prev_msg->targ_id = _parent_id;
     prev_msg->send_id = _node_id;
-    if(prev_msg->cmd == SEEL_CMD_DATA)
+    if(prev_msg->cmd == SEEL_CMD_DATA && _user_cb_forwarding != NULL)
     {
-        _user_cb_forwarding(prev_msg->data, msg_rssi); // May modify "prev_msg->data"
+        _user_cb_forwarding(prev_msg->data, &_cb_info); // May modify "prev_msg->data"
     }
     added = _data_queue.add(*prev_msg);
 
@@ -584,7 +586,12 @@ bool SEEL_SNode::enqueue_data()
     if(_id_verified)
     {
         _cb_info.data_queue_size = _data_queue.size();
-        bool enqueue_user_message = _user_cb_load(msg_data, &_cb_info);
+        bool enqueue_user_message = false;
+        if (_user_cb_load != NULL)
+        {
+            enqueue_user_message = _user_cb_load(msg_data, &_cb_info);
+        }
+        
         _cb_info.first_callback = false;
 
         if(enqueue_user_message)
@@ -633,7 +640,7 @@ void SEEL_SNode::sleep()
 
     SEEL_Print::print(F("Sleeping for ")); SEEL_Print::print(sleep_counts); SEEL_Print::println(F(" counts"));
     SEEL_Print::flush();
-    for (int32_t i = 0; i < sleep_counts; ++i)
+    for (uint32_t i = 0; i < sleep_counts; ++i)
     {
         LowPower.powerDown(SEEL_WD_TIMER_DUR, ADC_OFF, BOD_OFF);
     }

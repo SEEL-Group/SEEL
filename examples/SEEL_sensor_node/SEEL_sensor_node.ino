@@ -45,7 +45,6 @@ void user_function()
 // This callback function is called when a new message CAN be sent out
 // Write Parameter: "msg_data", which is the data packet to send
 // Read-Only Parameter: "info" contains misc SEEL info, defined in SEEL_Node.h
-// Read-Only Parameter: "send_queue_full" denotes whether send_queue for this device is full
 // Returns: true if the data message should be sent out
 bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::SEEL_CB_Info* info)
 {
@@ -70,8 +69,8 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
   {
     msg_data[0] = SEEL_SNODE_ID; // original ID
     msg_data[1] = seel_snode.get_node_id(); // assigned ID
-    msg_data[2] = SEEL_GNODE_ID; // parent ID. Set to 0 (since if GNODE is parent, no modification necessary) for now, modify in fwd function by first parent node
-    msg_data[3] = 0; // parent RSSI. Also set in fwd function by parent node
+    msg_data[2] = 0; // parent ID. Set in presend function, since parent may change if msg does not get sent out this cycle
+    msg_data[3] = 0; // parent RSSI. Set in presend function
     msg_data[4] = (uint8_t)(info->wtb_millis >> 24); // WTB
     msg_data[5] = (uint8_t)(info->wtb_millis >> 16);
     msg_data[6] = (uint8_t)(info->wtb_millis >> 8);
@@ -95,23 +94,30 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
   return true;
 }
 
+// This callback function is called right before is DATA message is sent out.
+// This is useful to modify the message packet for information that could change between cycles
+// Useful because a message may be generate during one cycle and not sent out until another; some fields (like the SNODE's parent) may change between these cycles
+// Write Parameter: "msg_data", which is the data packet to send
+// Read-Only Parameter: "info" contains misc SEEL info, defined in SEEL_Node.h
+void user_callback_presend(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::SEEL_CB_Info* info)
+{
+  // The contents of this function are an example of what one can do with this CB function
+  
+  // Sets these fields to the immediate parent of the node and the last rssi value, to be seen by the GNODE for network debugging and analysis
+  msg_data[2] = seel_snode.get_parent_id();
+  msg_data[3] = info->last_msg_rssi;
+}
 
 // This callback function is called when this SNODE receives a message to-be-forwarded (Either data or id_check msg)
 // Afterwards, the message is added to this SNODE's send_queue
 // Message target and sender are handeled by the SEEL protocol and is not provided to this function, only the data field of the packet is visible here
-// Read/Write Parameter: "msg_data" which is the data packet of the forwarded message
-// Read-Only Parameter: "msg_rssi" contains the RSSI of the received message to be forwarded
-void user_callback_forwarding(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const int8_t msg_rssi)
+// Write Parameter: "msg_data", which is the data packet to forward
+// Read-Only Parameter: "info" contains misc SEEL info, defined in SEEL_Node.h
+/*
+void user_callback_forwarding(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::SEEL_CB_Info* info)
 {
-  // The contents of this function are an example of what one can do with this CB function
-
-  if (msg_data[2] == SEEL_GNODE_ID) // Only set for FIRST parent (If first parent is GNODE, already set)
-  {
-    // Sets the immediate forwarder SNODE's ID and RSSI, to be seen by the GNODE for network debugging and analysis
-    msg_data[2] = seel_snode.get_node_id();
-    msg_data[3] = msg_rssi;
-  }
 }
+*/
 
 void setup()
 {
@@ -128,7 +134,7 @@ void setup()
 
   // Initialize sensor node and link response function
   seel_snode.init(&seel_sched, // Scheduler reference
-                  user_callback_load, user_callback_forwarding, // User callback functions
+                  user_callback_load, user_callback_presend, NULL, //user_callback_forwarding, /* User callback functions
                   SEEL_LoRaPHY_CS_PIN, SEEL_LoRaPHY_RESET_PIN, SEEL_LoRaPHY_INT_PIN, // Pins
                   SEEL_SNODE_ID, SEEL_TDMA_SLOT_ASSIGNMENT); // ID and TDMA slot assignments
 

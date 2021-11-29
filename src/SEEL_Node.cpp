@@ -157,14 +157,17 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
     { 
         uint32_t receive_time = millis();
         uint8_t buf[SEEL_MSG_TOTAL_SIZE];
+        String print_msg = "";
 
-        SEEL_Print::print(F(">>R: "));
+        print_msg += F(">>R: ");
         for (uint8_t i = 0; i < msg_len; ++i)
         {
             buf[i] = _LoRaPHY_ptr->read();
-            SEEL_Print::print(buf[i]); SEEL_Print::print(F(" "));
+            print_msg += buf[i];
+            print_msg += F(" ");
         }
         rssi = _LoRaPHY_ptr->packetRssi();
+        _cb_info.last_msg_rssi = rssi;
 
         // Converts raw msg buffer to SEEL_Message
         buf_to_SEEL_msg(msg, buf);
@@ -180,8 +183,11 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
         }
 
         method_time = millis() - receive_time;
-        SEEL_Print::print(F("RSSI: ")); SEEL_Print::print(rssi);
-        SEEL_Print::print(F(", Rec. Time: ")); SEEL_Print::println(method_time);
+        print_msg += F("RSSI: ");
+        print_msg += rssi;
+        print_msg += F(", Rec. Time: ");
+        print_msg += method_time;
+        SEEL_Print::println(print_msg);
         SEEL_Print::flush();
     }
     else
@@ -194,7 +200,6 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
         }
     }
 
-    // No valid msg was received
     return valid_msg;
 }
 
@@ -317,9 +322,14 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
         to_send_ptr = _inst->_data_queue.front();
         uint32_t msg_cmd = to_send_ptr->cmd;
 
+        // Call presend callback on data messages
+        if (msg_cmd == SEEL_CMD_DATA && _inst->_user_cb_presend != NULL)
+        {
+            _inst->_user_cb_presend(to_send_ptr->data, &_inst->_cb_info);
+        }
         // A verified node may still have an join requests in the message queue
         // If this node is already verified, then do not send and pop the join request from send queue
-        if (msg_cmd == SEEL_CMD_ID_CHECK && _inst->_id_verified)
+        else if (msg_cmd == SEEL_CMD_ID_CHECK && _inst->_id_verified)
         {
             _inst->_data_queue.pop_front();
             _inst->_ref_scheduler->add_task(&_inst->_task_send);
