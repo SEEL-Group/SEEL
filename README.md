@@ -13,12 +13,14 @@ Check the documentation file (provided in this repository) for more details.
 2) Copy and Paste the SEEL/ (root) folder into your Arduino Library folder
 
 3) Also add the external libraries needed by SEEL:
-    https://github.com/dragino/RadioHead
+    https://github.com/sandeepmistry/arduino-LoRa
     https://github.com/rocketscream/Low-Power
 
-4) Restart Arduino for the changes to take effect
+4) For the arduino-LoRa library, apply the "lora_lib_crc_check.patch" file using "git apply <patch>" found in this repo's patches/ folder
 
-5) See advanced install instructions (such as logging setup) in SEEL_documentation.pdf
+5) Restart Arduino for the changes to take effect
+
+6) See advanced install instructions (such as logging setup) in SEEL_documentation.pdf
 
 *****************************************************************************
 

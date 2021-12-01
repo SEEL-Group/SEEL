@@ -232,7 +232,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                 {
                     rssi_mode_value = msg_rssi;
                 } 
-                else if(SEEL_PSEL_MODE == SEEL_PSEL_PATH_RSSI) 
+                else if(SEEL_PSEL_MODE == SEEL_PSEL_PATH_RSSI)
                 {
                     int8_t incoming_rssi = msg.data[SEEL_MSG_DATA_RSSI_INDEX];
                     rssi_mode_value = min(msg_rssi, incoming_rssi);
@@ -258,7 +258,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                 _inst->_bcast_avail = true;
                 SEEL_Print::print(F("Parent: ")); // Parent
                 SEEL_Print::print(_inst->_parent_id);
-                SEEL_Print::print(F(", RSSI: ")); // RSSI
+                SEEL_Print::print(F(", RSSI metric: ")); // RSSI
                 SEEL_Print::print(_inst->_path_rssi);
                 SEEL_Print::print(F(", Hop Count: "));
                 SEEL_Print::println(_inst->_cb_info.hop_count); // Hop Count
