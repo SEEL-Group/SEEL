@@ -1,0 +1,35 @@
+diff --git a/src/LoRa.cpp b/src/LoRa.cpp
+index 210a589..9de8ffd 100644
+--- a/src/LoRa.cpp
++++ b/src/LoRa.cpp
+@@ -216,7 +216,7 @@ bool LoRaClass::isTransmitting()
+   return false;
+ }
+ 
+-int LoRaClass::parsePacket(int size)
++int LoRaClass::parsePacket(bool& crc_valid, int size)
+ {
+   int packetLength = 0;
+   int irqFlags = readRegister(REG_IRQ_FLAGS);
+@@ -232,7 +232,7 @@ int LoRaClass::parsePacket(int size)
+   // clear IRQ's
+   writeRegister(REG_IRQ_FLAGS, irqFlags);
+ 
+-  if ((irqFlags & IRQ_RX_DONE_MASK) && (irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 0) {
++  if ((irqFlags & IRQ_RX_DONE_MASK) && (crc_valid = (irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 0)) {
+     // received a packet
+     _packetIndex = 0;
+ 
+diff --git a/src/LoRa.h b/src/LoRa.h
+index b312db5..c7171aa 100644
+--- a/src/LoRa.h
++++ b/src/LoRa.h
+@@ -40,7 +40,7 @@ public:
+   int beginPacket(int implicitHeader = false);
+   int endPacket(bool async = false);
+ 
+-  int parsePacket(int size = 0);
++  int parsePacket(bool& crc_valid, int size = 0);
+   int packetRssi();
+   float packetSnr();
+   long packetFrequencyError();
