@@ -12,7 +12,28 @@ File purpose:   Contains adjustable parameters (along with recommended defaults)
 
 #include <LowPower.h> // To access LowPower.h constants
 
-// LoRa LoRa Params
+// ***************************************************
+/* SEEL Debug */
+
+const bool SEEL_ASSERT_ENABLE = true;
+const bool SEEL_ASSERT_ENABLE_NVM = true; // If true, assert uses NVM
+// Max file and line num to partition assert writes to EEPROM
+// SEEL...NVM_MAX_FILE_NUM * SEEL...NVM_MAX_LINE_NUM should be even divisible by 
+// EEPROM.length() * 256
+// NVM partitions are associated with these parameters; so if these parameters are changed,
+// then previous NVM writes are no longer valid
+// 
+const uint8_t SEEL_ASSERT_NVM_MAX_FILE_NUM = 8; // Number files starting from 0
+const uint16_t SEEL_ASSERT_NVM_MAX_LINE_NUM = 2048;
+
+// ***************************************************
+/* SEEL Queue */
+
+const uint8_t SEEL_QUEUE_ALLOCATION_SIZE = 7; // Allocation size of ALL queues used in SEEL
+
+// ***************************************************
+/* SEEL LoRa Params */
+
 const uint32_t SEEL_RFM95_FREQ = 915E6;
 const int8_t SEEL_RFM95_SF = 12;
 const uint32_t SEEL_RFM95_BW = 250E3;
@@ -112,9 +133,5 @@ const uint32_t SEEL_TDMA_CYCLE_TIME_MILLIS = SEEL_TDMA_SLOT_WAIT_MILLIS * SEEL_T
 const uint32_t SEEL_EB_INIT_MILLIS = 10000; // How long first backoff max is
 const uint32_t SEEL_EB_MIN_MILLIS = 0;
 const float SEEL_EB_EXP_SCALE = 2.0f;
-
-// ***************************************************
-/* SEEL_Queue */
-const uint8_t SEEL_QUEUE_ALLOCATION_SIZE = 7; // Allocation size of ALL queues used in SEEL
 
 #endif // SEEL_Params

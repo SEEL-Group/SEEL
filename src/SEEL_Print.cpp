@@ -4,7 +4,7 @@ Copyright (C) SEEL Group 2021 all rights reserved
 See license file in root folder for more licensing details
 See SEEL_documentation.pdf for protocol description details
 
-File purpose:   See SEEL_print.h
+File purpose:   See SEEL_Print.h
 */
 
 #include "SEEL_Print.h"
