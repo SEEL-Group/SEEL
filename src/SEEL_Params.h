@@ -17,6 +17,7 @@ File purpose:   Contains adjustable parameters (along with recommended defaults)
 
 const bool SEEL_ASSERT_ENABLE = true;
 const bool SEEL_ASSERT_ENABLE_NVM = true; // If true, assert uses NVM
+const bool SEEL_ASSERT_NVM_PRINT_BLOCK = true; // If true, on print_nvm(), print entire NVM block
 // Max file and line num to partition assert writes to EEPROM
 // SEEL...NVM_MAX_FILE_NUM * SEEL...NVM_MAX_LINE_NUM should be even divisible by 
 // EEPROM.length() * 256
