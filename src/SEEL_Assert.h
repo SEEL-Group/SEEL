@@ -19,11 +19,13 @@ File purpose:   Enables users to use assert statements that write to EEPROM on f
 class SEEL_Assert
 {
 public:
-    static void clear();
+    static void print_nvm();
 
-    static void equals(bool test, uint16_t file_num = 0, uint16_t line_num = 0);
+    static void clear_nvm();
 
-    SEEL_Queue<uint32_t> _assert_queue;
+    static void equals(bool test, uint16_t file_num, uint16_t line_num);
+
+    static SEEL_Queue<uint32_t> _assert_queue;
 
 private:
     SEEL_Assert();
