@@ -19,8 +19,14 @@ File purpose:   Enables users to use assert statements that write to EEPROM on f
 class SEEL_Assert
 {
 public:
+
+    // Finds valid used slots to initialize internal array pointer
+    static void init_nvm();
+
+    // Print current state of nvm along with errors
     static void print_nvm();
 
+    // Marks all existing nvm slots as unused
     static void clear_nvm();
 
     static void equals(bool test, uint16_t file_num, uint16_t line_num);
@@ -29,6 +35,9 @@ public:
 
 private:
     SEEL_Assert();
+
+    uint32_t _nvm_arr_start = 0; // nvm arr start index
+    uint32_t _nvm_arr_len = 0; // nvm total length, # elements * SEEL_ASSERT_NVM_CELLS_PER_ENTRY
 };
 
 #endif // SEEL_Assert_h

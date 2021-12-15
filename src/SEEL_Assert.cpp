@@ -12,6 +12,65 @@ File purpose:   See SEEL_Assert.h
 
 SEEL_Queue<uint32_t> SEEL_Assert::_assert_queue;
 
+void SEEL_Assert::init()
+{
+    if (!SEEL_ASSERT_ENABLE_NVM)
+    {
+        SEEL_Print::println(F("Assert NVM not enabled"));
+        return;
+    }
+
+    // Initialize start to 0 for the case the entire cell block is valid
+    _nvm_arr_start = 0;
+    _nvm_arr_len = 0;
+
+    uint32_t wrap_count = 0;
+    bool unused_seen = false;
+    bool head_set = false;
+    for (uint16_t i = 0; i < EEPROM.length(); i += SEEL_ASSERT_NVM_CELLS_PER_ENTRY)
+    {
+        uint8_t val = EEPROM.read(i);
+        bool valid_entry = val >> 7;
+
+        if (valid_entry)
+        {
+            if (unused_seen)
+            {
+                if (head_set)
+                {
+                    // We've already set the head, keep extending length
+                    _nvm_arr_len += SEEL_ASSERT_NVM_CELLS_PER_ENTRY;
+                }
+                else // head not set
+                {
+                    // This entry marks a transition from unused to used entry, set the head
+                    _nvm_arr_start = i;
+                    head_set = true;
+                }
+            }
+            else // unused not seen yet
+            {
+                 // We have a valid entry but haven't seen ununsed cell yet, this could be a wrap-around case
+                ++wrap_count;
+            }
+        }
+        else // not valid entry
+        {
+            unused_seen = true;
+            if (head_set)
+            {
+                // We've ended the continuous array search, return to avoid futher searches; we know 
+                // this is not a wrap-around case
+                return;
+            }
+        }
+    }
+
+    // If we got here, that means last entry of NVM array was valid entry, so there may be a wrap-around case;
+    // add the previous wrap-around values to length
+    _nvm_arr_len += wrap_count * SEEL_ASSERT_NVM_CELLS_PER_ENTRY;
+}
+
 void SEEL_Assert::print_nvm()
 {
     if (!SEEL_ASSERT_ENABLE_NVM)
@@ -20,20 +79,19 @@ void SEEL_Assert::print_nvm()
         return;
     }
 
-    const uint8_t BYTES_PER_LINE = 32;
-    const uint32_t DIV_PER_FILE = EEPROM.length() / SEEL_ASSERT_NVM_MAX_FILE_NUM;
     String assert_fail_str = "";
 
     SEEL_Print::print(F("Device EEPROM Size: ")); SEEL_Print::println(EEPROM.length());
     SEEL_Print::flush();
 
+    bool valid_entry = false; // tracks whether groupings of SEEL_ASSERT_NVM_CELLS_PER_ENTRY are valid
     for (uint16_t i = 0; i < EEPROM.length(); ++i)
     {
         uint8_t val = EEPROM.read(i);
 
         if (SEEL_ASSERT_NVM_PRINT_BLOCK)
         {
-            if (i % BYTES_PER_LINE == (BYTES_PER_LINE - 1))
+            if (i % SEEL_ASSERT_NVM_PRINT_BLOCK_WIDTH == (SEEL_ASSERT_NVM_PRINT_BLOCK_WIDTH - 1))
             {
                 SEEL_Print::println(val);
                 SEEL_Print::flush();
@@ -44,23 +102,40 @@ void SEEL_Assert::print_nvm()
             }
         }
 
-        if (val != 0)
+        uint16_t file_num = 0;
+        uint16_t line_num = 0;
+        // Format:
+        // [(1bit, cell used); (7bits, (uint8)(File_num >> 8))] [(8bits, (uint8)File_num)] [(8bits, (uint8)(Line_num >> 8))] [(8bits, (uint8)Line_num)]
+        if (i % SEEL_ASSERT_NVM_CELLS_PER_ENTRY == 0)
         {
-            // Check each bit of val to see which assert(s) failed
-            for (uint8_t j = 0; j < 8; ++j, val = val >> 1)
-            {
-                uint8_t val_bit = val & 1;
+            valid_entry = (val >> 7);
 
-                if (val_bit == 1)
-                {
-                    String file_num_str = String(i / DIV_PER_FILE);
-                    String line_num_str = String((i % DIV_PER_FILE) * 8 + j);
-                    assert_fail_str += F("ASSERT FAIL: File ");
-                    assert_fail_str += file_num_str;
-                    assert_fail_str += F(", Line ");
-                    assert_fail_str += line_num_str;
-                    assert_fail_str += F("\n");
-                }
+            if (valid_entry)
+            {
+                file_num += (val & 0x7F) << 8; // erase the cell_used bit
+            }
+        }
+        else if (valid_entry)
+        {
+            switch(i % SEEL_ASSERT_NVM_CELLS_PER_ENTRY)
+            {
+                case 1:
+                    file_num += val;
+                    break;
+                case 2:
+                    line_num += val << 8;
+                    break;
+                case 3:
+                    line_num += val;
+                     assert_fail_str += F("ASSERT FAIL: File ");
+                     assert_fail_str += String(file_num);
+                     assert_fail_str += F(", Line ");
+                     assert_fail_str += String(line_num);
+                     assert_fail_str += F("\n");
+                    break;
+                default:
+                    SEEL_Print::println(F("NVM Invalid Cell Index in Print"));
+                    return;
             }
         }
     }
@@ -81,10 +156,13 @@ void SEEL_Assert::clear_nvm()
         return;
     }
 
-    for (uint16_t i = 0; i < EEPROM.length(); ++i)
+    for (uint16_t i = 0; i < EEPROM.length(); i+= SEEL_ASSERT_NVM_CELLS_PER_ENTRY)
     {
         EEPROM.update(i, 0); // update only sets necessary bits to reduce wear
     }
+
+    _nvm_arr_start = (_nvm_arr_start + 1) % EEPROM.length();
+    _nvm_arr_len = 0;
 }
 
 void SEEL_Assert::equals(bool test, uint16_t file_num, uint16_t line_num)
@@ -128,21 +206,44 @@ void SEEL_Assert::equals(bool test, uint16_t file_num, uint16_t line_num)
             return;
         }
 
-        // EEPROM has EEPROM.length() bytes available, with each byte containing 8 bits
-        uint32_t max_eeprom_bits = EEPROM.length() * 8; // EEPROM.length is uint16_t, will not overflow
-        uint32_t max_line_size = max_eeprom_bits / SEEL_ASSERT_NVM_MAX_FILE_NUM;
+        if (_nvm_arr_len + SEEL_ASSERT_NVM_CELLS_PER_ENTRY > EEPROM.length())
+        {
+            // EEPROM full, discarding assert
+            SEEL_Print::println(F("NVM Full, assert discarded"));
+            return;
+        }
 
-        if (line_num < max_line_size)
+        for (uint8_t i = 0; i < SEEL_ASSERT_NVM_CELLS_PER_ENTRY; ++i)
         {
-            uint32_t idx = ((EEPROM.length() / SEEL_ASSERT_NVM_MAX_FILE_NUM) * file_num) + (line_num / 8);
-            uint32_t val = EEPROM.read(idx) | (1 << (line_num % 8)); // Don't modify the existing bits for that EEPROM index
-            EEPROM.update(idx, val); // Update only sets necessary bits to reduce wear
+            uint32_t cell_index = (_nvm_arr_start + _nvm_arr_len + i) % EEPROM.length();
+            uint8_t val;
+
+            // Format:
+            // [(1bit, cell used); (7bits, (uint8)(File_num >> 8))] [(8bits, (uint8)File_num)] [(8bits, (uint8)(Line_num >> 8))] [(8bits, (uint8)Line_num)]
+            switch(i % SEEL_ASSERT_NVM_CELLS_PER_ENTRY)
+            {
+                case 0:
+                    val = (uint8_t)(file_num >> 8);
+                    val |= (1 << 7); // Overwrite the MSB bit with special field to check if cell is used
+                    break;
+                case 1:
+                    val = (uint8_t)(file_num);
+                    break;
+                case 2:
+                    val = (uint8_t)(line_num >> 8);
+                    break;
+                case 3:
+                    val = (uint8_t)(line_num);
+                    break;
+                default:
+                    SEEL_Print::println(F("NVM Invalid Cell Index in Add"));
+                    return;
+            }
+
+            EEPROM.update(cell_index, val);
         }
-        else
-        {
-            SEEL_Print::print(F("Assert NVM line num invalid: ")); SEEL_Print::print(line_num);
-            SEEL_Print::print(F(", max (given file size and EEPROM size): ")); SEEL_Print::println(max_line_size);
-        }
+
+        _nvm_arr_len += SEEL_ASSERT_NVM_CELLS_PER_ENTRY;
     }
     else
     {
