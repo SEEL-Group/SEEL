@@ -4,7 +4,7 @@ Copyright (C) SEEL Group 2021 all rights reserved
 See license file in root folder for more licensing details
 See SEEL_documentation.pdf for protocol description details
 
-File purpose:   Contains adjustable parameters (along with recommended defaults) for the SEEL protocol
+File purpose:   Contains adjustable parameters (along with recommended defaults) for the SEEL protocol.
 */
 
 #ifndef SEEL_Params_h
@@ -12,20 +12,26 @@ File purpose:   Contains adjustable parameters (along with recommended defaults)
 
 #include <LowPower.h> // To access LowPower.h constants
 
+/*
+    Note: Any changes to the width of these constants will require similar changes to 
+    their assigned and compared against variables in the rest of the code.
+*/
+
 // ***************************************************
 /* SEEL Debug */
 
 const bool SEEL_ASSERT_ENABLE = true;
 const bool SEEL_ASSERT_ENABLE_NVM = true; // If true, assert uses NVM
 const bool SEEL_ASSERT_NVM_PRINT_BLOCK = true; // If true, on print_nvm(), print entire NVM block
-// Max file and line num to partition assert writes to EEPROM
-// SEEL...NVM_MAX_FILE_NUM * SEEL...NVM_MAX_LINE_NUM should be even divisible by 
-// EEPROM.length() * 256
+const uint8_t SEEL_ASSERT_NVM_PRINT_BLOCK_WIDTH = 32; // How many NVM cells to print per line in the block
 // NVM partitions are associated with these parameters; so if these parameters are changed,
 // then previous NVM writes are no longer valid
-// 
-const uint8_t SEEL_ASSERT_NVM_MAX_FILE_NUM = 8; // Number files starting from 0
-const uint16_t SEEL_ASSERT_NVM_MAX_LINE_NUM = 2048;
+// NVM entry storage system (designed for wear leveling):
+// [(1bit, cell used); (7bits, (uint8)(File_num >> 8))] [(8bits, (uint8)File_num)] [(8bits, (uint8)(Line_num >> 8))] [(8bits, (uint8)Line_num)]
+const uint8_t SEEL_ASSERT_NVM_CELLS_PER_ENTRY = 4; // Number of NVM cells for a single entry
+// Max file and line num to partition assert writes to EEPROM
+const uint16_t SEEL_ASSERT_NVM_MAX_FILE_NUM = 32767; // 15 bits for file
+const uint16_t SEEL_ASSERT_NVM_MAX_LINE_NUM = 65535; // 16 bits for line
 
 // ***************************************************
 /* SEEL Queue */
