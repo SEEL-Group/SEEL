@@ -23,8 +23,11 @@ public:
     // Finds valid used slots to initialize internal array pointer
     static void init_nvm();
 
-    // Print current state of nvm along with errors
-    static void print_nvm();
+    // Print current state of nvm
+    static void print_nvm_block();
+
+    // Print nvm assert fails
+    static void print_nvm_fails();
 
     // Marks all existing nvm slots as unused
     static void clear_nvm();
@@ -36,8 +39,9 @@ public:
 private:
     SEEL_Assert();
 
-    uint32_t _nvm_arr_start = 0; // nvm arr start index
-    uint32_t _nvm_arr_len = 0; // nvm total length, # elements * SEEL_ASSERT_NVM_CELLS_PER_ENTRY
+    static uint32_t _nvm_arr_start; // nvm arr start index
+    static uint32_t _nvm_arr_len; // nvm total length, # elements * SEEL_ASSERT_NVM_CELLS_PER_ENTRY
+    static bool _nvm_initialized;
 };
 
 #endif // SEEL_Assert_h
