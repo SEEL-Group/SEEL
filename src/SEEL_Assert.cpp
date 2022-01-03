@@ -10,20 +10,16 @@ File purpose:   See SEEL_Assert.h
 #include "SEEL_Assert.h"
 #include "SEEL_Queue.cpp"
 
+#if SEEL_ASSERT_ENABLE == TRUE
 SEEL_Queue<uint32_t> SEEL_Assert::_assert_queue;
+
+#if SEEL_ASSERT_ENABLE_NVM == TRUE
 uint32_t SEEL_Assert::_nvm_arr_start = 0;
 uint32_t SEEL_Assert::_nvm_arr_len = 0;
 bool SEEL_Assert::_nvm_initialized = false;
 
-
-void SEEL_Assert::init_nvm()
+void SEEL_Assert::init_nvm_helper()
 {
-    if (!SEEL_ASSERT_ENABLE_NVM)
-    {
-        SEEL_Print::println(F("Assert NVM not enabled"));
-        return;
-    }
-
     // Initialize start to 0 for the case the entire cell block is valid
     _nvm_arr_start = 0;
     _nvm_arr_len = 0;
@@ -73,13 +69,8 @@ void SEEL_Assert::init_nvm()
     _nvm_initialized = true;
 }
 
-void SEEL_Assert::print_nvm_block()
+void SEEL_Assert::print_nvm_block_helper()
 {
-    if (!SEEL_ASSERT_ENABLE_NVM)
-    {
-        SEEL_Print::println(F("Assert NVM not enabled"));
-        return;
-    }
     if (!_nvm_initialized)
     {
         SEEL_Print::println(F("Assert NVM not initialized"));
@@ -108,13 +99,8 @@ void SEEL_Assert::print_nvm_block()
     }
 }
 
-void SEEL_Assert::print_nvm_fails()
+void SEEL_Assert::print_nvm_fails_helper()
 {
-    if (!SEEL_ASSERT_ENABLE_NVM)
-    {
-        SEEL_Print::println(F("Assert NVM not enabled"));
-        return;
-    }
     if (!_nvm_initialized)
     {
         SEEL_Print::println(F("Assert NVM not initialized"));
@@ -162,11 +148,11 @@ void SEEL_Assert::print_nvm_fails()
                     String assert_fail_str = "";
                     if (prev_valid_entry)
                     {
-                        assert_fail_str += F("ASSERT FAIL: File ");
+                        assert_fail_str += F("PRINT ASSERT FAIL: File ");
                     }
                     else
                     {
-                        assert_fail_str += F("ASSERT FAIL (Maybe Dummy Head): File "); // maybe since it could be a starting block and wraparound expensive to check
+                        assert_fail_str += F("PRINT ASSERT FAIL (Maybe Dummy Head): File "); // maybe since it could be a starting block and wraparound expensive to check
                     }
                     assert_fail_str += String(file_num);
                     assert_fail_str += F(", Line ");
@@ -183,13 +169,8 @@ void SEEL_Assert::print_nvm_fails()
     SEEL_Print::flush();
 }
 
-void SEEL_Assert::clear_nvm()
+void SEEL_Assert::clear_nvm_helper()
 {
-    if (!SEEL_ASSERT_ENABLE_NVM)
-    {
-        SEEL_Print::println(F("Assert NVM not enabled"));
-        return;
-    }
     if (!_nvm_initialized)
     {
         SEEL_Print::println(F("Assert NVM not initialized"));
@@ -206,20 +187,20 @@ void SEEL_Assert::clear_nvm()
     EEPROM.update(_nvm_arr_start, 0x80);
     _nvm_arr_len = SEEL_ASSERT_NVM_CELLS_PER_ENTRY;
 }
+#endif // SEEL_ASSERT_ENABLE_NVM
 
-void SEEL_Assert::equals(bool test, uint16_t file_num, uint16_t line_num)
+void SEEL_Assert::equals_helper(bool test, uint16_t file_num, uint16_t line_num)
 {
-    if (!SEEL_ASSERT_ENABLE || test)
+    if (test)
     {
         // Assert passed
         return;
     }
-
     // Assert failed
 
     // Print assert failure
-    SEEL_Print::print(F("ASSERT FAIL: File: ")); SEEL_Print::print(file_num);
-    SEEL_Print::print(F(", Line: ")); SEEL_Print::println(line_num);
+    SEEL_Print::print(F("ASSERT FAIL: File ")); SEEL_Print::print(file_num);
+    SEEL_Print::print(F(", Line ")); SEEL_Print::println(line_num);
 
     // Add error to assert queue
     uint32_t error = 0;
@@ -234,12 +215,8 @@ void SEEL_Assert::equals(bool test, uint16_t file_num, uint16_t line_num)
         }
     }
 
+    #if SEEL_ASSERT_ENABLE_NVM == TRUE
     // Write assert failure to EEPROM
-    if (!SEEL_ASSERT_ENABLE_NVM)
-    {
-        SEEL_Print::println(F("Assert NVM not enabled"));
-        return;
-    }
     if (!_nvm_initialized)
     {
         SEEL_Print::println(F("Assert NVM not initialized"));
@@ -295,4 +272,6 @@ void SEEL_Assert::equals(bool test, uint16_t file_num, uint16_t line_num)
     }
 
     _nvm_arr_len += SEEL_ASSERT_NVM_CELLS_PER_ENTRY;
+    #endif // SEEL_ASSERT_ENABLE_NVM
 }
+#endif // SEEL_ASSERT_ENABLE

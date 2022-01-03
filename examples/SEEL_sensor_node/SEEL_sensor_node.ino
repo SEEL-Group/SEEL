@@ -2,14 +2,14 @@
 #include <SEEL_SNode.h>
 
 /* SEEL Parameters */
-const uint8_t SEEL_SNODE_ID = 14; // 0 is reserved for gateway nodes, use 0 to randomly generate ID
-const uint8_t SEEL_TDMA_SLOT_ASSIGNMENT = 3; // TDMA transmission slot, ignored if not using TDMA sending scheme. See SEEL documentation for advised slot configuration.
+constexpr uint8_t SEEL_SNODE_ID = 1; // 0 is reserved for gateway nodes, use 0 to randomly generate ID
+constexpr uint8_t SEEL_TDMA_SLOT_ASSIGNMENT = 1; // TDMA transmission slot, ignored if not using TDMA sending scheme. See SEEL documentation for advised slot configuration.
 
 /* LoRaPHY Tranceiver Pin Assignments */
-const uint8_t SEEL_LoRaPHY_CS_PIN = 10;
-const uint8_t SEEL_LoRaPHY_RESET_PIN = 9;
-const uint8_t SEEL_LoRaPHY_INT_PIN = 2;
-const uint8_t SEEL_RNG_SEED_PIN = 0; // Make sure this pin is NOT connected
+constexpr uint8_t SEEL_LoRaPHY_CS_PIN = 10;
+constexpr uint8_t SEEL_LoRaPHY_RESET_PIN = 9;
+constexpr uint8_t SEEL_LoRaPHY_INT_PIN = 2;
+constexpr uint8_t SEEL_RNG_SEED_PIN = 0; // Make sure this pin is NOT connected
 
 /* SEEL Variables */
 SEEL_Scheduler seel_sched;
