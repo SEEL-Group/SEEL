@@ -21,27 +21,65 @@ class SEEL_Assert
 public:
 
     // Finds valid used slots to initialize internal array pointer
-    static void init_nvm();
+    static inline void init_nvm()
+    {
+#if SEEL_ASSERT_ENABLE == TRUE && SEEL_ASSERT_ENABLE_NVM == TRUE
+        init_nvm_helper();
+#endif // SEEL_ASSERT_ENABLE && SEEL_ASSERT_ENABLE_NVM
+    }
 
     // Print current state of nvm
-    static void print_nvm_block();
+    static inline void print_nvm_block()
+    {
+#if SEEL_ASSERT_ENABLE == TRUE && SEEL_ASSERT_ENABLE_NVM == TRUE
+        print_nvm_block_helper();
+#endif // SEEL_ASSERT_ENABLE && SEEL_ASSERT_ENABLE_NVM
+    }
 
     // Print nvm assert fails
-    static void print_nvm_fails();
+    static inline void print_nvm_fails()
+    {
+#if SEEL_ASSERT_ENABLE == TRUE && SEEL_ASSERT_ENABLE_NVM == TRUE
+        print_nvm_fails_helper();
+#endif // SEEL_ASSERT_ENABLE && SEEL_ASSERT_ENABLE_NVM
+    }
 
     // Marks all existing nvm slots as unused
-    static void clear_nvm();
+    static inline void clear_nvm()
+    {
+#if SEEL_ASSERT_ENABLE == TRUE && SEEL_ASSERT_ENABLE_NVM == TRUE
+        clear_nvm_helper();
+#endif // SEEL_ASSERT_ENABLE && SEEL_ASSERT_ENABLE_NVM
+    }
 
-    static void equals(bool test, uint16_t file_num, uint16_t line_num);
+    static inline void equals(bool test, uint16_t file_num, uint16_t line_num)
+    {
+#if SEEL_ASSERT_ENABLE == TRUE
+        equals_helper(test, file_num, line_num);
+#endif // SEEL_ASSERT_ENABLE
+    }
 
+#if SEEL_ASSERT_ENABLE == TRUE
     static SEEL_Queue<uint32_t> _assert_queue;
+#endif // SEEL_ASSERT_ENABLE
 
 private:
     SEEL_Assert();
 
+#if SEEL_ASSERT_ENABLE == TRUE
+#if SEEL_ASSERT_ENABLE_NVM == TRUE
+    static void init_nvm_helper();
+    static void print_nvm_block_helper();
+    static void print_nvm_fails_helper();
+    static void clear_nvm_helper();
+
     static uint32_t _nvm_arr_start; // nvm arr start index
     static uint32_t _nvm_arr_len; // nvm total length, # elements * SEEL_ASSERT_NVM_CELLS_PER_ENTRY
     static bool _nvm_initialized;
+#endif // SEEL_ASSERT_ENABLE_NVM
+
+    static void equals_helper(bool test, uint16_t file_num, uint16_t line_num);
+#endif // SEEL_ASSERT_ENABLE
 };
 
 #endif // SEEL_Assert_h
