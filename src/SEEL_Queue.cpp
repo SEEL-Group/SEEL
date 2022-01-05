@@ -9,6 +9,8 @@ File purpose:   See SEEL_Queue.h
 
 #include "SEEL_Queue.h"
 
+static constexpr uint16_t FILE_NUM = SEEL_ASSERT_FILE_NUM_QUEUE;
+
 template <class T>
 SEEL_Queue<T>::SEEL_Queue()
 {
