@@ -1,6 +1,8 @@
 #include <SEEL_Scheduler.h>
 #include <SEEL_SNode.h>
 
+static constexpr uint16_t FILE_NUM = SEEL_ASSERT_FILE_NUM_USER1;
+
 /* SEEL Parameters */
 constexpr uint8_t SEEL_SNODE_ID = 1; // 0 is reserved for gateway nodes, use 0 to randomly generate ID
 constexpr uint8_t SEEL_TDMA_SLOT_ASSIGNMENT = 1; // TDMA transmission slot, ignored if not using TDMA sending scheme. See SEEL documentation for advised slot configuration.

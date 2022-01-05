@@ -215,7 +215,7 @@ void SEEL_Assert::equals_helper(bool test, uint16_t file_num, uint16_t line_num)
         }
     }
 
-    #if SEEL_ASSERT_ENABLE_NVM == TRUE
+#if SEEL_ASSERT_ENABLE_NVM == TRUE
     // Write assert failure to EEPROM
     if (!_nvm_initialized)
     {
@@ -272,6 +272,6 @@ void SEEL_Assert::equals_helper(bool test, uint16_t file_num, uint16_t line_num)
     }
 
     _nvm_arr_len += SEEL_ASSERT_NVM_CELLS_PER_ENTRY;
-    #endif // SEEL_ASSERT_ENABLE_NVM
+#endif // SEEL_ASSERT_ENABLE_NVM
 }
 #endif // SEEL_ASSERT_ENABLE

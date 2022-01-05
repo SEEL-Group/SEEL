@@ -16,6 +16,17 @@ File purpose:   Enables users to use assert statements that write to EEPROM on f
 #include "SEEL_Print.h"
 #include "SEEL_Queue.h"
 
+// SEEL Files, max file num defined in SEEL_Params.h
+// Avoid file '0' since default is 0, use for error case
+constexpr uint16_t SEEL_ASSERT_FILE_NUM_QUEUE        = 1;
+constexpr uint16_t SEEL_ASSERT_FILE_NUM_SCHEDULER    = 2;
+constexpr uint16_t SEEL_ASSERT_FILE_NUM_NODE         = 3;
+constexpr uint16_t SEEL_ASSERT_FILE_NUM_GNODE        = 4;
+constexpr uint16_t SEEL_ASSERT_FILE_NUM_SNODE        = 5;
+// User Files
+constexpr uint16_t SEEL_ASSERT_FILE_NUM_USER0        = 6;
+constexpr uint16_t SEEL_ASSERT_FILE_NUM_USER1        = 7;
+
 class SEEL_Assert
 {
 public:

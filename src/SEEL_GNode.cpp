@@ -9,6 +9,8 @@ File purpose:   See SEEL_GNode.h
 
 #include "SEEL_GNode.h"
 
+static constexpr uint16_t FILE_NUM = SEEL_ASSERT_FILE_NUM_GNODE;
+
 void SEEL_GNode::init(  SEEL_Scheduler* ref_scheduler, 
             user_callback_broadcast_t user_cb_broadcast, user_callback_data_t user_cb_data, 
             uint8_t cs_pin, uint8_t reset_pin, uint8_t int_pin, 

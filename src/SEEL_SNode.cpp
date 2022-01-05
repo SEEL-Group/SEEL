@@ -9,6 +9,8 @@ File purpose:   See SEEL_SNode.h
 
 #include "SEEL_SNode.h"
 
+static constexpr uint16_t FILE_NUM = SEEL_ASSERT_FILE_NUM_SNODE;
+
 uint32_t SEEL_SNode::generate_id()
 {
     // Make sure GNode is configured to handle ID size and there are enough bits in message protocol

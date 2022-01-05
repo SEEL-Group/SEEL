@@ -9,6 +9,8 @@ File purpose:   See SEEL_Scheduler.h
 
 #include "SEEL_Scheduler.h"
 
+static constexpr uint16_t FILE_NUM = SEEL_ASSERT_FILE_NUM_SCHEDULER;
+
 bool SEEL_Scheduler::add_task(SEEL_Task* tf, uint32_t task_delay)
 {
     uint32_t tid = assign_task_id();

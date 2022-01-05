@@ -3,6 +3,8 @@
 
 #include <FileIO.h>
 
+static constexpr uint16_t FILE_NUM = SEEL_ASSERT_FILE_NUM_USER0;
+
 /* SEEL Parameters */
 constexpr uint8_t SEEL_TDMA_SLOT_ASSIGNMENT = 0; // TDMA transmission slot, ignored if not using TDMA sending scheme. See SEEL documentation for advised slot configuration.
 

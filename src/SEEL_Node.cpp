@@ -9,7 +9,7 @@ File purpose:   See SEEL_Node.h
 
 #include "SEEL_Node.h"
 
-const static uint8_t FILE_NUMBER = 0;
+static constexpr uint16_t FILE_NUM = SEEL_ASSERT_FILE_NUM_NODE;
 
 void SEEL_Node::init(uint32_t n_id, uint32_t ts)
 {
