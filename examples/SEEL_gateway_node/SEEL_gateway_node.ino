@@ -21,7 +21,7 @@ constexpr uint8_t SEEL_LoRaPHY_INT_PIN = 2; // Don't change these if using Dragi
 constexpr uint8_t SEEL_RNG_SEED_PIN = 0; // Make sure this pin is NOT connected
 
 /* File Write Paramters */
-constexpr char* LOG_FILE_PATH = ""; // Path on gateway node file system
+constexpr char* LOG_FILE_PATH = "/root/FD/cutset/test/SEEL_2021_28_A.txt"; // Path on gateway node file system
 
 /* SEEL Variables */
 SEEL_Scheduler seel_scheduler;
