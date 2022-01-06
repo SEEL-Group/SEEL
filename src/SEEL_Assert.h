@@ -63,10 +63,10 @@ public:
 #endif // SEEL_ASSERT_ENABLE && SEEL_ASSERT_ENABLE_NVM
     }
 
-    static inline void equals(bool test, uint16_t file_num, uint16_t line_num)
+    static inline void assert(bool test, uint16_t file_num, uint16_t line_num)
     {
 #if SEEL_ASSERT_ENABLE == TRUE
-        equals_helper(test, file_num, line_num);
+        assert_helper(test, file_num, line_num);
 #endif // SEEL_ASSERT_ENABLE
     }
 
@@ -89,7 +89,7 @@ private:
     static bool _nvm_initialized;
 #endif // SEEL_ASSERT_ENABLE_NVM
 
-    static void equals_helper(bool test, uint16_t file_num, uint16_t line_num);
+    static void assert_helper(bool test, uint16_t file_num, uint16_t line_num);
 #endif // SEEL_ASSERT_ENABLE
 };
 
