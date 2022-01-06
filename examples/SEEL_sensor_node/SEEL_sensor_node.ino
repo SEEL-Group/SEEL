@@ -1,3 +1,4 @@
+#include <SEEL_Assert.h>
 #include <SEEL_Scheduler.h>
 #include <SEEL_SNode.h>
 
@@ -132,6 +133,9 @@ void setup()
   // Initialize SEEL printing
   Serial.begin(9600);
   SEEL_Print::init(&Serial);
+
+  // Initialize Assert NVM
+  SEEL_Assert::init_nvm();
 
   // Initialize sensor node and link response function
   seel_snode.init(&seel_sched, // Scheduler reference
