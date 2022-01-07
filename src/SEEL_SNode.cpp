@@ -36,7 +36,7 @@ void SEEL_SNode::init(  SEEL_Scheduler* ref_scheduler,
     _ref_scheduler = ref_scheduler;
     _user_cb_load = user_cb_load;
     _user_cb_forwarding = user_cb_forwarding;
-    _user_cb_presend = user_cb_presend;
+    _user_cb_presend = user_cb_presend; // called in SEEL_Node.cpp
     _unique_key = random(0, UINT32_MAX);
     _snode_awake_time_secs = 0;
     _snode_sleep_time_secs = 0;
@@ -58,7 +58,8 @@ void SEEL_SNode::init(  SEEL_Scheduler* ref_scheduler,
     _task_sleep.set_inst(this);
     _task_force_sleep.set_inst(this);
 
-    _ref_scheduler->add_task(&_task_wake);
+    bool added = _ref_scheduler->add_task(&_task_wake);
+    SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
 }
 
 void SEEL_SNode::SEEL_Task_SNode_Wake::run()
@@ -85,16 +86,18 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
     _inst->_ref_scheduler->set_user_task_enable(false); 
 
     // Add cycle tasks to scheduler
-    _inst->_ref_scheduler->add_task(&_inst->_task_receive);
+    bool added = _inst->_ref_scheduler->add_task(&_inst->_task_receive);
+    SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
 
     // Force sleep, so SNODE can sleep even if it misses the bcast
     // Cannot force sleep until WD timer is properly adjusted
     // After SEEL_FORCE_SLEEP_RESET_COUNT of missed bcasts, disable forced sleep
     if(_inst->_WD_adjusted && _inst->_missed_bcasts < SEEL_FORCE_SLEEP_RESET_COUNT)
     {
-        _inst->_ref_scheduler->add_task(&_inst->_task_force_sleep,
+        added = _inst->_ref_scheduler->add_task(&_inst->_task_force_sleep,
             SEEL_FORCE_SLEEP_AWAKE_MULT * _inst->_snode_awake_time_secs * SEEL_SECS_TO_MILLIS *
             pow(SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE, _inst->_missed_bcasts + 1));
+        SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
     }
     else
     {
@@ -111,6 +114,7 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
 void SEEL_SNode::bcast_setup(SEEL_Message &msg, uint32_t receive_offset)
 {
     // Calculate wakeup-to-bcast time before time shift
+    SEEL_Assert::assert(millis() >=  _cb_info.wtb_millis, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
     _cb_info.wtb_millis = millis() - _cb_info.wtb_millis;
 
     /* Update system with values from bcast, values stored in Big Endian (MSB in lower address) */
@@ -158,7 +162,8 @@ void SEEL_SNode::bcast_setup(SEEL_Message &msg, uint32_t receive_offset)
     awake_offset = min(awake_offset, _snode_awake_time_secs * SEEL_SECS_TO_MILLIS); // Safety to prevent uint32 wraparound
     SEEL_Print::print(F("DEBUG: AWAKE OFFSET: ")); SEEL_Print::println(awake_offset);
     */
-    _ref_scheduler->add_task(&_task_sleep, _snode_awake_time_secs * SEEL_SECS_TO_MILLIS); // - awake_offset); // Delay sleep task by time node should be awake
+    bool added = _ref_scheduler->add_task(&_task_sleep, _snode_awake_time_secs * SEEL_SECS_TO_MILLIS); // - awake_offset); // Delay sleep task by time node should be awake
+    SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
 }
 
 void SEEL_SNode::SEEL_Task_SNode_Receive::run()
@@ -170,7 +175,8 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
     if(!_inst->rfm_receive_msg(&msg, msg_rssi, receive_offset)) // Stores the returned msg in msg
     {
         // No message is available
-        _inst->_ref_scheduler->add_task(&_inst->_task_receive);
+        bool added = _inst->_ref_scheduler->add_task(&_inst->_task_receive);
+        SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
         return;
     }
 
@@ -288,6 +294,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                 // Make sure we have the same parent, otherwise WTB could be confounded by TDMA bcast delay
                 if(_inst->_system_sync && _inst->_cb_info.missed_bcasts == 0 && _inst->_last_parent == _inst->_parent_id)
                 {
+                    SEEL_Assert::assert((uint64_t)(_inst->_snode_awake_time_secs + _inst->_snode_sleep_time_secs) * (uint64_t)SEEL_SECS_TO_MILLIS <= UINT32_MAX, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
                     uint32_t cycle_time_millis = (_inst->_snode_awake_time_secs + _inst->_snode_sleep_time_secs) * SEEL_SECS_TO_MILLIS;
                     uint32_t prev_sleep_counts = ((prev_sleep_time_secs * SEEL_SECS_TO_MILLIS) - 
                         SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS - _inst->_sleep_time_offset_millis) / _inst->_sleep_time_estimate_millis;
@@ -302,6 +309,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                     if(wtb_trimmed_millis > prev_sleep_time_secs * SEEL_SECS_TO_MILLIS)
                     {
                         // Adjust the sleep time offset to prevent oversleeping again
+                        SEEL_Assert::assert(cycle_time_millis >= wtb_trimmed_millis, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
                         _inst->_sleep_time_offset_millis = cycle_time_millis - wtb_trimmed_millis;
                         actual_sleep_time_millis = (prev_sleep_time_secs * SEEL_SECS_TO_MILLIS) + _inst->_sleep_time_offset_millis;
                         SEEL_Print::print(F("New sleep offset: ")); SEEL_Print::println(_inst->_sleep_time_offset_millis);
@@ -336,8 +344,10 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                 }
 
                 // If the Parent Selection mode is FIRST_BROADCAST then no broadcast collection delay is needed.
-                _inst->_ref_scheduler->add_task(&_inst->_task_enqueue_msg, (SEEL_PSEL_MODE == SEEL_PSEL_FIRST_BROADCAST) ? 0 : SEEL_PSEL_DURATION_MILLIS);
-                _inst->_ref_scheduler->add_task(&_inst->_task_send); // Only start sending messages when broadcast is received and processed
+                bool added = _inst->_ref_scheduler->add_task(&_inst->_task_enqueue_msg, (SEEL_PSEL_MODE == SEEL_PSEL_FIRST_BROADCAST) ? 0 : SEEL_PSEL_DURATION_MILLIS);
+                SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
+                added = _inst->_ref_scheduler->add_task(&_inst->_task_send); // Only start sending messages when broadcast is received and processed
+                SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
             }
         }
         else if(!_inst->_bcast_received) // Received bcast from blacklist node, but can still take time sync and sleep info
@@ -383,13 +393,15 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
         SEEL_Print::print(F("Error - Illegal Message")); // Error-Message
         _inst->print_msg(&msg);
         SEEL_Print::println(F(""));
+        SEEL_Assert::assert(false, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
     }
     else
     {
         SEEL_Print::println(F("Ignored message")); // Ignore this message
     }
 
-    _inst->_ref_scheduler->add_task(&_inst->_task_receive);
+    bool added = _inst->_ref_scheduler->add_task(&_inst->_task_receive);
+    SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
 }
 
 void SEEL_SNode::SEEL_Task_SNode_Enqueue::run()
@@ -400,7 +412,8 @@ void SEEL_SNode::SEEL_Task_SNode_Enqueue::run()
         {
             // Enable scheduling user tasks
             _inst->_ref_scheduler->set_user_task_enable(true);
-            _inst->_ref_scheduler->add_task(&_inst->_task_user);
+            bool added = _inst->_ref_scheduler->add_task(&_inst->_task_user);
+            SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
         }
         else // Otherwise enqueue node id verification msg
         {
@@ -409,7 +422,8 @@ void SEEL_SNode::SEEL_Task_SNode_Enqueue::run()
     }
     else
     {
-        _inst->_ref_scheduler->add_task(&_inst->_task_enqueue_msg); 
+        bool added = _inst->_ref_scheduler->add_task(&_inst->_task_enqueue_msg);
+        SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
     }
 }
 
@@ -420,9 +434,10 @@ void SEEL_SNode::SEEL_Task_SNode_User::run()
     if(_inst->_bcast_received)
     {
         _inst->enqueue_data();
-	}
-	
-	_inst->_ref_scheduler->add_task(&_inst->_task_user);
+    }
+
+    bool added = _inst->_ref_scheduler->add_task(&_inst->_task_user);
+    SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
 }
 
 void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
@@ -445,7 +460,8 @@ void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
     _inst->_ref_scheduler->clear_tasks();
 
     // Add in wakeup now
-    _inst->_ref_scheduler->add_task(&_inst->_task_wake);
+    bool added = _inst->_ref_scheduler->add_task(&_inst->_task_wake);
+    SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
 
     // Call LoRa sleep
     _inst->_LoRaPHY_ptr->sleep();
@@ -467,7 +483,8 @@ void SEEL_SNode::SEEL_Task_SNode_Force_Sleep::run()
     _inst->_bcast_blacklist.clear();
     // Force sleep is necessary, run regular sleep function
     _inst->_ref_scheduler->clear_tasks(); // Guarentee sleep to be next task
-    _inst->_ref_scheduler->add_task(&_inst->_task_sleep);
+    bool added = _inst->_ref_scheduler->add_task(&_inst->_task_sleep);
+    SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
 }
 
 bool SEEL_SNode::bcast_id_check(SEEL_Message* msg)
@@ -496,7 +513,6 @@ bool SEEL_SNode::bcast_id_check(SEEL_Message* msg)
         }
     }
 
-    // TODO: There is warning about unsigned comparison
     for (uint32_t i = 0; (i + 1) < SEEL_MSG_USER_SIZE && !found; i += 2) // Make sure both slots exist
     {
         if((SEEL_MSG_DATA_USER_INDEX + i + 1) >= sizeof(msg->data)) // msg->data contains bytes, so sizeof by itself works
@@ -504,6 +520,7 @@ bool SEEL_SNode::bcast_id_check(SEEL_Message* msg)
             // Safety check, error can occur when snode and gnode are not updated at the same time and
             // snode has more user slots than gnode. Leads to array access in unallocated memory.
             SEEL_Print::println(F("Error - Slot Mismatch")); // Error - Slot mismatch
+            SEEL_Assert::assert(false, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
             break;
         }
 
@@ -613,6 +630,7 @@ void SEEL_SNode::sleep()
     uint32_t snode_sleep_time_millis = _snode_sleep_time_secs * SEEL_SECS_TO_MILLIS;
     if(snode_sleep_time_millis > (SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _sleep_time_offset_millis))
     {
+        SEEL_Assert::assert(snode_sleep_time_millis >= (SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _sleep_time_offset_millis), SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
         sleep_counts = (snode_sleep_time_millis
             - SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS
             - _sleep_time_offset_millis) / _sleep_time_estimate_millis;
@@ -621,6 +639,9 @@ void SEEL_SNode::sleep()
     if(_missed_bcasts > 0)
     {
         // Make signed int since awake duration could be smaller than specified, then sleep longer
+        SEEL_Assert::assert((((uint64_t)SEEL_FORCE_SLEEP_AWAKE_MULT * 
+            pow(SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE, _missed_bcasts) - 1) * 
+            _snode_awake_time_secs * SEEL_SECS_TO_MILLIS) <= INT32_MAX, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
         int32_t extra_awake_time_millis = (SEEL_FORCE_SLEEP_AWAKE_MULT * 
             pow(SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE, _missed_bcasts) - 1) * 
             _snode_awake_time_secs * SEEL_SECS_TO_MILLIS;
@@ -628,6 +649,7 @@ void SEEL_SNode::sleep()
         if(snode_sleep_time_millis > (extra_awake_time_millis +
             SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _sleep_time_offset_millis))
         {
+            SEEL_Assert::assert(snode_sleep_time_millis >= (extra_awake_time_millis + SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _sleep_time_offset_millis), SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
             sleep_counts = (snode_sleep_time_millis - (extra_awake_time_millis + 
                 SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _sleep_time_offset_millis)) / 
                 _sleep_time_estimate_millis;
