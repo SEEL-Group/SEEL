@@ -1,4 +1,3 @@
-#include <SEEL_Assert.h>
 #include <SEEL_Scheduler.h>
 #include <SEEL_SNode.h>
 

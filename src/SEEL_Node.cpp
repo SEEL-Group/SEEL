@@ -16,7 +16,7 @@ void SEEL_Node::init(uint32_t n_id, uint32_t ts)
     if (_tdma_slot >= SEEL_TDMA_SLOTS && SEEL_TDMA_USE_TDMA)
     {
         SEEL_Print::println(F("Error - TDMA Slot Overflow")); // Error - TDMA SLOTS Overflow
-        while(true);
+        SEEL_Assert::assert(false, SEEL_ASSERT_FILE_NUM_NODE, __LINE__);
     }
 
     _id_verified = true;
@@ -30,7 +30,16 @@ void SEEL_Node::rfm_param_init(uint8_t cs_pin, uint8_t reset_pin, uint8_t int_pi
     // Create and initialize RFM module
     _LoRaPHY_ptr = &LoRa; // LoRa class already creates LoRa object
     _LoRaPHY_ptr->setPins(cs_pin, reset_pin, int_pin);
-    _LoRaPHY_ptr->begin(SEEL_RFM95_FREQ) ? SEEL_Print::println(F("LoRaPHY Init Success")) : SEEL_Print::println(F("LoRaPHY Init Fail"));
+
+    if (_LoRaPHY_ptr->begin(SEEL_RFM95_FREQ))
+    {
+        SEEL_Print::println(F("LoRaPHY Init Success"));
+    }
+    else
+    {
+        SEEL_Print::println(F("LoRaPHY Init Fail"));
+        SEEL_Assert::assert(false, SEEL_ASSERT_FILE_NUM_NODE, __LINE__);
+    }
 
     // Set LoRa params, defined in 
     _LoRaPHY_ptr->setSpreadingFactor(SEEL_RFM95_SF);
@@ -206,7 +215,7 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
 void SEEL_Node::enqueue_ack(SEEL_Message* prev_msg)
 {
     // ACK messages have no target. Instead, the node IDs that have been ack'd are written in
-    // the data section of the message. Which is filled out before sending.
+    // the data section of the message, which are filled out before sending.
     if (_ack_queue.find(prev_msg->send_id) == NULL)
     {
         _ack_queue.add(prev_msg->send_id);
@@ -271,7 +280,8 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
     // If cannot send or nothing to send, return
     if (!can_send || (!_inst->_bcast_avail && _inst->_ack_queue.empty() && _inst->_data_queue.empty()))
     {
-        _inst->_ref_scheduler->add_task(&_inst->_task_send);
+        bool added = _inst->_ref_scheduler->add_task(&_inst->_task_send);
+        SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_NODE, __LINE__);
         return;
     }
     // If the code reaches here, a message can be sent out
@@ -332,7 +342,8 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
         else if (msg_cmd == SEEL_CMD_ID_CHECK && _inst->_id_verified)
         {
             _inst->_data_queue.pop_front();
-            _inst->_ref_scheduler->add_task(&_inst->_task_send);
+            bool added = _inst->_ref_scheduler->add_task(&_inst->_task_send);
+            SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_NODE, __LINE__);
             return;
         }
 
@@ -350,5 +361,6 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
         // Do not pop msg from queue until msg is ack'd
     }
 
-    _inst->_ref_scheduler->add_task(&_inst->_task_send);
+    bool added = _inst->_ref_scheduler->add_task(&_inst->_task_send);
+    SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_NODE, __LINE__);
 }
