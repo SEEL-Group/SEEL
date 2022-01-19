@@ -9,8 +9,6 @@ File purpose:   See SEEL_Scheduler.h
 
 #include "SEEL_Scheduler.h"
 
-static constexpr uint16_t FILE_NUM = SEEL_ASSERT_FILE_NUM_SCHEDULER;
-
 bool SEEL_Scheduler::add_task(SEEL_Task* tf, uint32_t task_delay)
 {
     uint32_t tid = assign_task_id();
@@ -51,7 +49,7 @@ void SEEL_Scheduler::offset_task_times(int32_t offset_millis)
         
         if (offset_millis > 0 && ttr < current_millis)
         {
-            // Overflow will occur
+            // Overflow has occurred
             zero_millis_timer();
             _scheduler_queue.front()->time_to_run += offset_millis;
         }
@@ -94,6 +92,8 @@ void SEEL_Scheduler::adjust_time(uint32_t new_millis)
 
     // Correct times in Scheduler with updated times
     // Note: Large time jumps (a difference bigger than int32_max) may cause tasks to run earlier than scheduled
+    SEEL_Assert::assert(((int64_t)new_millis - (int64_t)old_millis) >= INT32_MIN &&
+        ((int64_t)new_millis - (int64_t)old_millis) <= INT32_MAX, SEEL_ASSERT_FILE_NUM_SCHEDULER, __LINE__);
     offset_task_times((int32_t)new_millis - (int32_t)old_millis);
 }
 

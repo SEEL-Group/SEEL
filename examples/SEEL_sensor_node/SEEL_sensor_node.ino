@@ -1,8 +1,6 @@
 #include <SEEL_Scheduler.h>
 #include <SEEL_SNode.h>
 
-static constexpr uint16_t FILE_NUM = SEEL_ASSERT_FILE_NUM_USER1;
-
 /* SEEL Parameters */
 constexpr uint8_t SEEL_SNODE_ID = 1; // 0 is reserved for gateway nodes, use 0 to randomly generate ID
 constexpr uint8_t SEEL_TDMA_SLOT_ASSIGNMENT = 1; // TDMA transmission slot, ignored if not using TDMA sending scheme. See SEEL documentation for advised slot configuration.
@@ -67,7 +65,7 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
   }
 
   // Pseudo check for if we're using the right message size to prevent out of bounds access
-  if (SEEL_MSG_MISC_SIZE >= 13)
+  if (SEEL_MSG_MISC_SIZE >= 14)
   {
     msg_data[0] = SEEL_SNODE_ID; // original ID
     msg_data[1] = seel_snode.get_node_id(); // assigned ID
@@ -83,9 +81,10 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
     msg_data[11] = info->missed_bcasts;
     msg_data[12] = info->data_queue_size;
     msg_data[13] = info->prev_CRC_fails;
+    msg_data[14] = !SEEL_Assert::_assert_queue.empty();
 
     // Fill rest with zeros
-    for (uint32_t i = 14; i < SEEL_MSG_DATA_SIZE; ++i)
+    for (uint32_t i = 15; i < SEEL_MSG_DATA_SIZE; ++i)
     {
       msg_data[i] = 0;
     }
@@ -133,6 +132,9 @@ void setup()
   // Initialize SEEL printing
   Serial.begin(9600);
   SEEL_Print::init(&Serial);
+
+  // Initialize Assert NVM
+  SEEL_Assert::init_nvm();
 
   // Initialize sensor node and link response function
   seel_snode.init(&seel_sched, // Scheduler reference

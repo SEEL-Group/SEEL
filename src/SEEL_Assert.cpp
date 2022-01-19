@@ -189,7 +189,7 @@ void SEEL_Assert::clear_nvm_helper()
 }
 #endif // SEEL_ASSERT_ENABLE_NVM
 
-void SEEL_Assert::equals_helper(bool test, uint16_t file_num, uint16_t line_num)
+void SEEL_Assert::assert_helper(bool test, uint16_t file_num, uint16_t line_num)
 {
     if (test)
     {

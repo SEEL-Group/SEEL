@@ -3,15 +3,13 @@
 
 #include <FileIO.h>
 
-static constexpr uint16_t FILE_NUM = SEEL_ASSERT_FILE_NUM_USER0;
-
 /* SEEL Parameters */
 constexpr uint8_t SEEL_TDMA_SLOT_ASSIGNMENT = 0; // TDMA transmission slot, ignored if not using TDMA sending scheme. See SEEL documentation for advised slot configuration.
 
 // Dictates how long SNODEs will be awake/asleep for. Sleep time is calculated by cycle time - awake time, both are converted to millis during calculation
 // Make sure awake/sleep times can be converted to millis without overflow
  // Units are in seconds to reduce field sizes in msg packet
-constexpr uint32_t SEEL_CYCLE_PERIOD_SECS = 3600;
+constexpr uint32_t SEEL_CYCLE_PERIOD_SECS = 240;
 constexpr uint32_t SEEL_SNODE_AWAKE_TIME_SECS = 120;
 
 /* LoRaPHY Tranceiver Pin Assignments */
@@ -21,7 +19,7 @@ constexpr uint8_t SEEL_LoRaPHY_INT_PIN = 2; // Don't change these if using Dragi
 constexpr uint8_t SEEL_RNG_SEED_PIN = 0; // Make sure this pin is NOT connected
 
 /* File Write Paramters */
-constexpr char* LOG_FILE_PATH = "/root/FD/cutset/test/SEEL_2021_28_A.txt"; // Path on gateway node file system
+const char* LOG_FILE_PATH = ""; // Path on gateway node file system
 
 /* SEEL Variables */
 SEEL_Scheduler seel_scheduler;
@@ -41,6 +39,8 @@ void write_to_file(const String& to_write)
     // Close file after use because file is opened in this function's scope
     // Also helps with interruptions (power outage)
     f.close();
+
+    SEEL_Print::print(F("LOG: ")); // Logged msg
   }
   else
   {
@@ -65,8 +65,15 @@ void user_callback_broadcast(uint8_t msg_data[SEEL_MSG_DATA_SIZE])
   msg_string += F("BD: "); // Broadcast Data
   for (uint32_t i = 0; i < SEEL_MSG_DATA_SIZE; ++i)
   {
-    msg_string += String(msg_data[i], DEC) + " ";
+    String msg_data_str = String(msg_data[i], DEC) + F(" ");
+    String index_str = "";
+    msg_string += msg_data_str;
+    index_str += F("[");
+    index_str += String(i, DEC);
+    index_str += F("]");
+    SEEL_Print::print(index_str + msg_data_str);
   }
+  SEEL_Print::println("");
 
   write_to_file(msg_string);
 }
@@ -114,6 +121,9 @@ void setup()
   SEEL_Print::init(&Console);
   */
 
+  // Initialize Assert NVM
+  SEEL_Assert::init_nvm();
+  
   // Initialize gateway node and link logging function
   seel_gnode.init(&seel_scheduler,  // Scheduler reference
     user_callback_broadcast, user_callback_data, // Callback functions
