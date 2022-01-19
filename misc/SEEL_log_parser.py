@@ -233,8 +233,10 @@ def main():
 
                 if msg.parent_rssi != -256: # Impossible value, used to flag RSSI unavailable
                     total_parent_rssi += msg.parent_rssi
-                connections[node_assignments.index(node_mapping[msg.parent_id])] += 1
-                connections_rssi[node_assignments.index(node_mapping[msg.parent_id])] += msg.parent_rssi
+                    
+                if msg.parent_id in node_mapping:
+                    connections[node_assignments.index(node_mapping[msg.parent_id])] += 1
+                    connections_rssi[node_assignments.index(node_mapping[msg.parent_id])] += msg.parent_rssi
 
                 queue_size_counter += msg.queue_size
                 if msg.queue_size > max_queue_size:
