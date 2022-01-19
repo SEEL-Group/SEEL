@@ -14,6 +14,7 @@ File purpose:   Set up constants and structs used in the SEEL protocol
 #include "SEEL_Queue.h"
 #include "SEEL_Queue.cpp" // cpp file required for templates
 #include "SEEL_Print.h"
+#include "SEEL_Assert.h"
 
 /* 
 This file contains useful constants and structures used by the SEEL protocol

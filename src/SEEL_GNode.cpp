@@ -9,8 +9,6 @@ File purpose:   See SEEL_GNode.h
 
 #include "SEEL_GNode.h"
 
-static constexpr uint16_t FILE_NUM = SEEL_ASSERT_FILE_NUM_GNODE;
-
 void SEEL_GNode::init(  SEEL_Scheduler* ref_scheduler, 
             user_callback_broadcast_t user_cb_broadcast, user_callback_data_t user_cb_data, 
             uint8_t cs_pin, uint8_t reset_pin, uint8_t int_pin, 
@@ -37,9 +35,12 @@ void SEEL_GNode::init(  SEEL_Scheduler* ref_scheduler,
     _task_bcast.set_inst(this);
     _task_receive.set_inst(this);
 
-    _ref_scheduler->add_task(&_task_bcast);
-    _ref_scheduler->add_task(&_task_receive);
-    _ref_scheduler->add_task(&_task_send); // inst set in SEEL_Node.cpp
+    bool added = _ref_scheduler->add_task(&_task_bcast);
+    SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_GNODE, __LINE__);
+    added = _ref_scheduler->add_task(&_task_receive);
+    SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_GNODE, __LINE__);
+    added = _ref_scheduler->add_task(&_task_send); // inst set in SEEL_Node.cpp
+    SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_GNODE, __LINE__);
 }
 
 void SEEL_GNode::print_bcast_queue()
@@ -117,7 +118,8 @@ void SEEL_GNode::id_check(uint32_t msg_id, uint32_t unique_key)
             }
         }
 
-        // If no avail ID was found, then we add error msg to the send queue
+        // If no avail ID was found, then we add error msg to the send queue (unchanged id_info)
+        SEEL_Assert::assert(found, SEEL_ASSERT_FILE_NUM_GNODE, __LINE__);
     }
     else // ID available
     {
@@ -140,14 +142,16 @@ void SEEL_GNode::SEEL_Task_GNode_Receive::run()
     if (!_inst->rfm_receive_msg(&msg, msg_rssi, receive_offset))
     {
         // No message is available
-        _inst->_ref_scheduler->add_task(&_inst->_task_receive);
+        bool added = _inst->_ref_scheduler->add_task(&_inst->_task_receive);
+        SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_GNODE, __LINE__);
         return;
     }
 
     if (msg.targ_id != SEEL_GNODE_ID)
     {
         // Message not intended for GNode
-        _inst->_ref_scheduler->add_task(&_inst->_task_receive);
+        bool added = _inst->_ref_scheduler->add_task(&_inst->_task_receive);
+        SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_GNODE, __LINE__);
         return;
     }
 
@@ -162,7 +166,10 @@ void SEEL_GNode::SEEL_Task_GNode_Receive::run()
         _inst->_id_container[msg.send_id].used = true;
         _inst->_id_container[msg.send_id].saved_bcast_count = (_inst->_bcast_count & 0x7F);
         // Provide msg to user callback
-        _inst->_user_cb_data(msg.data, msg_rssi);
+        if (_inst->_user_cb_data != NULL)
+        {
+            _inst->_user_cb_data(msg.data, msg_rssi);
+        }
         _inst->enqueue_ack(&msg);
     }
     else if (msg.cmd == SEEL_CMD_ID_CHECK)
@@ -179,7 +186,8 @@ void SEEL_GNode::SEEL_Task_GNode_Receive::run()
         _inst->enqueue_ack(&msg);
     }
 
-    _inst->_ref_scheduler->add_task(&_inst->_task_receive);
+    bool added = _inst->_ref_scheduler->add_task(&_inst->_task_receive);
+    SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_GNODE, __LINE__);
 }
 
 void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
@@ -253,11 +261,15 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
     // Send out gateway msg
     _inst->create_msg(&to_send, SEEL_GNODE_ID, SEEL_GNODE_ID, SEEL_CMD_BCAST);
     _inst->rfm_send_msg(&to_send, _inst->_bcast_count);
-    _inst->_user_cb_broadcast(to_send.data);
+    if (_inst->_user_cb_broadcast != NULL)
+    {
+        _inst->_user_cb_broadcast(to_send.data);
+    }
 
     ++_inst->_bcast_count;
     _inst->_first_bcast = false;
 
     // Re-add bcast task, with cycle delay
-    _inst->_ref_scheduler->add_task(&_inst->_task_bcast, _inst->_cycle_period_secs * SEEL_SECS_TO_MILLIS);
+    bool added = _inst->_ref_scheduler->add_task(&_inst->_task_bcast, _inst->_cycle_period_secs * SEEL_SECS_TO_MILLIS);
+    SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_GNODE, __LINE__);
 }
