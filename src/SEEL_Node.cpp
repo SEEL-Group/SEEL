@@ -157,7 +157,6 @@ bool SEEL_Node::dup_msg_check(SEEL_Message* msg)
 bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& method_time)
 {
     bool valid_msg = false;
-
     bool crc_valid = true;
 
     uint8_t msg_len = _LoRaPHY_ptr->parsePacket(crc_valid, SEEL_MSG_TOTAL_SIZE); // TODO: Requires modified version of LoRa lib to get crc_valid info
@@ -176,7 +175,6 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
             print_msg += F(" ");
         }
         rssi = _LoRaPHY_ptr->packetRssi();
-        _cb_info.last_msg_rssi = rssi;
 
         // Converts raw msg buffer to SEEL_Message
         buf_to_SEEL_msg(msg, buf);
@@ -339,7 +337,9 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
         }
         // A verified node may still have an join requests in the message queue
         // If this node is already verified, then do not send and pop the join request from send queue
-        else if (msg_cmd == SEEL_CMD_ID_CHECK && _inst->_id_verified)
+        else if (msg_cmd == SEEL_CMD_ID_CHECK &&
+            to_send_ptr->data[SEEL_MSG_DATA_ID_CHECK_INDEX] == _inst->_node_id && // Make sure check if for THIS node (not forwarde)
+            _inst->_id_verified)
         {
             _inst->_data_queue.pop_front();
             bool added = _inst->_ref_scheduler->add_task(&_inst->_task_send);

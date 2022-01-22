@@ -32,7 +32,7 @@ public:
         uint8_t hop_count;
         uint8_t missed_bcasts;
         uint8_t data_queue_size;
-        int8_t last_msg_rssi; // RSSI value of the last msg received, initialized to 0
+        int8_t parent_rssi; // RSSI value of the bcast msg received from the parent, initialized to 0
         bool first_callback; // Whether this callback call is the first one this cycle (allows for initialization)
 
         SEEL_CB_Info() : wtb_millis(0), prev_data_transmissions(0), prev_CRC_fails(0), hop_count(0), missed_bcasts(0), 

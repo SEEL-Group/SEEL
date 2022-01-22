@@ -77,6 +77,7 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
     _inst->_bcast_sent = false; // Set to true in SEEL_Node.cpp when bcast msg sent out
 
     _inst->_cb_info.hop_count = UINT8_MAX;
+    _inst->_cb_info.parent_rssi = 0;
     _inst->_path_rssi = INT8_MIN;
 
     // Clear ack queue
@@ -262,6 +263,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                 _inst->_acked = false;
                 _inst->_bcast_msg = msg;
                 _inst->_bcast_avail = true;
+                _inst->_cb_info.parent_rssi = _inst->_path_rssi;
                 SEEL_Print::print(F("Parent: ")); // Parent
                 SEEL_Print::print(_inst->_parent_id);
                 SEEL_Print::print(F(", RSSI metric: ")); // RSSI
