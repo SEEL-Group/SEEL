@@ -207,16 +207,26 @@ void SEEL_Assert::assert_helper(bool test, uint16_t file_num, uint16_t line_num)
     error += (uint32_t)file_num << 16;
     error += line_num;
     // use find() to reduce duplicate in queue
+    bool add_to_nvm = false;
     if (_assert_queue.find(error) == NULL)
     {
         if (!_assert_queue.add(error))
         {
             SEEL_Print::println(F("Assert Queue Full, assert discarded"));
         }
+        else
+        {
+            add_to_nvm = true;
+        }
     }
 
 #if SEEL_ASSERT_ENABLE_NVM == TRUE
     // Write assert failure to EEPROM
+    if (!add_to_nvm)
+    {
+        SEEL_Print::println(F("Assert NVM DUP"));
+        return;
+    }
     if (!_nvm_initialized)
     {
         SEEL_Print::println(F("Assert NVM not initialized"));

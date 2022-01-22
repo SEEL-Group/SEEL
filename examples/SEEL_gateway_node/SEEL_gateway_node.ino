@@ -66,14 +66,8 @@ void user_callback_broadcast(uint8_t msg_data[SEEL_MSG_DATA_SIZE])
   for (uint32_t i = 0; i < SEEL_MSG_DATA_SIZE; ++i)
   {
     String msg_data_str = String(msg_data[i], DEC) + F(" ");
-    String index_str = "";
     msg_string += msg_data_str;
-    index_str += F("[");
-    index_str += String(i, DEC);
-    index_str += F("]");
-    SEEL_Print::print(index_str + msg_data_str);
   }
-  SEEL_Print::println("");
 
   write_to_file(msg_string);
 }
@@ -89,14 +83,21 @@ void user_callback_data(const uint8_t msg_data[SEEL_MSG_DATA_SIZE], const int8_t
   
   for (uint32_t i = 0; i < SEEL_MSG_DATA_SIZE; ++i)
   {
+    String msg_data_str = String(msg_data[i], DEC) + F(" ");
+    String index_str = "";
     uint8_t field_value = msg_data[i];
     // Record GNODE reception RSSI if GNODE is first parent
     if (i == 3 && msg_data[2] == SEEL_GNODE_ID) // Corresponds to message locations hard-coded in the SNODE .ino file
     {
       field_value = msg_rssi;
     }
-    msg_string += String(field_value, DEC) + F("\t");
+    msg_string += msg_data_str;
+    index_str += F("[");
+    index_str += String(i, DEC);
+    index_str += F("]");
+    SEEL_Print::print(index_str + msg_data_str);
   }
+  SEEL_Print::println("");
 
   write_to_file(msg_string);
 }
@@ -109,17 +110,17 @@ void setup()
   // Enables file logging
   FileSystem.begin();
 
-  ///*
+  /*
   // Initialize Serial (Serial based comms)
   Serial.begin(9600);
   SEEL_Print::init(&Serial);
-  //*/
-  /*
+  */
+  ///*
   // Initialize Console (Console bridge based comms, Dragino)
   Bridge.begin(115200);
   Console.begin();
   SEEL_Print::init(&Console);
-  */
+  //*/
 
   // Initialize Assert NVM
   SEEL_Assert::init_nvm();

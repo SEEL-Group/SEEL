@@ -1,6 +1,5 @@
 #include <SEEL_Scheduler.h>
 #include <SEEL_SNode.h>
-
 /* SEEL Parameters */
 constexpr uint8_t SEEL_SNODE_ID = 1; // 0 is reserved for gateway nodes, use 0 to randomly generate ID
 constexpr uint8_t SEEL_TDMA_SLOT_ASSIGNMENT = 1; // TDMA transmission slot, ignored if not using TDMA sending scheme. See SEEL documentation for advised slot configuration.
@@ -10,9 +9,9 @@ constexpr uint8_t SEEL_LoRaPHY_CS_PIN = 10;
 constexpr uint8_t SEEL_LoRaPHY_RESET_PIN = 9;
 constexpr uint8_t SEEL_LoRaPHY_INT_PIN = 2;
 constexpr uint8_t SEEL_RNG_SEED_PIN = 0; // Make sure this pin is NOT connected
-
 /* SEEL Variables */
-SEEL_Scheduler seel_sched;
+
+SEEL_Scheduler seel_sched; 
 SEEL_SNode seel_snode;
 
 /* USER Variables */
@@ -57,7 +56,6 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
 
     return false;
   }
-
   // Don't send out the message if the user function has not run yet
   if (!send_ready)
   {
@@ -103,13 +101,16 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
 void user_callback_presend(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::SEEL_CB_Info* info)
 {
   // The contents of this function are an example of what one can do with this CB function
-  
+
   // Sets these fields to the immediate parent of the node and the last rssi value, to be seen by the GNODE for network debugging and analysis
-  msg_data[2] = seel_snode.get_parent_id();
-  msg_data[3] = info->last_msg_rssi;
+  if (msg_data[2] == 0) // zero means unassigned, prevents continuous updating
+  {
+    msg_data[2] = seel_snode.get_parent_id();
+    msg_data[3] = info->parent_rssi;
+  }
 }
 
-// This callback function is called when this SNODE receives a message to-be-forwarded (Either data or id_check msg)
+// This callback function is called when this SNODE receives a DATA message to-be-forwarded.
 // Afterwards, the message is added to this SNODE's send_queue
 // Message target and sender are handeled by the SEEL protocol and is not provided to this function, only the data field of the packet is visible here
 // Write Parameter: "msg_data", which is the data packet to forward
