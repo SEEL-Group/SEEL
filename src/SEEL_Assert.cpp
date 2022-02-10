@@ -189,7 +189,7 @@ void SEEL_Assert::clear_nvm_helper()
 }
 #endif // SEEL_ASSERT_ENABLE_NVM
 
-void SEEL_Assert::assert_helper(bool test, uint16_t file_num, uint16_t line_num)
+void SEEL_Assert::assert_helper(bool test, uint16_t file_num, uint16_t line_num, bool nvm_write)
 {
     if (test)
     {
@@ -222,6 +222,7 @@ void SEEL_Assert::assert_helper(bool test, uint16_t file_num, uint16_t line_num)
 
 #if SEEL_ASSERT_ENABLE_NVM == TRUE
     // Write assert failure to EEPROM
+    add_to_nvm |= nvm_write;
     if (!add_to_nvm)
     {
         SEEL_Print::println(F("Assert NVM DUP"));
