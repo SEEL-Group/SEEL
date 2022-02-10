@@ -75,7 +75,7 @@ constexpr uint16_t SEEL_MAX_NODES = 128;
 // Note: A node may take multiple cycles to reach GNode due to collisions
 // so 5 cycle misses may not be the same as the node not responding 5 times
 // MAX 127 because of there are only 7 bits being used for representation in the SEEL_ID_INFO bitfield
-constexpr uint8_t SEEL_MAX_CYCLE_MISSES = 10;
+constexpr uint8_t SEEL_MAX_CYCLE_MISSES = 25;
 
 // ***************************************************
 /* SEEL_SNode */

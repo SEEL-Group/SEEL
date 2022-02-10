@@ -64,7 +64,19 @@ bool SEEL_GNode::id_avail(uint32_t msg_id)
     if (_id_container[msg_id].used)
     {
         // ID taken, check if expired
-        uint32_t missed_counts = (uint8_t)((_bcast_count & 0x7F) - (_id_container[msg_id].saved_bcast_count & 0x7F)) & 0x7F;
+        uint8_t missed_counts;
+        uint8_t masked_bcast_current = _bcast_count & 0x7F;
+        uint8_t masked_bcast_previous = _id_container[msg_id].saved_bcast_count & 0x7F;
+
+        if (masked_bcast_current >= masked_bcast_previous)
+        {
+            missed_counts = masked_bcast_current - masked_bcast_previous;
+        }
+        else // Overflow case
+        {
+            missed_counts = masked_bcast_current + (128 - masked_bcast_previous);
+        }
+        
         if (missed_counts < SEEL_MAX_CYCLE_MISSES)
         {
             id_free = false;
