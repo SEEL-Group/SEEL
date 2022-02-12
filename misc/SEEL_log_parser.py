@@ -2,11 +2,10 @@
 
 # This script assumes NODEs are run uninterrupted. If NODES are unplugged, paused, and then re-plugged,
 # the script will state that NODE missed BCASTS during the duration of the pause.Quick power cycles
-# are okay.
+# are okay. 
+# If node join entries are not captured in the logs (logging created on an established network), node IDs can be added in the "Hardcoded Section"
 
 # Tested with Python 3.5.2
-
-# Only compatible with log files made after 09/19/2021
 
 # To run: python3 <path_to_this_file>/SEEL_log_parser.py <path_to_data_file>/<data_file>
 
@@ -15,12 +14,43 @@
 # Broadcast data: "BD: <INDEX BCAST 0> <INDEX BCAST 1> ....
 # Node data: <INDEX DATA 0> <INDEX DATA 1> ....
 
+# Make sure the "Indexes Section" in this script matches that in "SEEL_Defines.h" and "SEEL_sensor_node.ino"
+
 import sys
 import math
 import matplotlib.pyplot as plt
 import statistics
 
-# Indexes for msgs
+############################################################################
+# Hardcode Section
+USE_HARDCODED_NODE_JOINS = True;
+HARDCODED_NODE_JOINS = [
+    # Format: [actual ID, assigned ID, cycle join]
+    [6, 6, 7],
+    [7, 7, 7],
+    [8, 126, 7],
+    [10, 123, 7],
+    [11, 127, 7],
+    [12, 126, 7],
+    [13, 121, 7],
+    [14, 121, 7],
+    [15, 124, 7],
+    [16, 16, 7],
+    [17, 17, 7],
+    [18, 18, 7],
+    [19, 127, 7],
+    [20, 20, 7]
+]
+
+USE_HARDCODED_NODE_LOCS = False;
+HARDCODED_NODE_LOCS = [
+    # Format: [actual ID, loc_x, loc_y]
+    []
+]
+
+############################################################################
+# Indexes Section
+
 INDEX_HEADER = 0
 
 INDEX_BT_TIME = 1
@@ -58,8 +88,22 @@ INDEX_DATA_MISSED_BCASTS = 11
 INDEX_DATA_QUEUE_SIZE = 12
 INDEX_DATA_CRC_FAILS = 13
 
+############################################################################
 # Misc Params
 PARAM_COUNT_WRAP_SAFETY = 10 # Send count will not have wrapped within this many counts, keep it lower to account for node restarts too
+
+############################################################################
+# Global Variables
+
+bcast_times = []
+bcast_info = []
+bcast_instances = {} # per node, since nodes may join at different times
+
+node_mapping = {}
+node_assignments = []
+node_info = []
+
+############################################################################
 
 class Bcast_Info:
     def __init__(self, sys_time, awk_time, slp_time):
@@ -89,15 +133,15 @@ class Node_Info:
             str(self.prev_trans) + "\tWTB: " + str(self.wtb) + "\tQ Size: " + str(self.queue_size) + "\tMissed Bcasts: " + \
             str(self.missed_bcasts) + "\tCRC Fails: " + str(self.crc_fails)
 
+def node_entry(actual_id, assigned_id, bcast_join):
+    print("join id: " + str(actual_id) + "\tresponse: " + str(assigned_id) + "\tB. Join: " + str(bcast_join))
+    node_mapping[assigned_id] = actual_id
+    if node_assignments.count(actual_id) == 0:
+        node_assignments.append(actual_id)
+        node_info.append([])
+        bcast_instances[actual_id] = bcast_join
+
 def main():
-    bcast_times = []
-    bcast_info = []
-    bcast_instances = {} # per node, since nodes may join at different times
-
-    node_mapping = {}
-    node_assignments = []
-    node_info = []
-
     if len(sys.argv) <= 1:
         print("Unspecified data file")
         exit()
@@ -108,6 +152,15 @@ def main():
     df_read = df.readlines()
     df_length = len(df_read)
 
+    if USE_HARDCODED_NODE_JOINS:
+        print("Using HARDCODED Node Joins")
+        for i in HARDCODED_NODE_JOINS:
+            node_entry(i[0], i[1], i[2]);
+
+    if USE_HARDCODED_NODE_LOCS:
+        print("Using HARDCODED Node Locs")
+
+    # Parse Logs
     current_line = 0
     while current_line < df_length:
         line = df_read[current_line].split()
@@ -138,13 +191,7 @@ def main():
                 if join_id != 0:
                     response = line[INDEX_BD_SNODE_JOIN_RESPONSE + repeat_index]
                     if response != 0: # Reponse of 0 means error
-                        print("join id: " + str(join_id) + " response: " + str(response) + " B. Join: " + str(len(bcast_times)))
-                        node_mapping[response] = join_id
-                        if node_assignments.count(join_id) == 0:
-                            node_assignments.append(join_id)
-                            node_info.append([])
-                            # tracks earliest time "join_id" node couldve started sending data msgs
-                            bcast_instances[join_id] = len(bcast_times) 
+                        node_entry(join_id, response, len(bcast_times))
         else: # Node Data
             wtb = 0
             send_count = 0
@@ -154,9 +201,10 @@ def main():
             wtb += line[INDEX_DATA_WTB_3]
             send_count += line[INDEX_DATA_SEND_COUNT_0] << 8
             send_count += line[INDEX_DATA_SEND_COUNT_1]
-            original_node_id = node_mapping[line[INDEX_DATA_ASSIGNED_ID]]
-            node_info[node_assignments.index(original_node_id)].append(Node_Info(len(bcast_times), wtb, line[INDEX_DATA_PREV_TRANS], original_node_id, 
-                line[INDEX_DATA_PARENT_ID], line[INDEX_DATA_PARENT_RSSI] - 256, send_count, line[INDEX_DATA_QUEUE_SIZE], line[INDEX_DATA_MISSED_BCASTS], line[INDEX_DATA_CRC_FAILS]))
+            if line[INDEX_DATA_ASSIGNED_ID] in node_mapping:
+                original_node_id = node_mapping[line[INDEX_DATA_ASSIGNED_ID]]
+                node_info[node_assignments.index(original_node_id)].append(Node_Info(len(bcast_times), wtb, line[INDEX_DATA_PREV_TRANS], original_node_id, 
+                    line[INDEX_DATA_PARENT_ID], line[INDEX_DATA_PARENT_RSSI] - 256, send_count, line[INDEX_DATA_QUEUE_SIZE], line[INDEX_DATA_MISSED_BCASTS], line[INDEX_DATA_CRC_FAILS]))
         current_line += 1
 
     # Analysis
@@ -164,7 +212,13 @@ def main():
     node_assignments.append(0) # For gateway
     node_mapping[0] = 0
 
-    for node in node_info:
+    for i in range(len(node_info)):
+        node = node_info[i]
+        print("********************************************************")
+        print("Node " + str(node_assignments[i]))
+        if not node: # Empty
+            print("No messages received")
+            continue
         duplicate_msg_tracker = {}
         wtb = []
         node_id = node[0].node_id
@@ -187,7 +241,6 @@ def main():
 
         total_bcasts_for_node = total_bcasts - bcast_instances[node_id] + 1
 
-        print("Node " + str(node_id))
         for msg in node:
             if msg.bcast_num != prev_bcast_num:
                 connection_count += 1
@@ -242,6 +295,7 @@ def main():
                 if msg.queue_size > max_queue_size:
                     max_queue_size = msg.queue_size
 
+        # Print Analysis
         print("\tJoined Network on Bcast: " + str(bcast_instances[node_id]))
         print("\tTotal Received Messages: " + str(node_msgs))
         print("\tDuplicate Messages: " + str(duplicate_msg))
