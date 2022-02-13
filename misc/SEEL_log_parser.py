@@ -26,20 +26,20 @@ import statistics
 USE_HARDCODED_NODE_JOINS = True;
 HARDCODED_NODE_JOINS = [
     # Format: [actual ID, assigned ID, cycle join]
-    [6, 6, 7],
-    [7, 7, 7],
-    [8, 126, 7],
-    [10, 123, 7],
-    [11, 127, 7],
-    [12, 126, 7],
-    [13, 121, 7],
-    [14, 121, 7],
-    [15, 124, 7],
-    [16, 16, 7],
-    [17, 17, 7],
-    [18, 18, 7],
-    [19, 127, 7],
-    [20, 20, 7]
+    [6, 6, 0],
+    [7, 7, 0],
+    [8, 8, 0],
+    [10, 123, 0],
+    [11, 127, 0],
+    [12, 126, 0],
+    [13, 121, 0],
+    [14, 14, 0],
+    [15, 124, 0],
+    [16, 16, 0],
+    [17, 17, 0],
+    [18, 18, 0],
+    [19, 19, 0],
+    [20, 20, 0]
 ]
 
 USE_HARDCODED_NODE_LOCS = False;
@@ -135,6 +135,9 @@ class Node_Info:
 
 def node_entry(actual_id, assigned_id, bcast_join):
     print("join id: " + str(actual_id) + "\tresponse: " + str(assigned_id) + "\tB. Join: " + str(bcast_join))
+    if assigned_id in node_mapping:
+        print("ERROR: Assigned ID " + str(assigned_id) + " is assigned to multiple SNODEs")
+        exit()
     node_mapping[assigned_id] = actual_id
     if node_assignments.count(actual_id) == 0:
         node_assignments.append(actual_id)
