@@ -19,6 +19,7 @@
 import sys
 import math
 import matplotlib.pyplot as plt
+import networkx as nx
 import statistics
 
 ############################################################################
@@ -41,12 +42,24 @@ HARDCODED_NODE_JOINS = [
     [19, 19, 0],
     [20, 20, 0]
 ]
+HC_NJ_ACTUAL_ID_IDX = 0
+HC_NJ_ASSIGNED_ID_IDX = 1
+HC_NJ_CYCLE_JOIN_IDX = 2
 
-USE_HARDCODED_NODE_LOCS = False;
-HARDCODED_NODE_LOCS = [
-    # Format: [actual ID, loc_x, loc_y]
-    []
-]
+USE_HARDCODED_NODE_LOCS = True;
+HARDCODED_NODE_LOCS = {
+    # Format: actual ID: (loc_x, loc_y)
+
+}
+
+NETWORK_DRAW_OPTIONS = {
+    "node_font_size": 10,
+    "node_size": 250,
+    "node_color": "white",
+    "node_edge_color": "black",
+    "node_width": 1,
+    "edge_width": 1,
+}
 
 ############################################################################
 # Indexes Section
@@ -56,37 +69,40 @@ INDEX_HEADER = 0
 INDEX_BT_TIME = 1
 
 INDEX_BD_FIRST = 1
-INDEX_BD_SYS_TIME_0 = 2
-INDEX_BD_SYS_TIME_1 = 3
-INDEX_BD_SYS_TIME_2 = 4
-INDEX_BD_SYS_TIME_3 = 5
-INDEX_BD_SNODE_AWAKE_TIME_0 = 6
-INDEX_BD_SNODE_AWAKE_TIME_1 = 7
-INDEX_BD_SNODE_AWAKE_TIME_2 = 8
-INDEX_BD_SNODE_AWAKE_TIME_3 = 9
-INDEX_BD_SNODE_SLEEP_TIME_0 = 10
-INDEX_BD_SNODE_SLEEP_TIME_1 = 11
-INDEX_BD_SNODE_SLEEP_TIME_2 = 12
-INDEX_BD_SNODE_SLEEP_TIME_3 = 13
-INDEX_BD_PATH_HC = 14
-INDEX_BD_PATH_RSSI = 15
-INDEX_BD_SNODE_JOIN_ID = 16 # Repeated
-INDEX_BD_SNODE_JOIN_RESPONSE = 17 # Repeated
+IDNEX_BD_BCAST_COUNT = 2
+INDEX_BD_SYS_TIME_0 = 3
+INDEX_BD_SYS_TIME_1 = 4
+INDEX_BD_SYS_TIME_2 = 5
+INDEX_BD_SYS_TIME_3 = 6
+INDEX_BD_SNODE_AWAKE_TIME_0 = 7
+INDEX_BD_SNODE_AWAKE_TIME_1 = 8
+INDEX_BD_SNODE_AWAKE_TIME_2 = 9
+INDEX_BD_SNODE_AWAKE_TIME_3 = 10
+INDEX_BD_SNODE_SLEEP_TIME_0 = 11
+INDEX_BD_SNODE_SLEEP_TIME_1 = 12
+INDEX_BD_SNODE_SLEEP_TIME_2 = 13
+INDEX_BD_SNODE_SLEEP_TIME_3 = 14
+INDEX_BD_PATH_HC = 15
+INDEX_BD_PATH_RSSI = 16
+INDEX_BD_SNODE_JOIN_ID = 17 # Repeated
+INDEX_BD_SNODE_JOIN_RESPONSE = 18 # Repeated
 
 INDEX_DATA_ORIGINAL_ID = 0
 INDEX_DATA_ASSIGNED_ID = 1
 INDEX_DATA_PARENT_ID = 2
 INDEX_DATA_PARENT_RSSI = 3
-INDEX_DATA_WTB_0 = 4
-INDEX_DATA_WTB_1 = 5
-INDEX_DATA_WTB_2 = 6
-INDEX_DATA_WTB_3 = 7
-INDEX_DATA_SEND_COUNT_0 = 8
-INDEX_DATA_SEND_COUNT_1 = 9
-INDEX_DATA_PREV_TRANS = 10
-INDEX_DATA_MISSED_BCASTS = 11
-INDEX_DATA_QUEUE_SIZE = 12
-INDEX_DATA_CRC_FAILS = 13
+INDEX_DATA_BCAST_COUNT = 4
+INDEX_DATA_WTB_0 = 5
+INDEX_DATA_WTB_1 = 6
+INDEX_DATA_WTB_2 = 7
+INDEX_DATA_WTB_3 = 8
+INDEX_DATA_SEND_COUNT_0 = 9
+INDEX_DATA_SEND_COUNT_1 = 10
+INDEX_DATA_PREV_TRANS = 11
+INDEX_DATA_MISSED_BCASTS = 12
+INDEX_DATA_QUEUE_SIZE = 13
+INDEX_DATA_CRC_FAILS = 14
+INDEX_DATA_ASSERT_FAIL = 15
 
 ############################################################################
 # Misc Params
@@ -158,16 +174,23 @@ def main():
     if USE_HARDCODED_NODE_JOINS:
         print("Using HARDCODED Node Joins")
         for i in HARDCODED_NODE_JOINS:
-            node_entry(i[0], i[1], i[2]);
+            node_entry(i[HC_NJ_ACTUAL_ID_IDX], i[HC_NJ_ASSIGNED_ID_IDX], i[HC_NJ_CYCLE_JOIN_IDX]);
 
     if USE_HARDCODED_NODE_LOCS:
         print("Using HARDCODED Node Locs")
+        # Uncomment and use for location normalization
+        #for i in HARDCODED_NODE_LOCS:
+            #print("[" + str(i) + ", " + str(round(HARDCODED_NODE_LOCS[i][0] - <NORM_X>, 7)) + ", " + str(round(HARDCODED_NODE_LOCS[i][1] - <NORM_Y>, 7)) + "]")
 
     # Parse Logs
     current_line = 0
     while current_line < df_length:
         line = df_read[current_line].split()
+        if len(line) == 0:
+            current_line += 1
+            continue
         line[1:len(line)] = list(map(int, line[1:len(line)]))
+
         if line[INDEX_HEADER] == "BT:": # Bcast time
             bcast_times.append(line[INDEX_BT_TIME])
         elif line[INDEX_HEADER] == "BD:": # Bcast data
@@ -214,6 +237,10 @@ def main():
     total_bcasts = len(bcast_times)
     node_assignments.append(0) # For gateway
     node_mapping[0] = 0
+    if USE_HARDCODED_NODE_LOCS:
+        G = nx.DiGraph()
+
+    print("Total Bcasts: " + str(total_bcasts))
 
     for i in range(len(node_info)):
         node = node_info[i]
@@ -315,10 +342,34 @@ def main():
         print("\tMax Data Queue Size: " + str(max_queue_size))
         print("\tAvg CRC fails per cycle: " + str(total_crc_fails / total_bcasts_for_node))
         print("\tConnections: ")
-        for i in range(len(node_assignments)):
-            print("\t\t" + str(node_assignments[i]) + ":\t" + str(connections[i]))
-            if connections[i] > 0:
-                print("\t\t\tAvg RSSI: " + str(connections_rssi[i] / connections[i]))
+        total_connections = sum(connections)
+        for j in range(len(node_assignments)):
+            print("\t\t" + str(node_assignments[j]) + ":\t" + str(connections[j]))
+            if connections[j] > 0:
+                print("\t\t\tAvg RSSI: " + str(connections_rssi[j] / connections[j]))
+                if USE_HARDCODED_NODE_LOCS:
+                    G.add_edge(node_id, node_assignments[j], weight=connections[j]/total_connections)
+
+    if USE_HARDCODED_NODE_LOCS:
+        # Plot network with parent-child connections
+
+        # nodes
+        locs_flipped = {node: (y, x) for (node, (x,y)) in HARDCODED_NODE_LOCS.items()}
+        nx.draw_networkx_nodes(G, locs_flipped, node_size=NETWORK_DRAW_OPTIONS["node_size"], \
+            node_color=NETWORK_DRAW_OPTIONS["node_color"], edgecolors=NETWORK_DRAW_OPTIONS["node_edge_color"],
+            linewidths=NETWORK_DRAW_OPTIONS["node_width"])
+
+        # edges
+        weighted_edges = [G[u][v]['weight'] for u,v in G.edges()]
+        nx.draw_networkx_edges(G, locs_flipped, width=weighted_edges, edge_width=NETWORK_DRAW_OPTIONS["edge_width"], connectionstyle="angle3")
+
+        # labels
+        nx.draw_networkx_labels(G, locs_flipped, font_size=NETWORK_DRAW_OPTIONS["node_font_size"])
+
+        ax = plt.gca()
+        plt.axis("off")
+        plt.tight_layout()
+        plt.show()
 
 if __name__ == "__main__":
     main()
