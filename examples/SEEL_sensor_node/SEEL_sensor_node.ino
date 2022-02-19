@@ -63,26 +63,27 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
   }
 
   // Pseudo check for if we're using the right message size to prevent out of bounds access
-  if (SEEL_MSG_MISC_SIZE >= 14)
+  if (SEEL_MSG_MISC_SIZE >= 16)
   {
     msg_data[0] = SEEL_SNODE_ID; // original ID
     msg_data[1] = seel_snode.get_node_id(); // assigned ID
     msg_data[2] = 0; // parent ID. Set in presend function, since parent may change if msg does not get sent out this cycle
     msg_data[3] = 0; // parent RSSI. Set in presend function
-    msg_data[4] = (uint8_t)(info->wtb_millis >> 24); // WTB
-    msg_data[5] = (uint8_t)(info->wtb_millis >> 16);
-    msg_data[6] = (uint8_t)(info->wtb_millis >> 8);
-    msg_data[7] = (uint8_t)(info->wtb_millis);
-    msg_data[8] = (uint8_t)(send_count >> 8);
-    msg_data[9] = (uint8_t)(send_count);
-    msg_data[10] = info->prev_data_transmissions;
-    msg_data[11] = info->missed_bcasts;
-    msg_data[12] = info->data_queue_size;
-    msg_data[13] = info->prev_CRC_fails;
-    msg_data[14] = !SEEL_Assert::_assert_queue.empty();
+    msg_data[4] = info->bcast_count;
+    msg_data[5] = (uint8_t)(info->wtb_millis >> 24); // WTB
+    msg_data[6] = (uint8_t)(info->wtb_millis >> 16);
+    msg_data[7] = (uint8_t)(info->wtb_millis >> 8);
+    msg_data[8] = (uint8_t)(info->wtb_millis);
+    msg_data[9] = (uint8_t)(send_count >> 8);
+    msg_data[10] = (uint8_t)(send_count);
+    msg_data[11] = info->prev_data_transmissions;
+    msg_data[12] = info->missed_bcasts;
+    msg_data[13] = info->data_queue_size;
+    msg_data[14] = info->prev_CRC_fails;
+    msg_data[15] = !SEEL_Assert::_assert_queue.empty();
 
     // Fill rest with zeros
-    for (uint32_t i = 15; i < SEEL_MSG_DATA_SIZE; ++i)
+    for (uint32_t i = 16; i < SEEL_MSG_DATA_SIZE; ++i)
     {
       msg_data[i] = 0;
     }

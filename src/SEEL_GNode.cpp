@@ -246,6 +246,9 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
     // Note whether this bcast is the first bcast for the network, used for initialization
     to_send.data[SEEL_MSG_DATA_FIRST_BCAST_INDEX] = _inst->_first_bcast ? SEEL_BCAST_FB : 0;
 
+    // Keep a counter on bcast messages, intended to overflow
+    to_send.data[SEEL_MSG_DATA_BCAST_COUNT_INDEX] = _inst->_bcast_count;
+
     // Update cycle information, information stored big endian
     to_send.data[SEEL_MSG_DATA_AWAKE_TIME_SECONDS_INDEX] = (uint8_t) (_inst->_snode_awake_time_secs >> 24);
     to_send.data[SEEL_MSG_DATA_AWAKE_TIME_SECONDS_INDEX + 1] = (uint8_t) (_inst->_snode_awake_time_secs >> 16);
@@ -272,7 +275,7 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
 
     // Send out gateway msg
     _inst->create_msg(&to_send, SEEL_GNODE_ID, SEEL_GNODE_ID, SEEL_CMD_BCAST);
-    _inst->rfm_send_msg(&to_send, _inst->_bcast_count);
+    _inst->try_send(&to_send, true);
     if (_inst->_user_cb_broadcast != NULL)
     {
         _inst->_user_cb_broadcast(to_send.data);
