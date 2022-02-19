@@ -40,7 +40,6 @@ void SEEL_SNode::init(  SEEL_Scheduler* ref_scheduler,
     _unique_key = random(0, UINT32_MAX);
     _snode_awake_time_secs = 0;
     _snode_sleep_time_secs = 0;
-    _bcast_last_seqnum = 0;
     _sleep_time_estimate_millis = SEEL_ADJUSTED_SLEEP_INITAL_ESTIMATE_MILLIS;
     _sleep_time_offset_millis = 0;
     _missed_bcasts = 0;
@@ -196,8 +195,9 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
     {
         // "_acked" is only false here if the node never slept last cycle. Used to check if we never slept and received another bcast (missed a cycle)
         // acked may get set to false when node receives multiple bcasts in the same cycle (from diff nodes due to the blacklist system),
-        // thus use the bcasts seq_num to differentiate between different cycle bcasts
-        if(!_inst->_acked && _inst->_bcast_last_seqnum != msg.seq_num)
+        // thus use the bcast's SEEL_MSG_DATA_BCAST_COUNT field to differentiate between different cycle bcasts
+        uint8_t bcast_count = msg.data[SEEL_MSG_DATA_BCAST_COUNT_INDEX];
+        if(!_inst->_acked && _inst->_cb_info.bcast_count != bcast_count)
         {
             // If no bcast was received, clear the blacklist to try previously blacklisted nodes
             SEEL_Print::println(F("Blacklist clear")); // Blacklist: clear
@@ -207,7 +207,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
         {
             _inst->_acked = false;
         }
-        _inst->_bcast_last_seqnum = msg.seq_num;
+        _inst->_cb_info.bcast_count = bcast_count;
 
         // Check to make sure sender is not in the broadcast blacklist. A blacklist is needed because
         // node sends (typically GNODE to SNODE) is sometimes asymmetrical in transmission distance.

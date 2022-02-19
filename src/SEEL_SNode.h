@@ -103,7 +103,6 @@ private:
     uint32_t _unique_key;
     uint32_t _sleep_time_estimate_millis; // Time estimate for single watch-dog sleep
     uint32_t _sleep_time_offset_millis; // Offset used for future sleeps when SNODE misses broadcast
-    uint8_t _bcast_last_seqnum;
     uint8_t _missed_bcasts;
     uint8_t _last_parent;
     bool _bcast_received; // Set to false on wake-up, set to true on first broadcast received

@@ -48,9 +48,9 @@ constexpr uint32_t SEEL_RFM95_FREQ = 915E6;
 constexpr int8_t SEEL_RFM95_SF = 12;
 constexpr uint32_t SEEL_RFM95_BW = 250E3;
 constexpr int8_t SEEL_RFM95_GNODE_TX = 20; // 2 to 20 for PA Boost
-constexpr int8_t SEEL_RFM95_GNODE_CR = 5; // 5 to 8
+constexpr int8_t SEEL_RFM95_GNODE_CR = 8; // 5 to 8
 constexpr int8_t SEEL_RFM95_SNODE_TX = 20; // 2 to 20 for PA Boost
-constexpr int8_t SEEL_RFM95_SNODE_CR = 5; // 5 to 8
+constexpr int8_t SEEL_RFM95_SNODE_CR = 8; // 5 to 8
 
 // SEEL Message size
 // Additional bytes allocated for the message packet
@@ -83,7 +83,7 @@ constexpr uint8_t SEEL_MAX_CYCLE_MISSES = 25;
 // Upperbound transmission duration used to create TDMA slot widths. Also used as initial estimate 
 // to correct for transmission delay when time sychronizing; value will be updated with measured msg send ToA
 // SEEL_Print'ed in RFM send method
-constexpr uint32_t SEEL_TRANSMISSION_UB_DUR_MILLIS = 700;
+constexpr uint32_t SEEL_TRANSMISSION_UB_DUR_MILLIS = 900;
 
 // How long Arduino watchdog timer can sleep at a time
 // Only select values can be used, check Arduino WD specs (SLEEP_8S is maximum duration per sleep instance)
@@ -133,7 +133,7 @@ constexpr uint32_t SEEL_PSEL_DURATION_MILLIS = 0; // Should be much less than aw
 // Cons: Requires user setup and calculation unique to each deployment
 constexpr bool SEEL_TDMA_USE_TDMA = true; // Otherwise uses Exponential backoff
 constexpr uint8_t SEEL_TDMA_SLOTS = 10; // Maximum group of nodes, first slot begins at 0
-constexpr uint32_t SEEL_TDMA_BUFFER_MILLIS = 500; // Buffer time between scheduled TMDA transmissions, factors in receive buffer copy delay (SEEL_Print'ed in RFM receive method)
+constexpr uint32_t SEEL_TDMA_BUFFER_MILLIS = 600; // Buffer time between scheduled TMDA transmissions, factors in receive buffer copy delay (SEEL_Print'ed in RFM receive method)
 constexpr uint32_t SEEL_TDMA_SLOT_WAIT_MILLIS = SEEL_TRANSMISSION_UB_DUR_MILLIS + SEEL_TDMA_BUFFER_MILLIS;
 constexpr uint32_t SEEL_TDMA_CYCLE_TIME_MILLIS = SEEL_TDMA_SLOT_WAIT_MILLIS * SEEL_TDMA_SLOTS;
 

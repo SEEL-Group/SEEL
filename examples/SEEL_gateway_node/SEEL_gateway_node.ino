@@ -9,8 +9,8 @@ constexpr uint8_t SEEL_TDMA_SLOT_ASSIGNMENT = 0; // TDMA transmission slot, igno
 // Dictates how long SNODEs will be awake/asleep for. Sleep time is calculated by cycle time - awake time, both are converted to millis during calculation
 // Make sure awake/sleep times can be converted to millis without overflow
  // Units are in seconds to reduce field sizes in msg packet
-constexpr uint32_t SEEL_CYCLE_PERIOD_SECS = 3600;
-constexpr uint32_t SEEL_SNODE_AWAKE_TIME_SECS = 180;
+constexpr uint32_t SEEL_CYCLE_PERIOD_SECS = 240;
+constexpr uint32_t SEEL_SNODE_AWAKE_TIME_SECS = 120;
 
 /* LoRaPHY Tranceiver Pin Assignments */
 constexpr uint8_t SEEL_LoRaPHY_CS_PIN = 10; // Don't change these if using Dragino LG01
@@ -110,17 +110,17 @@ void setup()
   // Enables file logging
   FileSystem.begin();
 
-  /*
+  ///*
   // Initialize Serial (Serial based comms)
   Serial.begin(9600);
   SEEL_Print::init(&Serial);
-  */
-  ///*
+  //*/
+  /*
   // Initialize Console (Console bridge based comms, Dragino)
   Bridge.begin(115200);
   Console.begin();
   SEEL_Print::init(&Console);
-  //*/
+  */
 
   // Initialize Assert NVM
   SEEL_Assert::init_nvm();

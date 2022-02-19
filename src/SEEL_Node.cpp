@@ -232,7 +232,6 @@ bool SEEL_Node::try_send(SEEL_Message* to_send_ptr, bool seq_inc)
 {
     uint8_t seq_num = to_send_ptr->seq_num;
     // Increment sequence numbers for messages sent by this node
-    // Do not modify for bcast msg
     if (seq_inc)
     {
         seq_num = _seq_num;
