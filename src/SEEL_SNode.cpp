@@ -278,6 +278,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                 _inst->_cb_info.missed_bcasts = _inst->_missed_bcasts;
                 _inst->_missed_bcasts = 0;
 
+                // Save the previous here since sleep time may get changed in bcast_setup
                 uint32_t prev_sleep_time_secs = _inst->_snode_sleep_time_secs;
                 
                 // bcast_setup may have already run from a blacklisted node, so check to
@@ -298,22 +299,28 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                 {
                     SEEL_Assert::assert((uint64_t)(_inst->_snode_awake_time_secs + _inst->_snode_sleep_time_secs) * (uint64_t)SEEL_SECS_TO_MILLIS <= UINT32_MAX, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
                     uint32_t cycle_time_millis = (_inst->_snode_awake_time_secs + _inst->_snode_sleep_time_secs) * SEEL_SECS_TO_MILLIS;
-                    uint32_t prev_sleep_counts = ((prev_sleep_time_secs * SEEL_SECS_TO_MILLIS) - 
-                        SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS - _inst->_sleep_time_offset_millis) / _inst->_sleep_time_estimate_millis;
+                    uint32_t prev_sleep_counts = 0;
+                    uint32_t prev_sleep_time_millis = prev_sleep_time_secs * SEEL_SECS_TO_MILLIS;
+                    SEEL_Assert::assert(prev_sleep_time_millis >= SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
+                    if (prev_sleep_time_millis > (SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _inst->_sleep_time_offset_millis))
+                    {
+                        prev_sleep_counts = (prev_sleep_time_millis - SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS - 
+                            _inst->_sleep_time_offset_millis) / _inst->_sleep_time_estimate_millis;
+                    }
                     
                     // Trims WTB in case a bcast was missed. Later check if missed bcast was due to sleeping too long
                     uint32_t wtb_trimmed_millis = _inst->_cb_info.wtb_millis % cycle_time_millis;
-                    
-                    uint32_t actual_sleep_time_millis = ((prev_sleep_time_secs * SEEL_SECS_TO_MILLIS) - wtb_trimmed_millis);
+                    uint32_t actual_sleep_time_millis = prev_sleep_time_millis - wtb_trimmed_millis;
                     
                     // SNODE woke up too late if trimmed WTB is longer than specified sleep time
                     // Does not activate if SNODE is sleeping early
-                    if(wtb_trimmed_millis > prev_sleep_time_secs * SEEL_SECS_TO_MILLIS)
+                    if(wtb_trimmed_millis > prev_sleep_time_millis)
                     {
                         // Adjust the sleep time offset to prevent oversleeping again
                         SEEL_Assert::assert(cycle_time_millis >= wtb_trimmed_millis, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
-                        _inst->_sleep_time_offset_millis = cycle_time_millis - wtb_trimmed_millis;
-                        actual_sleep_time_millis = (prev_sleep_time_secs * SEEL_SECS_TO_MILLIS) + _inst->_sleep_time_offset_millis;
+                        // Check we are not going negative with offset
+                        _inst->_sleep_time_offset_millis = min(cycle_time_millis - wtb_trimmed_millis, (prev_sleep_time_millis - SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS));
+                        actual_sleep_time_millis = prev_sleep_time_millis + _inst->_sleep_time_offset_millis;
                         SEEL_Print::print(F("New sleep offset: ")); SEEL_Print::println(_inst->_sleep_time_offset_millis);
                     }
                     else if(_inst->_sleep_time_offset_millis > 0 && wtb_trimmed_millis > _inst->_sleep_time_offset_millis)
