@@ -410,7 +410,7 @@ def main():
 
         # edges
         weighted_edges = [G[u][v]['weight'] for u,v in G.edges()]
-        nx.draw_networkx_edges(G, locs_flipped, width=weighted_edges, edge_width=NETWORK_DRAW_OPTIONS["edge_width"], connectionstyle="angle3")
+        nx.draw_networkx_edges(G, locs_flipped, width=weighted_edges, connectionstyle="angle3")
 
         # labels
         nx.draw_networkx_labels(G, locs_flipped, font_size=NETWORK_DRAW_OPTIONS["node_font_size"])
