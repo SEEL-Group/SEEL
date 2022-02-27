@@ -116,9 +116,11 @@ void user_callback_presend(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node
 // Message target and sender are handeled by the SEEL protocol and is not provided to this function, only the data field of the packet is visible here
 // Write Parameter: "msg_data", which is the data packet to forward
 // Read-Only Parameter: "info" contains misc SEEL info, defined in SEEL_Node.h
+// Return: Whether message should be forwarded
 /*
-void user_callback_forwarding(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::SEEL_CB_Info* info)
+bool user_callback_forwarding(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::SEEL_CB_Info* info)
 {
+  return true;
 }
 */
 

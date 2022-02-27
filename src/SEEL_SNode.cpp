@@ -569,11 +569,16 @@ bool SEEL_SNode::enqueue_forwarding_msg(SEEL_Message* prev_msg)
     uint32_t original_sender = prev_msg->send_id;
     prev_msg->targ_id = _parent_id;
     prev_msg->send_id = _node_id;
+    bool forward_msg = true;
     if(prev_msg->cmd == SEEL_CMD_DATA && _user_cb_forwarding != NULL)
     {
-        _user_cb_forwarding(prev_msg->data, &_cb_info); // May modify "prev_msg->data"
+        forward_msg = _user_cb_forwarding(prev_msg->data, &_cb_info); // May modify "prev_msg->data"
     }
-    added = _data_queue.add(*prev_msg);
+
+    if (forward_msg)
+    {
+        added = _data_queue.add(*prev_msg);
+    }
 
     prev_msg->targ_id = original_target;
     prev_msg->send_id = original_sender;
