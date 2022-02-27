@@ -19,7 +19,7 @@ class SEEL_SNode: public SEEL_Node
 public:
     // Typedefs
     typedef bool (*user_callback_load_t)(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_CB_Info* info);
-    typedef void (*user_callback_forwarding_t)(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_CB_Info* info);
+    typedef bool (*user_callback_forwarding_t)(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_CB_Info* info);
     // user_callback_presend_t defined in SEEL_Node.h
     
     // ***************************************************
