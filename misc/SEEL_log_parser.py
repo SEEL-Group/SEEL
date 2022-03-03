@@ -23,6 +23,11 @@ import networkx as nx
 import statistics
 
 ############################################################################
+# Parameters
+
+PLOT_RSSI_ANALYSIS = True;
+
+############################################################################
 # Hardcode Section
 USE_HARDCODED_NODE_JOINS = True;
 HARDCODED_NODE_JOINS = [
@@ -288,6 +293,9 @@ def main():
     node_mapping[0] = 0
     if USE_HARDCODED_NODE_LOCS:
         G = nx.DiGraph()
+    if PLOT_RSSI_ANALYSIS:
+        analysis_rssi = []
+        analysis_transmissions = []
 
     print("Total Bcasts: " + str(total_bcasts))
 
@@ -317,8 +325,11 @@ def main():
         max_queue_size = 0
         total_crc_fails = 0
         first_wtb = True
-
         total_bcasts_for_node = total_bcasts - bcast_instances[node_id] + 1
+
+        if PLOT_RSSI_ANALYSIS:
+            analysis_reset = True # Resets on first time or missed bcasts
+            analysis_prev_data = [0, 0, 0]
 
         for msg in node:
             if msg.bcast_num != prev_bcast_num:
@@ -374,6 +385,21 @@ def main():
                 if msg.queue_size > max_queue_size:
                     max_queue_size = msg.queue_size
 
+                if PLOT_RSSI_ANALYSIS:
+
+                    # Compare against queue size 0 because otherwise we don't know how many msgs we got this cycle
+                    if analysis_reset or msg.prev_trans == 0 or msg.queue_size != 0 or msg.parent_id != 0 or msg.bcast_num != (analysis_prev_data[0] + 1):
+                        analysis_prev_data = [msg.bcast_num, msg.parent_rssi, msg.queue_size]
+                        analysis_reset = False
+                    else:
+                        tpm = msg.prev_trans / (analysis_prev_data[2] - msg.queue_size + 1); # Average transmissions per msg
+
+                        analysis_rssi.append(analysis_prev_data[1]);
+                        analysis_transmissions.append(tpm);
+
+                        analysis_prev_data = [msg.bcast_num, msg.parent_rssi, msg.queue_size]
+                        analysis_reset = False
+
         # Print Analysis
         print("\tJoined Network on Bcast: " + str(bcast_instances[node_id]))
         print("\tTotal Received Messages: " + str(node_msgs))
@@ -418,6 +444,11 @@ def main():
         ax = plt.gca()
         plt.axis("off")
         plt.tight_layout()
+        plt.show()
+
+    if PLOT_RSSI_ANALYSIS:
+        print("RSSI Analysis # data points: " + str(len(analysis_rssi)))
+        plt.scatter(analysis_rssi, analysis_transmissions, alpha=0.1);
         plt.show()
 
 if __name__ == "__main__":
