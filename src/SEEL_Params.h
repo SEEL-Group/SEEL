@@ -95,7 +95,7 @@ constexpr period_t SEEL_WD_TIMER_DUR = SLEEP_8S; // From LowPower.h
 constexpr uint32_t SEEL_ADJUSTED_SLEEP_INITAL_ESTIMATE_MILLIS = 10000;
 // How early to wake up SNODE to prepare for bcast
 // Consider making this value bigger as the sleep time increases to have a safer margin of error from WD's deviation
-constexpr uint32_t SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS = 10000;
+constexpr uint32_t SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS = 20000;
 
 // Enabling force sleep makes SNODEs go to sleep after being awake for the maximum awake time
 // Note awake time for force sleep starts taking awake time since wake up, not when the bcast msg was received
