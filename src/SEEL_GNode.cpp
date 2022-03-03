@@ -275,7 +275,7 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
 
     // Send out gateway msg
     _inst->create_msg(&to_send, SEEL_GNODE_ID, SEEL_GNODE_ID, SEEL_CMD_BCAST);
-    _inst->try_send(&to_send, true);
+    _inst->try_send(&to_send);
     if (_inst->_user_cb_broadcast != NULL)
     {
         _inst->_user_cb_broadcast(to_send.data);

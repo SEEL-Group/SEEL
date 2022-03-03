@@ -64,7 +64,7 @@ void SEEL_Node::create_msg(SEEL_Message* msg, const uint8_t targ_id,
     msg->targ_id = targ_id;
     msg->send_id = send_id;
     msg->cmd = cmd;
-    msg->seq_num = _seq_num;
+    msg->seq_num = _seq_num++;
 }
 
 void SEEL_Node::create_msg(SEEL_Message* msg, const uint8_t targ_id, 
@@ -83,11 +83,9 @@ void SEEL_Node::buf_to_SEEL_msg(SEEL_Message* msg, uint8_t const * buf)
     memcpy(msg->data, buf+SEEL_MSG_MISC_INDEX, SEEL_MSG_DATA_SIZE*sizeof(*buf));
 }
 
-bool SEEL_Node::rfm_send_msg(SEEL_Message* msg, uint8_t seq_num)
+bool SEEL_Node::rfm_send_msg(SEEL_Message* msg)
 {
     uint32_t send_time_start = millis();
-    
-    msg->seq_num = seq_num;
 
     if (!_LoRaPHY_ptr->beginPacket(true)) // true sets implicit header mode (no payload length, CR, CRC present info)
     {
@@ -126,8 +124,7 @@ bool SEEL_Node::dup_msg_check(SEEL_Message* msg)
     {
         if (_dup_msgs[i].active &&
             _dup_msgs[i].seq_num == msg->seq_num &&
-            _dup_msgs[i].send_id == msg->send_id &&
-            _dup_msgs[i].cmd == msg->cmd)
+            _dup_msgs[i].send_id == msg->send_id)
         {
             message_duplicate = true;
         }
@@ -141,7 +138,6 @@ bool SEEL_Node::dup_msg_check(SEEL_Message* msg)
         _dup_msgs[_oldest_dup_index].active = true;
         _dup_msgs[_oldest_dup_index].send_id = msg->send_id;
         _dup_msgs[_oldest_dup_index].seq_num = msg->seq_num;
-        _dup_msgs[_oldest_dup_index].cmd = msg->cmd;
 
         ++_oldest_dup_index;
         if (_oldest_dup_index >= SEEL_DUP_MSG_SIZE)
@@ -228,22 +224,13 @@ void SEEL_Node::print_msg(SEEL_Message* msg)
     }
 }
 
-bool SEEL_Node::try_send(SEEL_Message* to_send_ptr, bool seq_inc)
+bool SEEL_Node::try_send(SEEL_Message* to_send_ptr)
 {
-    uint8_t seq_num = to_send_ptr->seq_num;
-    // Increment sequence numbers for messages sent by this node
-    if (seq_inc)
-    {
-        seq_num = _seq_num;
-        ++_seq_num;
-    }
-
     // Not waiting for ack or wait has timed out
     // If timed out, re-send the same message because it has not been popped
-    if (rfm_send_msg(to_send_ptr, seq_num))
+    if (rfm_send_msg(to_send_ptr))
     {
         // Code reaches here if msg was sent out
-        
         if (!SEEL_TDMA_USE_TDMA)
         {
             _last_msg_sent_time = millis();
@@ -305,7 +292,7 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
         to_send_ptr->data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 2] = (uint8_t) (time_millis >> 8);
         to_send_ptr->data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 3] = (uint8_t) (time_millis);
 
-        if (_inst->try_send(to_send_ptr, false))
+        if (_inst->try_send(to_send_ptr))
         {
             _inst->_bcast_avail = false;
             _inst->_bcast_sent = true;
@@ -322,7 +309,7 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
         }
         _inst->create_msg(to_send_ptr, SEEL_GNODE_ID, _inst->_node_id, SEEL_CMD_ACK);
 
-        _inst->try_send(to_send_ptr, true);
+        _inst->try_send(to_send_ptr);
     }
     else if (!_inst->_data_queue.empty())// DATA or ID_CHECK or FORWARDED message
     {
@@ -352,7 +339,7 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
         to_send_ptr->send_id = _inst->_node_id;
         to_send_ptr->targ_id = _inst->_parent_id;
 
-        if (_inst->try_send(to_send_ptr, true))
+        if (_inst->try_send(to_send_ptr))
         {
             ++(_inst->_unack_msgs);
             ++(_inst->_data_msgs_sent);

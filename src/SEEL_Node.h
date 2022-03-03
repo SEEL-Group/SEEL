@@ -53,7 +53,7 @@ public:
     uint8_t get_seq_num() {return _seq_num;}
 
     // MODIFIES: "msg"
-    // Note: seq_num is left out since it is incremented in the send method
+    // Note: seq_num is left out since it is auto-generated based on the current _seq_num
     void create_msg(SEEL_Message* msg, const uint8_t targ_id, const uint8_t send_id, const uint8_t cmd);
     void create_msg(SEEL_Message* msg, const uint8_t targ_id, const uint8_t send_id, const uint8_t cmd, uint8_t const * data);
 
@@ -90,7 +90,7 @@ protected:
     void rfm_param_init(uint8_t cs_pin, uint8_t reset_pin, uint8_t int_pin, uint8_t TX_power, uint8_t coding_rate);
 
     // Returns if message was sent out
-    bool rfm_send_msg(SEEL_Message* rfm_send_msg, uint8_t seq_num);
+    bool rfm_send_msg(SEEL_Message* rfm_send_msg);
 
     bool rfm_receive_msg(SEEL_Message* rec_msg, int8_t& rssi, uint32_t& method_time);
 
@@ -98,7 +98,7 @@ protected:
 
     void enqueue_ack(SEEL_Message* prev_msg);
 
-    bool try_send(SEEL_Message* to_send_ptr, bool seq_inc);
+    bool try_send(SEEL_Message* to_send_ptr);
 
     // ***************************************************
     // Member variables
@@ -118,7 +118,7 @@ protected:
     uint8_t _node_id;
     uint8_t _parent_id;
     uint8_t _tdma_slot; // TDMA
-    uint8_t _seq_num; // Note: Will overflow after 255, but overflow does not affect functionality since seq_num serves to differentiate msgs
+    uint8_t _seq_num; // Tied in with messages. Will overflow after 255, but overflow does not affect functionality since seq_num serves to differentiate msgs
     uint8_t _data_msgs_sent; // includes ID_CHECK and FWD msgs, tracks how many data msgs we sent
     uint8_t _CRC_fails;
     int8_t _path_rssi; // changes based on parent selection mode
@@ -132,7 +132,6 @@ private:
     {
         uint8_t send_id;
         uint8_t seq_num;
-        uint8_t cmd;
         bool active;
 
         SEEL_Dup_Msg() : active(false) {}

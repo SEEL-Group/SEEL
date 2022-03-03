@@ -388,9 +388,29 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
     }
     else if(msg.targ_id == _inst->_node_id && (msg.cmd == SEEL_CMD_DATA || msg.cmd == SEEL_CMD_ID_CHECK)) // Other msg intended for this node must be from a child, forward msg
     {
-        // Node cannot be the recipient of another node
-        // Continue to forward msg
-        if(_inst->enqueue_forwarding_msg(&msg))
+        // Data or ID message to be forwarded
+
+        // Check if this message is already in the data queue,
+        // Note that users may send duplicate messages; this filter only checks 
+        // sender ID and seq num which filters out duplicates created by the network in
+        // asymmetrical send conditions (child-parent msg delivers but parent-child ack does not)
+        bool duplicate_msg = false;
+        for (uint32_t i = 0; i < _inst->_data_queue.size(); ++i)
+        {
+            if (!duplicate_msg)
+            {
+                SEEL_Message* msg_ptr = _inst->_data_queue.front();
+                if (msg_ptr->seq_num == msg.seq_num && msg_ptr->send_id == msg.send_id)
+                {
+                    // Do not exit early since data queue needs to finish recycle front for all elements
+                    duplicate_msg = true;
+                    SEEL_Print::println("Duplicate FWD message");
+                }
+            }
+            _inst->_data_queue.recycle_front();
+        }
+
+        if(!duplicate_msg && _inst->enqueue_forwarding_msg(&msg))
         {
             // Only acknowledge the msg if msg was added to the send queue (failure results if send queue is full)
             _inst->enqueue_ack(&msg);
