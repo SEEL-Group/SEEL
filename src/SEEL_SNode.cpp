@@ -77,7 +77,14 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
 
     _inst->_cb_info.hop_count = UINT8_MAX;
     _inst->_cb_info.parent_rssi = 0;
-    _inst->_path_rssi = INT8_MIN;
+    if (SEEL_PSEL_MODE == SEEL_PSEL_LENT)
+    {
+        _inst->_psel_val = UINT8_MAX;
+    }
+    else
+    {
+        _inst->_psel_val = INT8_MIN;
+    }
 
     // Clear ack queue
     _inst->_ack_queue.clear();
@@ -135,6 +142,16 @@ void SEEL_SNode::bcast_setup(SEEL_Message &msg, uint32_t receive_offset)
     // SEEL_MSG_DATA_FIRST_BCAST_INDEX index is 1 if first bcast, otherwise 0
     // system_sync should only be true if it was previously sync'd and the msg is NOT a first_bcast
     _system_sync &= (msg.data[SEEL_MSG_DATA_FIRST_BCAST_INDEX] != SEEL_BCAST_FB);
+    if (!_system_sync)
+    {
+        if (SEEL_PSEL_MODE == SEEL_PSEL_LENT)
+        {
+            for (uint32_t i = 0; i < SEEL_PSEL_LENT_ARR_MAX; ++i)
+            {
+                _psel_lent_arr[i][SEEL_PSEL_LENT_ARR_IDX::VAL] = 0;
+            }
+        }
+    }
 
     // Update awake time, stored time in seconds, big Endian
     _snode_awake_time_secs = 0;
@@ -149,19 +166,6 @@ void SEEL_SNode::bcast_setup(SEEL_Message &msg, uint32_t receive_offset)
     _snode_sleep_time_secs += (uint32_t)msg.data[SEEL_MSG_DATA_SLEEP_TIME_SECONDS_INDEX + 2] << 8;
     _snode_sleep_time_secs += (uint32_t)msg.data[SEEL_MSG_DATA_SLEEP_TIME_SECONDS_INDEX + 3];
 
-    // Add sleep ASAP to keep awake time accurate, should be done AFTER local and awake times are updated
-    // Parenting off a new SNODE parent may cause delays to miss original nodes
-    // so stay awake less (by diff) if WTB greater than SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS
-    /*
-    uint32_t awake_offset = 0;
-    if(_system_sync && _cb_info.missed_bcasts == 0 && _last_parent != _parent_id && 
-        _cb_info.wtb_millis >= SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS)
-    {
-        awake_offset = _cb_info.wtb_millis - SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS;
-    }
-    awake_offset = min(awake_offset, _snode_awake_time_secs * SEEL_SECS_TO_MILLIS); // Safety to prevent uint32 wraparound
-    SEEL_Print::print(F("DEBUG: AWAKE OFFSET: ")); SEEL_Print::println(awake_offset);
-    */
     bool added = _ref_scheduler->add_task(&_task_sleep, _snode_awake_time_secs * SEEL_SECS_TO_MILLIS); // - awake_offset); // Delay sleep task by time node should be awake
     SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
 }
@@ -226,13 +230,11 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
             {
                 if(!_inst->_parent_sync)
                 {
-                    _inst->_parent_id = msg.send_id;
-                    _inst->_path_rssi = msg_rssi;
-                    _inst->_cb_info.hop_count = incoming_hop_count;
                     new_parent = true;
                 }
             } 
-            else // Other modes will replace the current parent for (heuristically) better parents, within an interval (SEEL_PSEL_DURATION_MILLIS)
+            // RSSI-based modes will replace the current parent for (heuristically) better parents, within an interval (SEEL_PSEL_DURATION_MILLIS)
+            else if (SEEL_PSEL_MODE == SEEL_PSEL_IMMEDIATE_RSSI || SEEL_PSEL_MODE == SEEL_PSEL_PATH_RSSI)
             {
                 int8_t rssi_mode_value = 0;
                 if(SEEL_PSEL_MODE == SEEL_PSEL_IMMEDIATE_RSSI)
@@ -241,33 +243,54 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                 } 
                 else if(SEEL_PSEL_MODE == SEEL_PSEL_PATH_RSSI)
                 {
-                    int8_t incoming_rssi = msg.data[SEEL_MSG_DATA_RSSI_INDEX];
+                    int8_t incoming_rssi = msg.data[SEEL_MSG_DATA_PSEL_INDEX];
                     rssi_mode_value = min(msg_rssi, incoming_rssi);
                 }
 
                 // A new parent is considered better if it has a higher RSSI metric than the
                 // previous parent, with ties broken by hop count
-                if(!_inst->_parent_sync ||
-                    (rssi_mode_value > _inst->_path_rssi) || 
-                    (rssi_mode_value == _inst->_path_rssi && incoming_hop_count < _inst->_cb_info.hop_count))
+                if(!_inst->_parent_sync || (rssi_mode_value > _inst->_psel_val) || 
+                    (rssi_mode_value == _inst->_psel_val && incoming_hop_count < _inst->_cb_info.hop_count))
                 {
-                    _inst->_parent_id = msg.send_id;
-                    _inst->_cb_info.hop_count = incoming_hop_count;
-                    _inst->_path_rssi = rssi_mode_value;
+                    _inst->_psel_val = rssi_mode_value;
+                    new_parent = true;
+                }
+            }
+            else if (SEEL_PSEL_MODE == SEEL_PSEL_LENT)
+            {
+                uint8_t expected_transmissions = 1; // Default expected transmissions to one, encourages exploring undiscovered
+                bool lent_parent_found = false;
+                for (uint32_t i = 0; i < SEEL_PSEL_LENT_ARR_MAX && !lent_parent_found; ++i)
+                {
+                    if (msg.send_id == _inst->_psel_lent_arr[i][SEEL_PSEL_LENT_ARR_IDX::ID] &&
+                        ((_inst->_psel_lent_arr[i][SEEL_PSEL_LENT_ARR_IDX::VAL] & 0x80) == 0x80)) // Make sure slot is also used
+                    {
+                        expected_transmissions = _inst->_psel_lent_arr[i][SEEL_PSEL_LENT_ARR_IDX::VAL];
+                        lent_parent_found = true;
+                    }
+                }
+
+                if (!_inst->_parent_sync || 
+                    (msg.data[SEEL_MSG_DATA_PSEL_INDEX] + expected_transmissions) < _inst->_psel_val)
+                {
+                    _inst->_psel_val = msg.data[SEEL_MSG_DATA_PSEL_INDEX] + expected_transmissions;
                     new_parent = true;
                 }
             }
 
             if(new_parent)
             {
+                _inst->_parent_id = msg.send_id;
+                // Hop count and psel_val updated right before msg sends in case parent changes
+                _inst->_cb_info.hop_count = incoming_hop_count;
                 _inst->_acked = false;
                 _inst->_bcast_msg = msg;
                 _inst->_bcast_avail = true;
-                _inst->_cb_info.parent_rssi = _inst->_path_rssi;
+                _inst->_cb_info.parent_rssi = msg_rssi;
                 SEEL_Print::print(F("Parent: ")); // Parent
                 SEEL_Print::print(_inst->_parent_id);
                 SEEL_Print::print(F(", RSSI metric: ")); // RSSI
-                SEEL_Print::print(_inst->_path_rssi);
+                SEEL_Print::print(msg_rssi);
                 SEEL_Print::print(F(", Hop Count: "));
                 SEEL_Print::println(_inst->_cb_info.hop_count); // Hop Count
             }
@@ -475,6 +498,35 @@ void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
     _inst->_cb_info.prev_data_transmissions = _inst->_data_msgs_sent;
     _inst->_cb_info.prev_CRC_fails = _inst->_CRC_fails;
     _inst->_last_parent = _inst->_parent_id;
+
+    if (SEEL_PSEL_MODE == SEEL_PSEL_LENT)
+    {
+        SEEL_Assert::assert(_inst->_data_msgs_sent <= 127, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
+        bool lent_parent_found = false;
+        uint8_t empty_lent_indx = SEEL_PSEL_LENT_ARR_MAX;
+        for (uint32_t i; i < SEEL_PSEL_LENT_ARR_MAX && lent_parent_found; ++i)
+        {
+            if (_inst->_parent_id == _inst->_psel_lent_arr[i][SEEL_PSEL_LENT_ARR_IDX::ID] &&
+                _inst->_psel_lent_arr[i][SEEL_PSEL_LENT_ARR_IDX::VAL] != 0)
+            {
+                // Update Algorithm
+                _inst->_psel_lent_arr[i][SEEL_PSEL_LENT_ARR_IDX::VAL] = _inst->_data_msgs_sent;
+                lent_parent_found = true;
+            }
+            else if (_inst->_psel_lent_arr[i][SEEL_PSEL_LENT_ARR_IDX::VAL] == 0)
+            {
+                empty_lent_indx = i;
+            }
+        }
+
+        // TODO: Make kickout based on last bcast updated
+        SEEL_Assert::assert(empty_lent_indx != SEEL_PSEL_LENT_ARR_MAX, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
+        if (!lent_parent_found && empty_lent_indx != SEEL_PSEL_LENT_ARR_MAX)
+        {
+            _inst->_psel_lent_arr[empty_lent_indx][SEEL_PSEL_LENT_ARR_IDX::ID] = _inst->_parent_id;
+            _inst->_psel_lent_arr[empty_lent_indx][SEEL_PSEL_LENT_ARR_IDX::VAL] = _inst->_data_msgs_sent | 0x80; // Toggle msb for in-use status
+        }
+    }
 
     // A parent was selected and a (ack-needed) msg was sent to parent, but parent never responded back
     if(_inst->_parent_sync && !_inst->_acked && _inst->_data_msgs_sent > 0) 

@@ -110,7 +110,6 @@ protected:
     SEEL_Queue<uint8_t> _ack_queue;
     SEEL_Message _bcast_msg;
     SEEL_CB_Info _cb_info;
-
     uint32_t _last_msg_sent_time; // Exponential Backoff (EB), how long ago last msg was sent
     uint32_t _msg_send_delay; // EB, how long to delay until next transmission attempt
     uint32_t _unack_msgs; // EB, number of unacked msgs so far, reset to 0 on msg ack
@@ -121,7 +120,7 @@ protected:
     uint8_t _seq_num; // Tied in with messages. Will overflow after 255, but overflow does not affect functionality since seq_num serves to differentiate msgs
     uint8_t _data_msgs_sent; // includes ID_CHECK and FWD msgs, tracks how many data msgs we sent
     uint8_t _CRC_fails;
-    int8_t _path_rssi; // changes based on parent selection mode
+    uint8_t _psel_val; // changes based on parent selection mode
     bool _id_verified;
     bool _bcast_avail; // bcast msg is ready to be sent out
     bool _bcast_sent; // bcast msg has been sent out this cycle

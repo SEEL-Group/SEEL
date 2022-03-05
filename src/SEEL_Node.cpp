@@ -282,7 +282,7 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
         to_send_ptr->send_id = _inst->_node_id;
 
         to_send_ptr->data[SEEL_MSG_DATA_HOP_COUNT_INDEX] = _inst->_cb_info.hop_count;
-        to_send_ptr->data[SEEL_MSG_DATA_RSSI_INDEX] = _inst->_path_rssi;
+        to_send_ptr->data[SEEL_MSG_DATA_PSEL_INDEX] = _inst->_psel_val;
 
         // Update time info right before the send
         uint32_t time_millis = millis();

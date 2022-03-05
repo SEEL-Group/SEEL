@@ -135,6 +135,8 @@ void SEEL_Assert::print_nvm_fails_helper()
         }
         else if (valid_entry)
         {
+            String assert_fail_str;
+            bool invalid = false;
             switch(i % SEEL_ASSERT_NVM_CELLS_PER_ENTRY)
             {
                 case 1:
@@ -145,7 +147,7 @@ void SEEL_Assert::print_nvm_fails_helper()
                     break;
                 case 3:
                     line_num += val;
-                    String assert_fail_str = "";
+                    assert_fail_str = "";
                     if (prev_valid_entry)
                     {
                         assert_fail_str += F("PRINT ASSERT FAIL: File ");
@@ -162,7 +164,12 @@ void SEEL_Assert::print_nvm_fails_helper()
                     break;
                 default:
                     SEEL_Print::println(F("NVM Invalid Cell Index in Print"));
-                    return;
+                    invalid = true;
+                    break;
+            }
+            if (invalid)
+            {
+                return;
             }
         }
     }

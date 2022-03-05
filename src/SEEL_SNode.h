@@ -48,6 +48,13 @@ private:
         friend SEEL_SNode;
     };
 
+    enum SEEL_PSEL_LENT_ARR_IDX
+    {
+        ID,
+        VAL,
+        COUNT
+    };
+
     // First task to run after waking up. Resets variables.
     class SEEL_Task_SNode_Wake : public SEEL_Task_SNode {virtual void run();};
     SEEL_Task_SNode_Wake _task_wake;
@@ -98,6 +105,9 @@ private:
     SEEL_Queue<uint8_t> _bcast_blacklist;
     user_callback_load_t _user_cb_load;
     user_callback_forwarding_t _user_cb_forwarding;
+    // TODO: Conditionally include so memory is not spent when not using PSEL_LENT
+    // Elements in _psel_lent_arr are split into 1 bit (msb) for in-use and 7 bits (remaining) for value
+    uint8_t _psel_lent_arr[SEEL_PSEL_LENT_ARR_MAX][SEEL_PSEL_LENT_ARR_IDX::COUNT]; // [ID, val]
     uint32_t _snode_awake_time_secs; // How long node should be awake for, set with bcast
     uint32_t _snode_sleep_time_secs; // How long node should sleep for, set with bcast
     uint32_t _unique_key;

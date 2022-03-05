@@ -28,7 +28,7 @@ void SEEL_GNode::init(  SEEL_Scheduler* ref_scheduler,
     _cycle_period_secs = cycle_period_secs;
     _bcast_count = 0;
     _cb_info.hop_count = 0;
-    _path_rssi = 0;
+    _psel_val = 0;
     _first_bcast = true;
 
     // Initialize tasks with this inst
@@ -262,7 +262,7 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
 
     // Parent selection info
     to_send.data[SEEL_MSG_DATA_HOP_COUNT_INDEX] = (uint8_t) (_inst->_cb_info.hop_count);
-    to_send.data[SEEL_MSG_DATA_RSSI_INDEX] = (uint8_t) (0); // Filled out later by SNODEs
+    to_send.data[SEEL_MSG_DATA_PSEL_INDEX] = (uint8_t) (0); // Filled out later by SNODEs
 
     // Downside to sys time of 0 is that system time keeps resetting so system cannot schedule tasks longer than cycle duration
     //_inst->_ref_scheduler->zero_millis_timer(); // Use a system time of 0 for better determinism and less TDMA collision chances
