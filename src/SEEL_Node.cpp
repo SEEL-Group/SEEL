@@ -114,6 +114,12 @@ bool SEEL_Node::rfm_send_msg(SEEL_Message* msg)
 
 bool SEEL_Node::dup_msg_check(SEEL_Message* msg)
 {
+    if (msg->cmd == SEEL_CMD_DATA || msg->cmd == SEEL_CMD_ID_CHECK)
+    {
+        // Let data and id_check msgs go through; they are handled by receive functions
+        return;
+    }
+
     // Check if there are any matches in dup array
     // The most important fields in the message are send_id and seq_num
     // using those two fields allows differentiation among unique messages

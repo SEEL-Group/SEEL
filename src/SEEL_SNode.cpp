@@ -150,6 +150,7 @@ void SEEL_SNode::bcast_setup(SEEL_Message &msg, uint32_t receive_offset)
             {
                 _psel_lent_arr[i][SEEL_PSEL_LENT_ARR_IDX::VAL] = 0;
             }
+            SEEL_Print::println("LENT ARR cleared");
         }
     }
 
@@ -265,7 +266,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                     if (msg.send_id == _inst->_psel_lent_arr[i][SEEL_PSEL_LENT_ARR_IDX::ID] &&
                         ((_inst->_psel_lent_arr[i][SEEL_PSEL_LENT_ARR_IDX::VAL] & 0x80) == 0x80)) // Make sure slot is also used
                     {
-                        expected_transmissions = _inst->_psel_lent_arr[i][SEEL_PSEL_LENT_ARR_IDX::VAL];
+                        expected_transmissions = _inst->_psel_lent_arr[i][SEEL_PSEL_LENT_ARR_IDX::VAL] & 0x7F;
                         lent_parent_found = true;
                     }
                 }
@@ -289,7 +290,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                 _inst->_cb_info.parent_rssi = msg_rssi;
                 SEEL_Print::print(F("Parent: ")); // Parent
                 SEEL_Print::print(_inst->_parent_id);
-                SEEL_Print::print(F(", RSSI metric: ")); // RSSI
+                SEEL_Print::print(F(", RSSI: ")); // RSSI
                 SEEL_Print::print(msg_rssi);
                 SEEL_Print::print(F(", Hop Count: "));
                 SEEL_Print::println(_inst->_cb_info.hop_count); // Hop Count
@@ -433,9 +434,10 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
             _inst->_data_queue.recycle_front();
         }
 
-        if(!duplicate_msg && _inst->enqueue_forwarding_msg(&msg))
+        if(duplicate_msg || _inst->enqueue_forwarding_msg(&msg))
         {
-            // Only acknowledge the msg if msg was added to the send queue (failure results if send queue is full)
+            // Only acknowledge the msg if msg was added to the send queue (failure results if data queue is full)
+            // Or if the msg is already in the data queue
             _inst->enqueue_ack(&msg);
         }
     }
@@ -504,13 +506,13 @@ void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
         SEEL_Assert::assert(_inst->_data_msgs_sent <= 127, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
         bool lent_parent_found = false;
         uint8_t empty_lent_indx = SEEL_PSEL_LENT_ARR_MAX;
-        for (uint32_t i; i < SEEL_PSEL_LENT_ARR_MAX && lent_parent_found; ++i)
+        for (uint32_t i = 0; i < SEEL_PSEL_LENT_ARR_MAX && !lent_parent_found; ++i)
         {
             if (_inst->_parent_id == _inst->_psel_lent_arr[i][SEEL_PSEL_LENT_ARR_IDX::ID] &&
                 _inst->_psel_lent_arr[i][SEEL_PSEL_LENT_ARR_IDX::VAL] != 0)
             {
                 // Update Algorithm
-                _inst->_psel_lent_arr[i][SEEL_PSEL_LENT_ARR_IDX::VAL] = _inst->_data_msgs_sent;
+                _inst->_psel_lent_arr[i][SEEL_PSEL_LENT_ARR_IDX::VAL] = _inst->_data_msgs_sent  | 0x80;
                 lent_parent_found = true;
             }
             else if (_inst->_psel_lent_arr[i][SEEL_PSEL_LENT_ARR_IDX::VAL] == 0)
@@ -520,7 +522,7 @@ void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
         }
 
         // TODO: Make kickout based on last bcast updated
-        SEEL_Assert::assert(empty_lent_indx != SEEL_PSEL_LENT_ARR_MAX, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
+        SEEL_Assert::assert(lent_parent_found || empty_lent_indx < SEEL_PSEL_LENT_ARR_MAX, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
         if (!lent_parent_found && empty_lent_indx != SEEL_PSEL_LENT_ARR_MAX)
         {
             _inst->_psel_lent_arr[empty_lent_indx][SEEL_PSEL_LENT_ARR_IDX::ID] = _inst->_parent_id;
