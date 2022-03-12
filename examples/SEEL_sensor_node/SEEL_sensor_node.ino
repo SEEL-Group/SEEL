@@ -11,7 +11,6 @@ constexpr uint8_t SEEL_LoRaPHY_INT_PIN = 2;
 constexpr uint8_t SEEL_RNG_SEED_PIN = 0; // Make sure this pin is NOT connected
 
 SEEL_Scheduler seel_sched; /* SEEL Variables */
-//
 SEEL_SNode seel_snode;
 
 /* USER Variables */
