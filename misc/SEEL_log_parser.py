@@ -29,7 +29,7 @@ PLOT_RSSI_ANALYSIS = True;
 
 ############################################################################
 # Hardcode Section
-USE_HARDCODED_NODE_JOINS = True;
+USE_HARDCODED_NODE_JOINS = False;
 HARDCODED_NODE_JOINS = [
     # Format: [actual ID, assigned ID, cycle join]
     [6, 6, 0],
@@ -51,7 +51,7 @@ HC_NJ_ACTUAL_ID_IDX = 0
 HC_NJ_ASSIGNED_ID_IDX = 1
 HC_NJ_CYCLE_JOIN_IDX = 2
 
-USE_HARDCODED_NODE_LOCS = True;
+USE_HARDCODED_NODE_LOCS = False;
 HARDCODED_NODE_LOCS = {
     # Format: actual ID: (loc_x, loc_y)
     0: (0, 0),
@@ -87,77 +87,41 @@ INDEX_HEADER = 0
 
 INDEX_BT_TIME = 1
 
-# INDEX_BD_FIRST = 1
-# INDEX_BD_BCAST_COUNT = 2
-# INDEX_BD_SYS_TIME_0 = 3
-# INDEX_BD_SYS_TIME_1 = 4
-# INDEX_BD_SYS_TIME_2 = 5
-# INDEX_BD_SYS_TIME_3 = 6
-# INDEX_BD_SNODE_AWAKE_TIME_0 = 7
-# INDEX_BD_SNODE_AWAKE_TIME_1 = 8
-# INDEX_BD_SNODE_AWAKE_TIME_2 = 9
-# INDEX_BD_SNODE_AWAKE_TIME_3 = 10
-# INDEX_BD_SNODE_SLEEP_TIME_0 = 11
-# INDEX_BD_SNODE_SLEEP_TIME_1 = 12
-# INDEX_BD_SNODE_SLEEP_TIME_2 = 13
-# INDEX_BD_SNODE_SLEEP_TIME_3 = 14
-# INDEX_BD_PATH_HC = 15
-# INDEX_BD_PATH_RSSI = 16
-# INDEX_BD_SNODE_JOIN_ID = 17 # Repeated
-# INDEX_BD_SNODE_JOIN_RESPONSE = 18 # Repeated
-
-# INDEX_DATA_ORIGINAL_ID = 0
-# INDEX_DATA_ASSIGNED_ID = 1
-# INDEX_DATA_PARENT_ID = 2
-# INDEX_DATA_PARENT_RSSI = 3
-# INDEX_DATA_BCAST_COUNT = 4
-# INDEX_DATA_WTB_0 = 5
-# INDEX_DATA_WTB_1 = 6
-# INDEX_DATA_WTB_2 = 7
-# INDEX_DATA_WTB_3 = 8
-# INDEX_DATA_SEND_COUNT_0 = 9
-# INDEX_DATA_SEND_COUNT_1 = 10
-# INDEX_DATA_PREV_TRANS = 11
-# INDEX_DATA_MISSED_BCASTS = 12
-# INDEX_DATA_QUEUE_SIZE = 13
-# INDEX_DATA_CRC_FAILS = 14
-# INDEX_DATA_ASSERT_FAIL = 15
-
-# Old format, will remove soon
 INDEX_BD_FIRST = 1
-INDEX_BD_SYS_TIME_0 = 2
-INDEX_BD_SYS_TIME_1 = 3
-INDEX_BD_SYS_TIME_2 = 4
-INDEX_BD_SYS_TIME_3 = 5
-INDEX_BD_SNODE_AWAKE_TIME_0 = 6
-INDEX_BD_SNODE_AWAKE_TIME_1 = 7
-INDEX_BD_SNODE_AWAKE_TIME_2 = 8
-INDEX_BD_SNODE_AWAKE_TIME_3 = 9
-INDEX_BD_SNODE_SLEEP_TIME_0 = 10
-INDEX_BD_SNODE_SLEEP_TIME_1 = 11
-INDEX_BD_SNODE_SLEEP_TIME_2 = 12
-INDEX_BD_SNODE_SLEEP_TIME_3 = 13
-INDEX_BD_PATH_HC = 14
-INDEX_BD_PATH_RSSI = 15
-INDEX_BD_SNODE_JOIN_ID = 16 # Repeated
-INDEX_BD_SNODE_JOIN_RESPONSE = 17 # Repeated
+INDEX_BD_BCAST_COUNT = 2
+INDEX_BD_SYS_TIME_0 = 3
+INDEX_BD_SYS_TIME_1 = 4
+INDEX_BD_SYS_TIME_2 = 5
+INDEX_BD_SYS_TIME_3 = 6
+INDEX_BD_SNODE_AWAKE_TIME_0 = 7
+INDEX_BD_SNODE_AWAKE_TIME_1 = 8
+INDEX_BD_SNODE_AWAKE_TIME_2 = 9
+INDEX_BD_SNODE_AWAKE_TIME_3 = 10
+INDEX_BD_SNODE_SLEEP_TIME_0 = 11
+INDEX_BD_SNODE_SLEEP_TIME_1 = 12
+INDEX_BD_SNODE_SLEEP_TIME_2 = 13
+INDEX_BD_SNODE_SLEEP_TIME_3 = 14
+INDEX_BD_PATH_HC = 15
+INDEX_BD_PATH_RSSI = 16
+INDEX_BD_SNODE_JOIN_ID = 17 # Repeated
+INDEX_BD_SNODE_JOIN_RESPONSE = 18 # Repeated
 
-# Old format, will remove soon
 INDEX_DATA_ORIGINAL_ID = 0
 INDEX_DATA_ASSIGNED_ID = 1
 INDEX_DATA_PARENT_ID = 2
 INDEX_DATA_PARENT_RSSI = 3
-INDEX_DATA_WTB_0 = 4
-INDEX_DATA_WTB_1 = 5
-INDEX_DATA_WTB_2 = 6
-INDEX_DATA_WTB_3 = 7
-INDEX_DATA_SEND_COUNT_0 = 8
-INDEX_DATA_SEND_COUNT_1 = 9
-INDEX_DATA_PREV_TRANS = 10
-INDEX_DATA_MISSED_BCASTS = 11
-INDEX_DATA_QUEUE_SIZE = 12
-INDEX_DATA_CRC_FAILS = 13
-INDEX_DATA_ASSERT_FAIL = 14
+INDEX_DATA_BCAST_COUNT = 4
+INDEX_DATA_WTB_0 = 5
+INDEX_DATA_WTB_1 = 6
+INDEX_DATA_WTB_2 = 7
+INDEX_DATA_WTB_3 = 8
+INDEX_DATA_SEND_COUNT_0 = 9
+INDEX_DATA_SEND_COUNT_1 = 10
+INDEX_DATA_PREV_TRANS = 11
+INDEX_DATA_MISSED_BCASTS = 12
+INDEX_DATA_QUEUE_SIZE = 13
+INDEX_DATA_CRC_FAILS = 14
+INDEX_DATA_ASSERT_FAIL = 15
 
 ############################################################################
 # Misc Params
@@ -408,9 +372,10 @@ def main():
         print("\tDropped Packets: " + str(total_bcasts_for_node - (node_msgs - duplicate_msg)))
         print("\tConnection Percentage: " + str(connection_count / total_bcasts_for_node))
         print("\tReceived Percentage: " + str((node_msgs - duplicate_msg) / total_bcasts_for_node))
-        print("\tMean WTB: " + str(statistics.mean(wtb)))
-        print("\tMedian WTB: " + str(statistics.median(wtb)))
-        print("\tStd Dev. WTB: " + str(statistics.stdev(wtb)))
+        if len(wtb) > 0:
+            print("\tMean WTB: " + str(statistics.mean(wtb)))
+            print("\tMedian WTB: " + str(statistics.median(wtb)))
+            print("\tStd Dev. WTB: " + str(statistics.stdev(wtb)))
         print("\tAvg Transmissions per received msg: " + str(total_transmissions / node_msgs))
         print("\tAvg Transmissions per cycle: " + str(total_transmissions / total_bcasts_for_node))
         print("\tAvg Data Queue Size: " + str(queue_size_counter / total_bcasts_for_node))
