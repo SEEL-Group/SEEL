@@ -84,7 +84,6 @@ NETWORK_DRAW_OPTIONS = {
 # Indexes Section
 
 INDEX_HEADER = 0
-
 INDEX_BT_TIME = 1
 
 # INDEX_BD_FIRST = 1
@@ -319,8 +318,14 @@ def main():
         duplicate_msg = 0
         connection_count = 0
         prev_bcast_num = -1
+        send_count_parent_map = {}
         connections = [0] * len(node_assignments)
         connections_rssi = [0] * len(node_assignments)
+        connections_wtb = [0] * len(node_assignments)
+        connections_qsize = [0] * len(node_assignments)
+        connections_CRC = [0] * len(node_assignments)
+        connections_transmissions = [0] * len(node_assignments)
+        connections_transmissions_sizes = [0] * len(node_assignments)
         queue_size_counter = 0
         max_queue_size = 0
         total_crc_fails = 0
@@ -370,16 +375,23 @@ def main():
 
                 # Not all sent msgs are received, "prev_trans" indicates how many total transmissions 
                 # were done by the node in the previous cycle. Duplicates within a cycle can exist
-
                 total_transmissions += msg.prev_trans
                 total_crc_fails += msg.crc_fails
 
                 if msg.parent_rssi != -256: # Impossible value, used to flag RSSI unavailable
                     total_parent_rssi += msg.parent_rssi
                     
+                send_count_parent_map[msg.send_count] = msg.parent_id;
                 if msg.parent_id in node_mapping:
                     connections[node_assignments.index(node_mapping[msg.parent_id])] += 1
                     connections_rssi[node_assignments.index(node_mapping[msg.parent_id])] += msg.parent_rssi
+                    connections_wtb[node_assignments.index(node_mapping[msg.parent_id])] += msg.wtb
+                    connections_qsize[node_assignments.index(node_mapping[msg.parent_id])] += msg.queue_size
+                    connections_CRC[node_assignments.index(node_mapping[msg.parent_id])] += msg.crc_fails
+                    if (msg.send_count - 1) in send_count_parent_map and send_count_parent_map[msg.send_count - 1] in node_mapping:
+                        parent_idx = node_assignments.index(node_mapping[send_count_parent_map[msg.send_count - 1]])
+                        connections_transmissions[parent_idx] += msg.prev_trans
+                        connections_transmissions_sizes[parent_idx] += 1
 
                 queue_size_counter += msg.queue_size
                 if msg.queue_size > max_queue_size:
@@ -422,6 +434,12 @@ def main():
             print("\t\t" + str(node_assignments[j]) + ":\t" + str(connections[j]))
             if connections[j] > 0:
                 print("\t\t\tAvg RSSI: " + str(connections_rssi[j] / connections[j]))
+                print("\t\t\tAvg WTB: " + str(connections_wtb[j] / connections[j]))
+                print("\t\t\tAvg Q_Size: " + str(connections_qsize[j] / connections[j]))
+                print("\t\t\tAvg CRC: " + str(connections_CRC[j] / connections[j]))
+                if connections_transmissions_sizes[j] > 0:
+                    print("\t\t\tAvg Transmissions: " + str(connections_transmissions[j] / connections_transmissions_sizes[j]))
+                print("\t\t\tTransmission Samples: " + str(connections_transmissions_sizes[j]))
                 if USE_HARDCODED_NODE_LOCS:
                     G.add_edge(node_id, node_assignments[j], weight=connections[j]/total_connections)
 
