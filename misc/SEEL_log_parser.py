@@ -26,6 +26,7 @@ import statistics
 # Parameters
 
 PLOT_RSSI_ANALYSIS = True;
+PLOT_LOCS_WEIGHT_SCALAR = 100;
 
 ############################################################################
 # Hardcode Section
@@ -51,7 +52,7 @@ HC_NJ_ACTUAL_ID_IDX = 0
 HC_NJ_ASSIGNED_ID_IDX = 1
 HC_NJ_CYCLE_JOIN_IDX = 2
 
-USE_HARDCODED_NODE_LOCS = False;
+USE_HARDCODED_NODE_LOCS = True;
 HARDCODED_NODE_LOCS = {
     # Format: actual ID: (loc_x, loc_y)
     0: (0, 0),
@@ -388,7 +389,7 @@ def main():
             if connections[j] > 0:
                 print("\t\t\tAvg RSSI: " + str(connections_rssi[j] / connections[j]))
                 if USE_HARDCODED_NODE_LOCS:
-                    G.add_edge(node_id, node_assignments[j], weight=connections[j]/total_connections)
+                    G.add_edge(node_id, node_assignments[j], weight=connections[j]/PLOT_LOCS_WEIGHT_SCALAR) #total_connections)
 
     if USE_HARDCODED_NODE_LOCS:
         # Plot network with parent-child connections
