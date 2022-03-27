@@ -142,7 +142,7 @@ enum SEEL_PARENT_SELECTION_MODE
 };
 // If enabled, collects broadcasts for a duration of SEEL_SMART_PARENT_DURATION_MILLIS and chooses node with highest RSSI to be parent. 
 // If SEEL_SMART_PARENT_DURATION_MILLIS=0 then SNode will collect broadcasts until it's time to send broadcast.
-constexpr SEEL_PARENT_SELECTION_MODE SEEL_PSEL_MODE = SEEL_PSEL_LENT;
+constexpr SEEL_PARENT_SELECTION_MODE SEEL_PSEL_MODE = SEEL_PSEL_PATH_RSSI;
 constexpr uint32_t SEEL_PSEL_DURATION_MILLIS = SEEL_TDMA_CYCLE_TIME_MILLIS; // Should be much less than awake time of SNODE, Special Case if zero (refer to above).
 constexpr uint8_t SEEL_PSEL_LENT_ARR_MAX = 10; // How many max nodes PSEL LENT mode can track at once
 
