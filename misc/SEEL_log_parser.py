@@ -151,7 +151,7 @@ class Bcast_Info:
         return "System time: " + str(self.sys_time) + " Awake time: " + str(self.awk_time) + " Sleep time: " + str(self.slp_time)
 
 class Node_Info:
-    def __init__(self, bcast_num, wtb, prev_trans, node_id, parent_id, parent_rssi, send_count, queue_size, missed_bcasts, crc_fails):
+    def __init__(self, bcast_num, wtb, prev_trans, node_id, parent_id, parent_rssi, send_count, queue_size, missed_bcasts, crc_fails, assert_fails):
         self.bcast_num = bcast_num
         self.wtb = wtb
         self.prev_trans = prev_trans
@@ -162,12 +162,13 @@ class Node_Info:
         self.queue_size = queue_size
         self.missed_bcasts = missed_bcasts
         self.crc_fails = crc_fails
+        self.assert_fails = assert_fails
 
     def __str__(self):
         return "Node ID: " + str(self.node_id) + "\tParent ID: " + str(self.parent_id) + "\tSend Count: " + \
             str(self.send_count) + "\tParent RSSI: " + str(self.parent_rssi) + "\tPrevious Transmissions: " + \
             str(self.prev_trans) + "\tWTB: " + str(self.wtb) + "\tQ Size: " + str(self.queue_size) + "\tMissed Bcasts: " + \
-            str(self.missed_bcasts) + "\tCRC Fails: " + str(self.crc_fails)
+            str(self.missed_bcasts) + "\tCRC Fails: " + str(self.crc_fails) + "\tAssert Fails: " + str(self.assert_fails)
 
 def node_entry(actual_id, assigned_id, bcast_join):
     print("join id: " + str(actual_id) + "\tresponse: " + str(assigned_id) + "\tB. Join: " + str(bcast_join))
@@ -249,7 +250,7 @@ def main():
             if line[INDEX_DATA_ASSIGNED_ID] in node_mapping:
                 original_node_id = node_mapping[line[INDEX_DATA_ASSIGNED_ID]]
                 node_info[node_assignments.index(original_node_id)].append(Node_Info(len(bcast_times), wtb, line[INDEX_DATA_PREV_TRANS], original_node_id, 
-                    line[INDEX_DATA_PARENT_ID], line[INDEX_DATA_PARENT_RSSI] - 256, send_count, line[INDEX_DATA_QUEUE_SIZE], line[INDEX_DATA_MISSED_BCASTS], line[INDEX_DATA_CRC_FAILS]))
+                    line[INDEX_DATA_PARENT_ID], line[INDEX_DATA_PARENT_RSSI] - 256, send_count, line[INDEX_DATA_QUEUE_SIZE], line[INDEX_DATA_MISSED_BCASTS], line[INDEX_DATA_CRC_FAILS], line[INDEX_DATA_ASSERT_FAIL]))
         current_line += 1
 
     # Analysis
