@@ -25,34 +25,28 @@ import statistics
 ############################################################################
 # Parameters
 
-PLOT_RSSI_ANALYSIS = True;
-PLOT_LOCS_WEIGHT_SCALAR = 100;
+PLOT_DISPLAY = True
+PLOT_RSSI_ANALYSIS = True
+PLOT_LOCS_WEIGHT_SCALAR = 1000 # Smaller for thicker lines
 
 ############################################################################
 # Hardcode Section
-USE_HARDCODED_NODE_JOINS = False;
+USE_HARDCODED_NODE_JOINS = True
 HARDCODED_NODE_JOINS = [
     # Format: [actual ID, assigned ID, cycle join]
-    [6, 6, 0],
-    [7, 7, 0],
-    [8, 8, 0],
-    [10, 123, 0],
-    [11, 127, 0],
-    [12, 126, 0],
-    [13, 121, 0],
-    [14, 14, 0],
-    [15, 124, 0],
-    [16, 16, 0],
-    [17, 17, 0],
-    [18, 18, 0],
-    [19, 19, 0],
-    [20, 20, 0]
+    [15, 15, 6],
+    [19, 19, 6],
+    [20, 20, 6],
+    [12, 12, 7],
+    [14, 125, 7],
+    [16, 124, 7],
+    [12, 12, 8]
 ]
 HC_NJ_ACTUAL_ID_IDX = 0
 HC_NJ_ASSIGNED_ID_IDX = 1
 HC_NJ_CYCLE_JOIN_IDX = 2
 
-USE_HARDCODED_NODE_LOCS = True;
+USE_HARDCODED_NODE_LOCS = True
 HARDCODED_NODE_LOCS = {
     # Format: actual ID: (loc_x, loc_y)
     0: (0, 0),
@@ -137,7 +131,7 @@ bcast_instances = {} # per node, since nodes may join at different times
 
 node_mapping = {}
 node_assignments = []
-node_info = []
+data_info = []
 
 ############################################################################
 
@@ -150,7 +144,7 @@ class Bcast_Info:
     def __str__(self):
         return "System time: " + str(self.sys_time) + " Awake time: " + str(self.awk_time) + " Sleep time: " + str(self.slp_time)
 
-class Node_Info:
+class Data_Info:
     def __init__(self, bcast_num, wtb, prev_trans, node_id, parent_id, parent_rssi, send_count, queue_size, missed_bcasts, crc_fails, assert_fails):
         self.bcast_num = bcast_num
         self.wtb = wtb
@@ -177,7 +171,7 @@ def node_entry(actual_id, assigned_id, bcast_join):
     node_mapping[assigned_id] = actual_id
     if node_assignments.count(actual_id) == 0:
         node_assignments.append(actual_id)
-        node_info.append([])
+        data_info.append([])
         bcast_instances[actual_id] = bcast_join
 
 def main():
@@ -249,8 +243,7 @@ def main():
             send_count += line[INDEX_DATA_SEND_COUNT_1]
             if line[INDEX_DATA_ASSIGNED_ID] in node_mapping:
                 original_node_id = node_mapping[line[INDEX_DATA_ASSIGNED_ID]]
-                node_info[node_assignments.index(original_node_id)].append(Node_Info(len(bcast_times), wtb, line[INDEX_DATA_PREV_TRANS], original_node_id, 
-                    line[INDEX_DATA_PARENT_ID], line[INDEX_DATA_PARENT_RSSI] - 256, send_count, line[INDEX_DATA_QUEUE_SIZE], line[INDEX_DATA_MISSED_BCASTS], line[INDEX_DATA_CRC_FAILS], line[INDEX_DATA_ASSERT_FAIL]))
+                data_info[node_assignments.index(original_node_id)].append(Data_Info(line[INDEX_DATA_BCAST_COUNT], wtb, line[INDEX_DATA_PREV_TRANS], original_node_id, line[INDEX_DATA_PARENT_ID], line[INDEX_DATA_PARENT_RSSI] - 256, send_count, line[INDEX_DATA_QUEUE_SIZE], line[INDEX_DATA_MISSED_BCASTS], line[INDEX_DATA_CRC_FAILS], line[INDEX_DATA_ASSERT_FAIL]))
         current_line += 1
 
     # Analysis
@@ -265,17 +258,18 @@ def main():
 
     print("Total Bcasts: " + str(total_bcasts))
 
-    for i in range(len(node_info)):
-        node = node_info[i]
+    for i in range(len(data_info)):
+        node_data_msgs = data_info[i]
         print("********************************************************")
         print("Node " + str(node_assignments[i]))
-        if not node: # Empty
+        if not node_data_msgs: # Empty
             print("No messages received")
             continue
         duplicate_msg_tracker = {}
+        bcast_tracker = set() # Checks for bcast duplicates
         wtb = []
-        node_id = node[0].node_id
-        node_msgs = len(node)
+        node_id = node_data_msgs[0].node_id
+        num_node_msgs = len(node_data_msgs)
         total_transmissions = 0
         total_parent_rssi = 0
         total_rssi_counts = 0
@@ -284,7 +278,6 @@ def main():
         dropped_packet_tracker = []
         duplicate_msg = 0
         connection_count = 0
-        prev_bcast_num = -1
         connections = [0] * len(node_assignments)
         connections_rssi = [0] * len(node_assignments)
         queue_size_counter = 0
@@ -293,14 +286,17 @@ def main():
         first_wtb = True
         total_bcasts_for_node = total_bcasts - bcast_instances[node_id] + 1
 
+        # Plotting
+        plot_bcast_nums = []
+
         if PLOT_RSSI_ANALYSIS:
             analysis_reset = True # Resets on first time or missed bcasts
             analysis_prev_data = [0, 0, 0]
 
-        for msg in node:
-            if msg.bcast_num != prev_bcast_num:
-                connection_count += 1
-                prev_bcast_num = msg.bcast_num
+        for msg in node_data_msgs:
+            if msg.bcast_num not in bcast_tracker:
+                bcast_tracker.add(msg.bcast_num)
+                plot_bcast_nums.append(msg.bcast_num)
 
             print("Bcast num: " + str(msg.bcast_num) + "\t" + str(msg))
 
@@ -368,17 +364,17 @@ def main():
 
         # Print Analysis
         print("\tJoined Network on Bcast: " + str(bcast_instances[node_id]))
-        print("\tTotal Received Messages: " + str(node_msgs))
+        print("\tTotal Received Messages: " + str(num_node_msgs))
         print("\tDuplicate Messages: " + str(duplicate_msg))
         #print("\tDropped Packets: " + str(dropped_packets))
-        print("\tDropped Packets: " + str(total_bcasts_for_node - (node_msgs - duplicate_msg)))
-        print("\tConnection Percentage: " + str(connection_count / total_bcasts_for_node))
-        print("\tReceived Percentage: " + str((node_msgs - duplicate_msg) / total_bcasts_for_node))
+        print("\tDropped Packets: " + str(total_bcasts_for_node - (num_node_msgs - duplicate_msg)))
+        print("\tConnection Percentage: " + str(len(bcast_tracker) / total_bcasts_for_node))
+        print("\tReceived Percentage: " + str((num_node_msgs - duplicate_msg) / total_bcasts_for_node))
         if len(wtb) > 0:
             print("\tMean WTB: " + str(statistics.mean(wtb)))
             print("\tMedian WTB: " + str(statistics.median(wtb)))
             print("\tStd Dev. WTB: " + str(statistics.stdev(wtb)))
-        print("\tAvg Transmissions per received msg: " + str(total_transmissions / node_msgs))
+        print("\tAvg Transmissions per received msg: " + str(total_transmissions / num_node_msgs))
         print("\tAvg Transmissions per cycle: " + str(total_transmissions / total_bcasts_for_node))
         print("\tAvg Data Queue Size: " + str(queue_size_counter / total_bcasts_for_node))
         print("\tMax Data Queue Size: " + str(max_queue_size))
@@ -391,32 +387,39 @@ def main():
                 print("\t\t\tAvg RSSI: " + str(connections_rssi[j] / connections[j]))
                 if USE_HARDCODED_NODE_LOCS:
                     G.add_edge(node_id, node_assignments[j], weight=connections[j]/PLOT_LOCS_WEIGHT_SCALAR) #total_connections)
+        
+        # Node specific plots
+        if PLOT_DISPLAY:
+            plt.title("Node " + str(node_id))
+            plt.scatter(range(len(plot_bcast_nums)), plot_bcast_nums)
+            plt.show()
 
-    if USE_HARDCODED_NODE_LOCS:
+    if PLOT_DISPLAY:
         # Plot network with parent-child connections
+        if USE_HARDCODED_NODE_LOCS:
 
-        # nodes
-        locs_flipped = {node: (y, x) for (node, (x,y)) in HARDCODED_NODE_LOCS.items()}
-        nx.draw_networkx_nodes(G, locs_flipped, node_size=NETWORK_DRAW_OPTIONS["node_size"], \
-            node_color=NETWORK_DRAW_OPTIONS["node_color"], edgecolors=NETWORK_DRAW_OPTIONS["node_edge_color"],
-            linewidths=NETWORK_DRAW_OPTIONS["node_width"])
+            # nodes
+            locs_flipped = {node: (y, x) for (node, (x,y)) in HARDCODED_NODE_LOCS.items()}
+            nx.draw_networkx_nodes(G, locs_flipped, node_size=NETWORK_DRAW_OPTIONS["node_size"], \
+                node_color=NETWORK_DRAW_OPTIONS["node_color"], edgecolors=NETWORK_DRAW_OPTIONS["node_edge_color"],
+                linewidths=NETWORK_DRAW_OPTIONS["node_width"])
 
-        # edges
-        weighted_edges = [G[u][v]['weight'] for u,v in G.edges()]
-        nx.draw_networkx_edges(G, locs_flipped, width=weighted_edges, connectionstyle="angle3")
+            # edges
+            weighted_edges = [G[u][v]['weight'] for u,v in G.edges()]
+            nx.draw_networkx_edges(G, locs_flipped, width=weighted_edges, connectionstyle="angle3")
 
-        # labels
-        nx.draw_networkx_labels(G, locs_flipped, font_size=NETWORK_DRAW_OPTIONS["node_font_size"])
+            # labels
+            nx.draw_networkx_labels(G, locs_flipped, font_size=NETWORK_DRAW_OPTIONS["node_font_size"])
 
-        ax = plt.gca()
-        plt.axis("off")
-        plt.tight_layout()
-        plt.show()
+            ax = plt.gca()
+            plt.axis("off")
+            plt.tight_layout()
+            plt.show()
 
-    if PLOT_RSSI_ANALYSIS:
-        print("RSSI Analysis # data points: " + str(len(analysis_rssi)))
-        plt.scatter(analysis_rssi, analysis_transmissions, alpha=0.1);
-        plt.show()
+        if PLOT_RSSI_ANALYSIS:
+            print("RSSI Analysis # data points: " + str(len(analysis_rssi)))
+            plt.scatter(analysis_rssi, analysis_transmissions, alpha=0.1);
+            plt.show()
 
 if __name__ == "__main__":
     main()
