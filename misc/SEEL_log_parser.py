@@ -136,13 +136,14 @@ data_info = []
 ############################################################################
 
 class Bcast_Info:
-    def __init__(self, sys_time, awk_time, slp_time):
+    def __init__(self, bcast_num, sys_time, awk_time, slp_time):
+        self.bcast_num = bcast_num
         self.sys_time = sys_time
         self.awk_time = awk_time
         self.slp_time = slp_time
 
     def __str__(self):
-        return "System time: " + str(self.sys_time) + " Awake time: " + str(self.awk_time) + " Sleep time: " + str(self.slp_time)
+        return "Bcast num: " + str(self.bcast_num) + "System time: " + str(self.sys_time) + " Awake time: " + str(self.awk_time) + " Sleep time: " + str(self.slp_time)
 
 class Data_Info:
     def __init__(self, bcast_num, wtb, prev_trans, node_id, parent_id, parent_rssi, send_count, queue_size, missed_bcasts, crc_fails, assert_fails):
@@ -223,7 +224,7 @@ def main():
             slp_time += line[INDEX_BD_SNODE_SLEEP_TIME_1] << 16
             slp_time += line[INDEX_BD_SNODE_SLEEP_TIME_2] << 8
             slp_time += line[INDEX_BD_SNODE_SLEEP_TIME_3]
-            bcast_info.append(Bcast_Info(sys_time, awk_time, slp_time))
+            bcast_info.append(Bcast_Info(line[INDEX_BD_BCAST_COUNT], sys_time, awk_time, slp_time))
 
             for i in range(math.floor((len(line) - INDEX_BD_SNODE_JOIN_ID) / 2)):
                 repeat_index = i * 2
@@ -246,18 +247,27 @@ def main():
                 data_info[node_assignments.index(original_node_id)].append(Data_Info(line[INDEX_DATA_BCAST_COUNT], wtb, line[INDEX_DATA_PREV_TRANS], original_node_id, line[INDEX_DATA_PARENT_ID], line[INDEX_DATA_PARENT_RSSI] - 256, send_count, line[INDEX_DATA_QUEUE_SIZE], line[INDEX_DATA_MISSED_BCASTS], line[INDEX_DATA_CRC_FAILS], line[INDEX_DATA_ASSERT_FAIL]))
         current_line += 1
 
-    # Analysis
+    # Analysis vars
     total_bcasts = len(bcast_times)
     node_assignments.append(0) # For gateway
     node_mapping[0] = 0
-    if USE_HARDCODED_NODE_LOCS:
-        G = nx.DiGraph()
-    if PLOT_RSSI_ANALYSIS:
-        analysis_rssi = []
-        analysis_transmissions = []
+    
+    # Plotting vars
+    if PLOT_DISPLAY:
+        if USE_HARDCODED_NODE_LOCS:
+            G = nx.DiGraph()
+        if PLOT_RSSI_ANALYSIS:
+            analysis_rssi = []
+            analysis_transmissions = []
+            
+        plot_gnode_bcast_nums = []
+        for b in bcast_info:
+            plot_gnode_bcast_nums.append(b.bcast_num)
 
+    # GNODE 
     print("Total Bcasts: " + str(total_bcasts))
 
+    # SNODE
     for i in range(len(data_info)):
         node_data_msgs = data_info[i]
         print("********************************************************")
@@ -266,7 +276,6 @@ def main():
             print("No messages received")
             continue
         duplicate_msg_tracker = {}
-        bcast_tracker = set() # Checks for bcast duplicates
         wtb = []
         node_id = node_data_msgs[0].node_id
         num_node_msgs = len(node_data_msgs)
@@ -284,19 +293,21 @@ def main():
         max_queue_size = 0
         total_crc_fails = 0
         first_wtb = True
+        prev_bcast_num = -1
         total_bcasts_for_node = total_bcasts - bcast_instances[node_id] + 1
 
         # Plotting
-        plot_bcast_nums = []
+        plot_snode_bcast_nums = []
 
         if PLOT_RSSI_ANALYSIS:
             analysis_reset = True # Resets on first time or missed bcasts
             analysis_prev_data = [0, 0, 0]
 
         for msg in node_data_msgs:
-            if msg.bcast_num not in bcast_tracker:
-                bcast_tracker.add(msg.bcast_num)
-                plot_bcast_nums.append(msg.bcast_num)
+            if msg.bcast_num != prev_bcast_num:
+                connection_count += 1
+                prev_bcast_num = msg.bcast_num
+                plot_snode_bcast_nums.append(msg.bcast_num)
 
             print("Bcast num: " + str(msg.bcast_num) + "\t" + str(msg))
 
@@ -368,8 +379,9 @@ def main():
         print("\tDuplicate Messages: " + str(duplicate_msg))
         #print("\tDropped Packets: " + str(dropped_packets))
         print("\tDropped Packets: " + str(total_bcasts_for_node - (num_node_msgs - duplicate_msg)))
-        print("\tConnection Percentage: " + str(len(bcast_tracker) / total_bcasts_for_node))
+        print("\tConnection Percentage: " + str(connection_count / total_bcasts_for_node))
         print("\tReceived Percentage: " + str((num_node_msgs - duplicate_msg) / total_bcasts_for_node))
+        print("\tPDR: " + str((num_node_msgs - duplicate_msg) / connection_count))
         if len(wtb) > 0:
             print("\tMean WTB: " + str(statistics.mean(wtb)))
             print("\tMedian WTB: " + str(statistics.median(wtb)))
@@ -387,11 +399,17 @@ def main():
                 print("\t\t\tAvg RSSI: " + str(connections_rssi[j] / connections[j]))
                 if USE_HARDCODED_NODE_LOCS:
                     G.add_edge(node_id, node_assignments[j], weight=connections[j]/PLOT_LOCS_WEIGHT_SCALAR) #total_connections)
+        print(flush=True)
         
         # Node specific plots
         if PLOT_DISPLAY:
-            plt.title("Node " + str(node_id))
-            plt.scatter(range(len(plot_bcast_nums)), plot_bcast_nums)
+            figure, axis = plt.subplots(2, sharex=True)
+            # GNODE
+            axis[0].plot(plot_gnode_bcast_nums)
+            axis[0].set_title("GNODE")
+            # SNODE
+            axis[1].plot(plot_snode_bcast_nums)
+            axis[1].set_title("SNODE " + str(node_id))
             plt.show()
 
     if PLOT_DISPLAY:
