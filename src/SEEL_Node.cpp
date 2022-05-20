@@ -159,7 +159,8 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
     bool valid_msg = false;
     bool crc_valid = true;
 
-    uint8_t msg_len = _LoRaPHY_ptr->parsePacket(crc_valid, SEEL_MSG_TOTAL_SIZE); // TODO: Requires modified version of LoRa lib to get crc_valid info
+    uint8_t msg_len = _LoRaPHY_ptr->parsePacket(crc_valid, SEEL_MSG_TOTAL_SIZE); // TODO: Requires modified version of LoRa lib to get crc_valid info, see comment below
+    // Apply patch from SEEL/patches using "git apply <patch>" to the *** Arduino LoRa ** library
 
     if (msg_len > 0) // Message is available
     { 
