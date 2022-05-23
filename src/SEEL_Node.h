@@ -54,8 +54,8 @@ public:
 
     // MODIFIES: "msg"
     // Note: seq_num is left out since it is incremented in the send method
-    void create_msg(SEEL_Message* msg, const uint8_t targ_id, const uint8_t send_id, const uint8_t cmd);
-    void create_msg(SEEL_Message* msg, const uint8_t targ_id, const uint8_t send_id, const uint8_t cmd, uint8_t const * data);
+    void create_msg(SEEL_Message* msg, const uint8_t targ_id, const uint8_t cmd);
+    void create_msg(SEEL_Message* msg, const uint8_t targ_id, const uint8_t cmd, uint8_t const * data);
 
     // Converts raw msg buffer from RFM95 to SEEL msg format
     void buf_to_SEEL_msg(SEEL_Message* msg, uint8_t const * buf);

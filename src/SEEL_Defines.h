@@ -28,20 +28,22 @@ const uint8_t SEEL_CMD_DATA       = 2;
 const uint8_t SEEL_CMD_ID_CHECK   = 3;
 
 /* MESSAGE DESCRIPTION, SIZE in Bytes */
-const uint8_t SEEL_MSG_TARG_INDEX = 0;
-const uint8_t SEEL_MSG_TARG_SIZE  = 1;
-const uint8_t SEEL_MSG_SEND_INDEX = 1;
-const uint8_t SEEL_MSG_SEND_SIZE  = 1;
-const uint8_t SEEL_MSG_CMD_INDEX  = 2;
-const uint8_t SEEL_MSG_CMD_SIZE   = 1;
-const uint8_t SEEL_MSG_SEQ_INDEX  = 3;
-const uint8_t SEEL_MSG_SEQ_SIZE   = 1;
-const uint8_t SEEL_MSG_MISC_INDEX = 4;
-const uint8_t SEEL_MSG_MISC_SIZE  = 18;
-const uint8_t SEEL_MSG_USER_INDEX = 22; // USER_SIZE defined in SEEL_Params.h
+const uint8_t SEEL_MSG_TARG_INDEX   = 0;
+const uint8_t SEEL_MSG_TARG_SIZE    = 1;
+const uint8_t SEEL_MSG_SEND_INDEX   = 1;
+const uint8_t SEEL_MSG_SEND_SIZE    = 1;
+const uint8_t SEEL_MSG_CMD_INDEX    = 2;
+const uint8_t SEEL_MSG_CMD_SIZE     = 1;
+const uint8_t SEEL_MSG_SEQ_INDEX    = 3;
+const uint8_t SEEL_MSG_SEQ_SIZE     = 1;
+const uint8_t SEEL_MSG_OSEND_INDEX  = 4;
+const uint8_t SEEL_MSG_OSEND_SIZE   = 1;
+const uint8_t SEEL_MSG_MISC_INDEX   = 5;
+const uint8_t SEEL_MSG_MISC_SIZE    = 18;
+const uint8_t SEEL_MSG_USER_INDEX   = 23; // USER_SIZE defined in SEEL_Params.h
 const uint8_t SEEL_MSG_DATA_SIZE = SEEL_MSG_MISC_SIZE + SEEL_MSG_USER_SIZE;
 const uint8_t SEEL_MSG_TOTAL_SIZE = SEEL_MSG_TARG_SIZE + SEEL_MSG_SEND_SIZE + SEEL_MSG_CMD_SIZE
-    + SEEL_MSG_SEQ_SIZE + SEEL_MSG_MISC_SIZE + SEEL_MSG_USER_SIZE;
+    + SEEL_MSG_SEQ_SIZE + SEEL_MSG_OSEND_SIZE + SEEL_MSG_MISC_SIZE + SEEL_MSG_USER_SIZE;
 
 /* MESSAGE DATA DESCRIPTION, SIZE in Bytes */
 
@@ -92,6 +94,7 @@ struct SEEL_Message
     uint8_t send_id;
     uint8_t cmd;
     uint8_t seq_num;
+    uint8_t orig_send_id;
     uint8_t data[SEEL_MSG_DATA_SIZE];
 
     SEEL_Message() {}
@@ -103,6 +106,7 @@ struct SEEL_Message
         this->send_id = msg.send_id;
         this->cmd = msg.cmd;
         this->seq_num = msg.seq_num;
+        this->orig_send_id = msg.orig_send_id;
         memcpy(this->data, msg.data, SEEL_MSG_DATA_SIZE * sizeof(*data));
     }
 
@@ -113,6 +117,7 @@ struct SEEL_Message
         this->send_id = msg.send_id;
         this->cmd = msg.cmd;
         this->seq_num = msg.seq_num;
+        this->orig_send_id = msg.orig_send_id;
         memcpy(this->data, msg.data, SEEL_MSG_DATA_SIZE * sizeof(*data));
 
         return *this;

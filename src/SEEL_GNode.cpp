@@ -274,7 +274,7 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
     to_send.data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 3] = (uint8_t) (system_time);
 
     // Send out gateway msg
-    _inst->create_msg(&to_send, SEEL_GNODE_ID, SEEL_GNODE_ID, SEEL_CMD_BCAST);
+    _inst->create_msg(&to_send, SEEL_GNODE_ID, SEEL_CMD_BCAST);
     _inst->try_send(&to_send, true);
     if (_inst->_user_cb_broadcast != NULL)
     {
