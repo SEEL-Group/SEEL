@@ -175,8 +175,8 @@ void SEEL_GNode::SEEL_Task_GNode_Receive::run()
         // Re-affirm node is still in network by updating its saved_bcast_count
         // Set container status to active in case gateway had to restart. so we don't lose comms with already-initialized
         // nodes. However, possible security risk of intruder nodes
-        _inst->_id_container[msg.send_id].used = true;
-        _inst->_id_container[msg.send_id].saved_bcast_count = (_inst->_bcast_count & 0x7F);
+        _inst->_id_container[msg.orig_send_id].used = true;
+        _inst->_id_container[msg.orig_send_id].saved_bcast_count = (_inst->_bcast_count & 0x7F);
         // Provide msg to user callback
         if (_inst->_user_cb_data != NULL)
         {
