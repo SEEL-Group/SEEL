@@ -599,7 +599,7 @@ bool SEEL_SNode::enqueue_node_id()
     msg_data[SEEL_MSG_DATA_ID_ENCRYPT_INDEX + 2] = (uint8_t) (_unique_key >> 8);
     msg_data[SEEL_MSG_DATA_ID_ENCRYPT_INDEX + 3] = (uint8_t) (_unique_key);
     
-    create_msg(&msg, _parent_id, _node_id, SEEL_CMD_ID_CHECK, msg_data);
+    create_msg(&msg, _parent_id, SEEL_CMD_ID_CHECK, msg_data);
     return _data_queue.add(msg);
 }
 
@@ -627,7 +627,7 @@ bool SEEL_SNode::enqueue_data()
 
         if(enqueue_user_message)
         {
-            create_msg(&msg, _parent_id, _node_id, SEEL_CMD_DATA, msg_data);
+            create_msg(&msg, _parent_id, SEEL_CMD_DATA, msg_data);
             return _data_queue.add(msg);
         }
     }

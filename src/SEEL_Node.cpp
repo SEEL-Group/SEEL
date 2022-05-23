@@ -59,18 +59,19 @@ void SEEL_Node::rfm_param_init(uint8_t cs_pin, uint8_t reset_pin, uint8_t int_pi
 }
 
 void SEEL_Node::create_msg(SEEL_Message* msg, const uint8_t targ_id, 
-    const uint8_t send_id, const uint8_t cmd)
+    const uint8_t cmd)
 {
     msg->targ_id = targ_id;
-    msg->send_id = send_id;
+    msg->send_id = _node_id;
+    msg->orig_send_id = _node_id;
     msg->cmd = cmd;
     msg->seq_num = _seq_num;
 }
 
 void SEEL_Node::create_msg(SEEL_Message* msg, const uint8_t targ_id, 
-    const uint8_t send_id, const uint8_t cmd, uint8_t const * data)
+    const uint8_t cmd, uint8_t const * data)
 {
-    create_msg(msg, targ_id, send_id, cmd);
+    create_msg(msg, targ_id, cmd);
     memcpy(msg->data, data, SEEL_MSG_DATA_SIZE*sizeof(*data));
 }
 
@@ -80,6 +81,7 @@ void SEEL_Node::buf_to_SEEL_msg(SEEL_Message* msg, uint8_t const * buf)
     memcpy(&msg->send_id, buf+SEEL_MSG_SEND_INDEX, SEEL_MSG_SEND_SIZE*sizeof(*buf));
     memcpy(&msg->cmd, buf+SEEL_MSG_CMD_INDEX, SEEL_MSG_CMD_SIZE*sizeof(*buf));
     memcpy(&msg->seq_num, buf+SEEL_MSG_SEQ_INDEX, SEEL_MSG_SEQ_SIZE*sizeof(*buf));
+    memcpy(&msg->orig_send_id, buf+SEEL_MSG_OSEND_INDEX, SEEL_MSG_OSEND_SIZE*sizeof(*buf));
     memcpy(msg->data, buf+SEEL_MSG_MISC_INDEX, SEEL_MSG_DATA_SIZE*sizeof(*buf));
 }
 
@@ -321,7 +323,7 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
             to_send_ptr->data[i] = *_inst->_ack_queue.front();
             _inst->_ack_queue.pop_front();
         }
-        _inst->create_msg(to_send_ptr, SEEL_GNODE_ID, _inst->_node_id, SEEL_CMD_ACK);
+        _inst->create_msg(to_send_ptr, SEEL_GNODE_ID, SEEL_CMD_ACK);
 
         _inst->try_send(to_send_ptr, true);
     }
