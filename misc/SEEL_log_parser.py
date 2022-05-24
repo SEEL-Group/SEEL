@@ -146,8 +146,9 @@ class Bcast_Info:
         return "Bcast num: " + str(self.bcast_num) + "System time: " + str(self.sys_time) + " Awake time: " + str(self.awk_time) + " Sleep time: " + str(self.slp_time)
 
 class Data_Info:
-    def __init__(self, bcast_num, wtb, prev_trans, node_id, parent_id, parent_rssi, send_count, queue_size, missed_bcasts, crc_fails, assert_fails):
+    def __init__(self, bcast_num, bcast_inst, wtb, prev_trans, node_id, parent_id, parent_rssi, send_count, queue_size, missed_bcasts, crc_fails,       assert_fails):
         self.bcast_num = bcast_num
+        self.bcast_inst = bcast_inst
         self.wtb = wtb
         self.prev_trans = prev_trans
         self.node_id = node_id
@@ -160,10 +161,10 @@ class Data_Info:
         self.assert_fails = assert_fails
 
     def __str__(self):
-        return "Node ID: " + str(self.node_id) + "\tParent ID: " + str(self.parent_id) + "\tSend Count: " + \
-            str(self.send_count) + "\tParent RSSI: " + str(self.parent_rssi) + "\tPrevious Transmissions: " + \
-            str(self.prev_trans) + "\tWTB: " + str(self.wtb) + "\tQ Size: " + str(self.queue_size) + "\tMissed Bcasts: " + \
-            str(self.missed_bcasts) + "\tCRC Fails: " + str(self.crc_fails) + "\tAssert Fails: " + str(self.assert_fails)
+        return "Bcast num: " + str(self.bcast_num) + "\tBcast inst: " + str(self.bcast_inst) + "\tNode ID: " + str(self.node_id) + \
+        "\tParent ID: " + str(self.parent_id) + "\tSend Count: " + str(self.send_count) + "\tParent RSSI: " + str(self.parent_rssi) + \
+        "\tPrevious Transmissions: " + str(self.prev_trans) + "\tWTB: " + str(self.wtb) + "\tQ Size: " + str(self.queue_size) + \
+        "\tMissed Bcasts: " + str(self.missed_bcasts) + "\tCRC Fails: " + str(self.crc_fails) + "\tAssert Fails: " + str(self.assert_fails)
 
 def node_entry(actual_id, assigned_id, bcast_join):
     print("join id: " + str(actual_id) + "\tresponse: " + str(assigned_id) + "\tB. Join: " + str(bcast_join))
@@ -199,13 +200,13 @@ def main():
 
     # Parse Logs
     current_line = 0
+    bcast_instance = -1
     while current_line < df_length:
         line = df_read[current_line].split()
         if len(line) == 0:
             current_line += 1
             continue
         line[1:len(line)] = list(map(int, line[1:len(line)]))
-
         if line[INDEX_HEADER] == "BT:": # Bcast time
             bcast_times.append(line[INDEX_BT_TIME])
         elif line[INDEX_HEADER] == "BD:": # Bcast data
@@ -226,6 +227,9 @@ def main():
             slp_time += line[INDEX_BD_SNODE_SLEEP_TIME_3]
             bcast_info.append(Bcast_Info(line[INDEX_BD_BCAST_COUNT], sys_time, awk_time, slp_time))
 
+            if line[INDEX_BD_FIRST] > 0:
+                bcast_instance += 1
+
             for i in range(math.floor((len(line) - INDEX_BD_SNODE_JOIN_ID) / 2)):
                 repeat_index = i * 2
                 join_id = line[INDEX_BD_SNODE_JOIN_ID + repeat_index]
@@ -244,7 +248,7 @@ def main():
             send_count += line[INDEX_DATA_SEND_COUNT_1]
             if line[INDEX_DATA_ASSIGNED_ID] in node_mapping:
                 original_node_id = node_mapping[line[INDEX_DATA_ASSIGNED_ID]]
-                data_info[node_assignments.index(original_node_id)].append(Data_Info(line[INDEX_DATA_BCAST_COUNT], wtb, line[INDEX_DATA_PREV_TRANS], original_node_id, line[INDEX_DATA_PARENT_ID], line[INDEX_DATA_PARENT_RSSI] - 256, send_count, line[INDEX_DATA_QUEUE_SIZE], line[INDEX_DATA_MISSED_BCASTS], line[INDEX_DATA_CRC_FAILS], line[INDEX_DATA_ASSERT_FAIL]))
+                data_info[node_assignments.index(original_node_id)].append(Data_Info(line[INDEX_DATA_BCAST_COUNT], bcast_instance, wtb, line[INDEX_DATA_PREV_TRANS], original_node_id, line[INDEX_DATA_PARENT_ID], line[INDEX_DATA_PARENT_RSSI] - 256, send_count, line[INDEX_DATA_QUEUE_SIZE], line[INDEX_DATA_MISSED_BCASTS], line[INDEX_DATA_CRC_FAILS], line[INDEX_DATA_ASSERT_FAIL]))
         current_line += 1
 
     # Analysis vars
@@ -286,7 +290,12 @@ def main():
         dropped_packets = 0
         dropped_packet_tracker = []
         duplicate_msg = 0
-        connection_count = 0
+        connection_count = 0 # How many unique (bcast) data msgs we received
+        connection_count_max = 0 # Max number of unique bcasts based on highest bcast count per bcast instance
+        connection_count_overflow = 0 # Handles 256 overflow in a bcast instance
+        connection_count_last_overflow = 0 # Enforces overflow rates so single late msg cannot cause another overflow
+        connection_inst_set = set() # Tracks current bcast number per bcast instance, make set to remove dups
+        connection_inst_max = 0 # Tracks current max bcast number per bcast instance
         connections = [0] * len(node_assignments)
         connections_rssi = [0] * len(node_assignments)
         queue_size_counter = 0
@@ -294,6 +303,7 @@ def main():
         total_crc_fails = 0
         first_wtb = True
         prev_bcast_num = -1
+        prev_bcast_inst = -1
         total_bcasts_for_node = total_bcasts - bcast_instances[node_id] + 1
 
         # Plotting
@@ -303,15 +313,49 @@ def main():
             analysis_reset = True # Resets on first time or missed bcasts
             analysis_prev_data = [0, 0, 0]
 
-        for msg in node_data_msgs:
-            if msg.bcast_num != prev_bcast_num:
-                connection_count += 1
-                prev_bcast_num = msg.bcast_num
-                plot_snode_bcast_nums.append(msg.bcast_num)
+        for msg in node_data_msgs:   
+            dup = True
+        
+            # Figure out how many messages we received from the SNODE versus how many we possibly could have received
+            if msg.bcast_inst != prev_bcast_inst:
+                prev_bcast_inst = msg.bcast_inst
+                print("Received messages in bcast instance: " + str(len(connection_inst_set)) + "/" + str(connection_inst_max), str(0 if connection_inst_max == 0 else len(connection_inst_set) / connection_inst_max))        
+                connection_count += len(connection_inst_set)
+                connection_count_max += connection_inst_max
+                connection_count_overflow = 0
+                connection_count_last_overflow = 0
+                connection_inst_set = set()
+                connection_inst_max = 0
+                prev_bcast_num = -1
+                
+               
+            if (len(connection_inst_set) > PARAM_COUNT_WRAP_SAFETY or msg.bcast_num < (PARAM_COUNT_WRAP_SAFETY if len(connection_inst_set) == 0 else max(            connection_inst_set)+ PARAM_COUNT_WRAP_SAFETY)): # Not from previous bcast inst
+                if msg.bcast_num < prev_bcast_num and prev_bcast_num > 192 and msg.bcast_num < 64 and len(connection_inst_set) > (connection_count_last_overflow + PARAM_COUNT_WRAP_SAFETY): # Assume bcast num overflowed, values used are 3/4 of 256 and 1/4 of 256
+                    #print("Debug: overflow")
+                    connection_count_overflow += 256
+                    connection_count_last_overflow = len(connection_inst_set)
+                
+                overflow_comp_bcast_num = msg.bcast_num + connection_count_overflow
+                # Message from non-overflow case came late
+                if msg.bcast_num > (255 - PARAM_COUNT_WRAP_SAFETY) and (len(connection_inst_set) - connection_count_last_overflow) < PARAM_COUNT_WRAP_SAFETY:
+                    overflow_comp_bcast_num -= 256;
+                
+                if not overflow_comp_bcast_num in connection_inst_set: # Dup check
+                    #print("DEBUG: add " + str(overflow_comp_bcast_num))
+                    connection_inst_set.add(overflow_comp_bcast_num)
+                    if overflow_comp_bcast_num > connection_inst_max:
+                        connection_inst_max = overflow_comp_bcast_num
+                    prev_bcast_num = msg.bcast_num
+                    plot_snode_bcast_nums.append(msg.bcast_num)
+                    dup = False
+                    print(str(msg)) 
+                #else:
+                    #print("Debug: dup")
+            #else:
+                #print(str(msg)) 
+                #print("Debug: ignore")
 
-            print("Bcast num: " + str(msg.bcast_num) + "\t" + str(msg))
-
-            dup = False
+            '''
             # Nodes may send duplicate messages, filter those out so their stats are not double-counted
             if msg.send_count in duplicate_msg_tracker:
                 if msg.bcast_num - duplicate_msg_tracker[msg.send_count] < PARAM_COUNT_WRAP_SAFETY:
@@ -322,6 +366,7 @@ def main():
             else:
                 # not a duplicate message
                 duplicate_msg_tracker[msg.send_count] = msg.bcast_num
+            '''
 
             if not dup:
                 # remove previously missed packet if the packet came in late
@@ -372,16 +417,18 @@ def main():
 
                         analysis_prev_data = [msg.bcast_num, msg.parent_rssi, msg.queue_size]
                         analysis_reset = False
-
+        print("Received messages in bcast instance: " + str(len(connection_inst_set)) + "/" + str(connection_inst_max), str(0 if connection_inst_max == 0 else len( \
+            connection_inst_set) / connection_inst_max))
+        connection_count += len(connection_inst_set)
+        connection_count_max += connection_inst_max
+        
         # Print Analysis
         print("\tJoined Network on Bcast: " + str(bcast_instances[node_id]))
         print("\tTotal Received Messages: " + str(num_node_msgs))
         print("\tDuplicate Messages: " + str(duplicate_msg))
-        #print("\tDropped Packets: " + str(dropped_packets))
         print("\tDropped Packets: " + str(total_bcasts_for_node - (num_node_msgs - duplicate_msg)))
-        print("\tConnection Percentage: " + str(connection_count / total_bcasts_for_node))
-        print("\tReceived Percentage: " + str((num_node_msgs - duplicate_msg) / total_bcasts_for_node))
-        print("\tPDR: " + str((num_node_msgs - duplicate_msg) / connection_count))
+        print("\tReceived (Total) Percentage: " + str(connection_count / total_bcasts_for_node)) # Total number of GNODE Bcasts received
+        print("\tReceived (Possible) Percentage: " + str(0 if connection_count_max == 0 else connection_count / connection_count_max)) # Total given times connected (until disconnect or death). This metric is a better representation of PDR
         if len(wtb) > 0:
             print("\tMean WTB: " + str(statistics.mean(wtb)))
             print("\tMedian WTB: " + str(statistics.median(wtb)))
