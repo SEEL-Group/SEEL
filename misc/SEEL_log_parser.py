@@ -136,14 +136,15 @@ data_info = []
 ############################################################################
 
 class Bcast_Info:
-    def __init__(self, bcast_num, sys_time, awk_time, slp_time):
+    def __init__(self, bcast_num, bcast_inst, sys_time, awk_time, slp_time):
         self.bcast_num = bcast_num
+        self.bcast_inst = bcast_inst
         self.sys_time = sys_time
         self.awk_time = awk_time
         self.slp_time = slp_time
 
     def __str__(self):
-        return "Bcast num: " + str(self.bcast_num) + "System time: " + str(self.sys_time) + " Awake time: " + str(self.awk_time) + " Sleep time: " + str(self.slp_time)
+        return "Bcast num: " + str(self.bcast_num) + " Inst: " + str(self.bcast_inst) + " System time: " + str(self.sys_time) + " Awake time: " + str(self.awk_time) + " Sleep time: " + str(self.slp_time)
 
 class Data_Info:
     def __init__(self, bcast_num, bcast_inst, wtb, prev_trans, node_id, parent_id, parent_rssi, send_count, queue_size, missed_bcasts, crc_fails,       assert_fails):
@@ -225,10 +226,9 @@ def main():
             slp_time += line[INDEX_BD_SNODE_SLEEP_TIME_1] << 16
             slp_time += line[INDEX_BD_SNODE_SLEEP_TIME_2] << 8
             slp_time += line[INDEX_BD_SNODE_SLEEP_TIME_3]
-            bcast_info.append(Bcast_Info(line[INDEX_BD_BCAST_COUNT], sys_time, awk_time, slp_time))
-
             if line[INDEX_BD_FIRST] > 0:
                 bcast_instance += 1
+            bcast_info.append(Bcast_Info(line[INDEX_BD_BCAST_COUNT], bcast_instance, sys_time, awk_time, slp_time))
 
             for i in range(math.floor((len(line) - INDEX_BD_SNODE_JOIN_ID) / 2)):
                 repeat_index = i * 2
@@ -450,14 +450,102 @@ def main():
         
         # Node specific plots
         if PLOT_DISPLAY:
+        
+            """ Bcasts Received Start """
+            
+            plot_snode_bcast_nums_padded = []
+            """
+            if len(plot_snode_bcast_nums) > 0:
+                # Since SNODE may have missed GNODE bcasts, fill SNODE array with same value (graph shows horizontal line) if missed
+                n_g_count = 0
+                for n_s in plot_snode_bcast_nums:
+                    print("Debug: looking for " + str(n_s))
+                    n_g = plot_gnode_bcast_nums[n_g_count]
+                    print("\tDebug: looking at " + str(n_g))
+                    while n_s != n_g:
+                        if len(plot_snode_bcast_nums_padded) > 0:
+                            plot_snode_bcast_nums_padded.append(plot_snode_bcast_nums_padded[-1]) # Append last value
+                            print("\tDebug: padding " + str(plot_snode_bcast_nums_padded[-1]))
+                        else:
+                            plot_snode_bcast_nums_padded.append(0)
+                            print("\tDebug: padding " + str(0))
+                        n_g_count += 1
+                        if n_g_count >= len(plot_gnode_bcast_nums): # Out of GNODE nums
+                            break
+                        n_g = plot_gnode_bcast_nums[n_g_count]
+                        print("\tDebug: looking at " + str(n_g))
+                    if n_g_count < len(plot_snode_bcast_nums): # Out of GNODE nums
+                        plot_snode_bcast_nums_padded.append(n_g)
+                        n_g_count += 1
+                    else:
+                        break
+            """
+            if len(plot_snode_bcast_nums) > 0:
+                # Since SNODE may have missed GNODE bcasts, fill SNODE array with same value (graph shows horizontal line) if missed
+                plot_snode_bcast_nums_padded = []
+                n_s_count = 0
+                # TODO: Alignment is off, node death creates buggy cycle in algorithm
+                for n_g_idx in range(len(plot_gnode_bcast_nums[bcast_instances[node_id]:])): # Start tracking when SNODE joined the network
+                    n_g = plot_gnode_bcast_nums[n_g_idx]
+                    print("Debug: looking for " + str(n_g))
+                    window_min = max(n_s_count - PARAM_COUNT_WRAP_SAFETY, 0)
+                    window_max = min(n_s_count + PARAM_COUNT_WRAP_SAFETY, len(plot_snode_bcast_nums) - 1)
+                    print("Debug: Window min idx: " + str(window_min) + " Current idx: " + str(min(n_s_count, window_max)) + " Window max idx: " + str(window_max))
+                    print("Debug: Window min: " + str(plot_snode_bcast_nums[window_min]) + " Current: " + str(plot_snode_bcast_nums[min(n_s_count, window_max)]) + " Window max: " + str(plot_snode_bcast_nums[window_max]))
+                    found = -1
+                    count_inc = window_min - n_s_count
+                    for n_s in plot_snode_bcast_nums[window_min:window_max]:
+                        #print("\tDebug: looking at " + str(n_s))
+                        count_inc += 1
+                        if n_s == n_g:
+                            found = n_s
+                            break
+                    if found >= 0:
+                        plot_snode_bcast_nums_padded.append(n_s)
+                        n_s_count += count_inc
+                    else:
+                        if len(plot_snode_bcast_nums_padded) > 0:
+                            plot_snode_bcast_nums_padded.append(plot_snode_bcast_nums_padded[-1]) # Append last value
+                            print("\tDebug: padding " + str(plot_snode_bcast_nums_padded[-1]))
+                        else:
+                            plot_snode_bcast_nums_padded.append(0)
+                            print("\tDebug: padding " + str(0))
+            """
+            if len(plot_snode_bcast_nums) > 0:
+                # Since SNODE may have missed GNODE bcasts, fill SNODE array with same value (graph shows horizontal line) if missed
+                for n_s_idx in range(len(plot_snode_bcast_nums)):
+                    n_s = plot_snode_bcast_nums[n_s_idx]
+                    print("Debug: looking for " + str(n_s))
+                    window_min = max(n_s_idx - PARAM_COUNT_WRAP_SAFETY, 0)
+                    window_max = min(n_s_idx + PARAM_COUNT_WRAP_SAFETY, len(plot_snode_bcast_nums) - 1)
+                    print("Debug: Window min idx: " + str(window_min) + " Current idx: " + str(min(n_s_idx, window_max)) + " Window max idx: " + str(window_max))
+                    print("Debug: Window min: " + str(plot_snode_bcast_nums[window_min]) + " Current: " + str(plot_snode_bcast_nums[min(n_s_idx, window_max)]) + " Window max: " + str(plot_snode_bcast_nums[window_max]))
+                    found = False
+                    for n_s_local in plot_snode_bcast_nums[window_min:window_max]:
+                        print("Debug: looking at " + str(n_s_local))
+                        if n_s_local == n_s:
+                            found = True
+                            break;
+                    if found:
+                        plot_snode_bcast_nums_padded.append(n_s)
+                    else: # Append last value or 0 if no values yet
+                        if len(plot_snode_bcast_nums_padded) > 0:
+                            plot_snode_bcast_nums_padded.append(plot_snode_bcast_nums_padded[-1]) # Append last value
+                            print("\tDebug: padding " + str(plot_snode_bcast_nums_padded[-1]))
+                        else:
+                            plot_snode_bcast_nums_padded.append(0)
+                            print("\tDebug: padding " + str(0))
+            """
+                            
             figure, axis = plt.subplots(2, sharex=True)
             # GNODE
             axis[0].plot(plot_gnode_bcast_nums)
             axis[0].set_title("GNODE")
             # SNODE
-            axis[1].plot(plot_snode_bcast_nums)
+            axis[1].plot(plot_snode_bcast_nums_padded)
             axis[1].set_title("SNODE " + str(node_id))
             plt.show()
+            """ Bcasts Received End """
 
     if PLOT_DISPLAY:
         # Plot network with parent-child connections
