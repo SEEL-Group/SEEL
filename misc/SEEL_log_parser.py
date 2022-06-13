@@ -265,8 +265,10 @@ def main():
             analysis_transmissions = []
             
         plot_gnode_bcast_nums = []
+        plot_gnode_bcast_insts = []
         for b in bcast_info:
             plot_gnode_bcast_nums.append(b.bcast_num)
+            plot_gnode_bcast_insts.append(b.bcast_inst)
 
     # GNODE 
     print("Total Bcasts: " + str(total_bcasts))
@@ -308,6 +310,8 @@ def main():
 
         # Plotting
         plot_snode_bcast_nums = []
+        plot_snode_bcast_insts = []
+        plot_snode_bcast_used = []
 
         if PLOT_RSSI_ANALYSIS:
             analysis_reset = True # Resets on first time or missed bcasts
@@ -347,6 +351,8 @@ def main():
                         connection_inst_max = overflow_comp_bcast_num
                     prev_bcast_num = msg.bcast_num
                     plot_snode_bcast_nums.append(msg.bcast_num)
+                    plot_snode_bcast_insts.append(msg.bcast_inst)
+                    plot_snode_bcast_used.append(False)
                     dup = False
                     print(str(msg)) 
                 #else:
@@ -484,32 +490,35 @@ def main():
                 # Since SNODE may have missed GNODE bcasts, fill SNODE array with same value (graph shows horizontal line) if missed
                 plot_snode_bcast_nums_padded = []
                 n_s_count = 0
-                # TODO: Alignment is off, node death creates buggy cycle in algorithm
-                for n_g_idx in range(len(plot_gnode_bcast_nums[bcast_instances[node_id]:])): # Start tracking when SNODE joined the network
+                for n_g_idx in range(len(plot_gnode_bcast_nums)): # Start tracking when SNODE joined the network
                     n_g = plot_gnode_bcast_nums[n_g_idx]
-                    print("Debug: looking for " + str(n_g))
+                    n_g_inst = plot_gnode_bcast_insts[n_g_idx]
+                    #print("Debug: looking for " + str(n_g))
                     window_min = max(n_s_count - PARAM_COUNT_WRAP_SAFETY, 0)
                     window_max = min(n_s_count + PARAM_COUNT_WRAP_SAFETY, len(plot_snode_bcast_nums) - 1)
-                    print("Debug: Window min idx: " + str(window_min) + " Current idx: " + str(min(n_s_count, window_max)) + " Window max idx: " + str(window_max))
-                    print("Debug: Window min: " + str(plot_snode_bcast_nums[window_min]) + " Current: " + str(plot_snode_bcast_nums[min(n_s_count, window_max)]) + " Window max: " + str(plot_snode_bcast_nums[window_max]))
+                    #print("Debug: Window min idx: " + str(window_min) + " Current idx: " + str(min(n_s_count, window_max)) + " Window max idx: " + str(window_max))
+                    #print("Debug: Window min: " + str(plot_snode_bcast_nums[window_min]) + " Current: " + str(plot_snode_bcast_nums[min(n_s_count, window_max)]) + " Window max: " + str(plot_snode_bcast_nums[window_max]))
                     found = -1
                     count_inc = window_min - n_s_count
-                    for n_s in plot_snode_bcast_nums[window_min:window_max]:
+                    for n_s_idx in range(window_min, window_max):
+                        n_s = plot_snode_bcast_nums[n_s_idx]
+                        n_s_inst = plot_snode_bcast_insts[n_s_idx]
                         #print("\tDebug: looking at " + str(n_s))
                         count_inc += 1
-                        if n_s == n_g:
+                        if n_s == n_g and n_s_inst == n_g_inst and not plot_snode_bcast_used[n_s_idx]:
                             found = n_s
+                            plot_snode_bcast_used[n_s_idx] = True
                             break
                     if found >= 0:
                         plot_snode_bcast_nums_padded.append(n_s)
                         n_s_count += count_inc
                     else:
                         if len(plot_snode_bcast_nums_padded) > 0:
-                            plot_snode_bcast_nums_padded.append(plot_snode_bcast_nums_padded[-1]) # Append last value
-                            print("\tDebug: padding " + str(plot_snode_bcast_nums_padded[-1]))
+                            plot_snode_bcast_nums_padded.append(0) # Append last value
+                            #print("\tDebug: padding " + str(plot_snode_bcast_nums_padded[-1]))
                         else:
                             plot_snode_bcast_nums_padded.append(0)
-                            print("\tDebug: padding " + str(0))
+                            #print("\tDebug: padding " + str(0))
             """
             if len(plot_snode_bcast_nums) > 0:
                 # Since SNODE may have missed GNODE bcasts, fill SNODE array with same value (graph shows horizontal line) if missed
