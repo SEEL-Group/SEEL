@@ -83,7 +83,7 @@ private:
     void set_millis(uint32_t new_millis);
 
     // Member variables
-    SEEL_Queue<SEEL_Sched_Unit> _scheduler_queue;
+    SEEL_Sched_Queue<SEEL_Sched_Unit> _scheduler_queue;
     SEEL_Sched_Unit* _current_task_ptr;
     uint32_t _task_counter;
     bool _user_task_enable;

@@ -127,7 +127,6 @@ struct SEEL_Message
         return (String)this->cmd;
     }
 
-
 };
 
 #endif // SEEL_Defines

@@ -222,6 +222,7 @@ void SEEL_Node::enqueue_ack(SEEL_Message* prev_msg)
             SEEL_Print::println(F("ACK message not added"));
         }
     }
+
 }
 
 void SEEL_Node::print_msg(SEEL_Message* msg)
@@ -279,7 +280,7 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
     }
 
     // If cannot send or nothing to send, return
-    if (!can_send || (!_inst->_bcast_avail && _inst->_ack_queue.empty() && _inst->_data_queue.empty()))
+    if (!can_send || (!_inst->_bcast_avail && _inst->_ack_queue.empty() && _inst->_data_queue->empty()))
     {
         bool added = _inst->_ref_scheduler->add_task(&_inst->_task_send);
         SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_NODE, __LINE__);
@@ -328,9 +329,9 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
 
         _inst->try_send(to_send_ptr, true);
     }
-    else if (!_inst->_data_queue.empty())// DATA or ID_CHECK or FORWARDED message
+    else if (!_inst->_data_queue->empty())// DATA or ID_CHECK or FORWARDED message
     {
-        to_send_ptr = _inst->_data_queue.front();
+        to_send_ptr = _inst->_data_queue->front();
         uint32_t msg_cmd = to_send_ptr->cmd;
 
         // Call presend callback on data messages
@@ -344,7 +345,7 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
             to_send_ptr->data[SEEL_MSG_DATA_ID_CHECK_INDEX] == _inst->_node_id && // Make sure check if for THIS node (not forwarde)
             _inst->_id_verified)
         {
-            _inst->_data_queue.pop_front();
+            _inst->_data_queue->pop_front();
             bool added = _inst->_ref_scheduler->add_task(&_inst->_task_send);
             SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_NODE, __LINE__);
             return;

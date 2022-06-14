@@ -48,6 +48,7 @@ void SEEL_SNode::init(  SEEL_Scheduler* ref_scheduler,
     _system_sync = false;
     _acked = true;
     _WD_adjusted = false;
+    _data_queue = &_snode_data_queue;
 
     // Set task instances
     _task_wake.set_inst(this);
@@ -380,7 +381,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
         if(found)
         {
             // Ack msg, decrement _data_queue
-            _inst->_data_queue.pop_front();
+            _inst->_data_queue->pop_front();
             _inst->_msg_send_delay = 0;
             _inst->_unack_msgs = 0;
             _inst->_acked = true; // Gets set to true until cycle ends. This is to see if the parent ever ack'd messages. If not, add parent to blacklist.
@@ -569,6 +570,7 @@ bool SEEL_SNode::bcast_id_check(SEEL_Message* msg)
 
 bool SEEL_SNode::enqueue_forwarding_msg(SEEL_Message* prev_msg)
 {
+
     bool added = false;
     // We know ID/Data msgs ultimately end up at the Gnode, so we can use relative sender and target id's
     // to faciliate acknowledgements and message travel. To send original sender ID, use data section 
@@ -584,7 +586,7 @@ bool SEEL_SNode::enqueue_forwarding_msg(SEEL_Message* prev_msg)
 
     if (forward_msg)
     {
-        added = _data_queue.add(*prev_msg);
+        added = _data_queue->add(*prev_msg);
     }
 
     prev_msg->targ_id = original_target;
@@ -592,9 +594,9 @@ bool SEEL_SNode::enqueue_forwarding_msg(SEEL_Message* prev_msg)
 
     if (added) {
         SEEL_Print::print(F("Enqueue forwarding message: "));
-        _data_queue.print();
-        if (_data_queue.size() > _max_data_queue_size) {
-             _max_data_queue_size = _data_queue.size();
+        _data_queue->print();
+        if (_data_queue->size() > _max_data_queue_size) {
+             _max_data_queue_size = _data_queue->size();
         }
     }
     else {
@@ -619,13 +621,13 @@ bool SEEL_SNode::enqueue_node_id()
     msg_data[SEEL_MSG_DATA_ID_ENCRYPT_INDEX + 3] = (uint8_t) (_unique_key);
     
     create_msg(&msg, _parent_id, SEEL_CMD_ID_CHECK, msg_data);
-    bool added = _data_queue.add(msg);
+    bool added = _data_queue->add(msg);
 
     if (added) {
         SEEL_Print::print(F("Enqueue ID message: "));
-        _data_queue.print();
-        if (_data_queue.size() > _max_data_queue_size) {
-            _max_data_queue_size = _data_queue.size();
+        _data_queue->print();
+        if (_data_queue->size() > _max_data_queue_size) {
+            _max_data_queue_size = _data_queue->size();
         }
     }
     else {
@@ -633,11 +635,13 @@ bool SEEL_SNode::enqueue_node_id()
         SEEL_Node::set_flag(SEEL_Flags::FLAG_ADD_MAX_DATA_QUEUE);
     }
 
+
     return added;
 }
 
 bool SEEL_SNode::enqueue_data()
 {
+
     SEEL_Message msg;
     uint8_t msg_data[SEEL_MSG_DATA_SIZE];
     
@@ -660,18 +664,19 @@ bool SEEL_SNode::enqueue_data()
         if(enqueue_user_message)
         {
             create_msg(&msg, _parent_id, SEEL_CMD_DATA, msg_data);
-            bool added = _data_queue.add(msg);
+            bool added = _data_queue->add(msg);
             if (added) {
                 SEEL_Print::print(F("Enqueue data message: "));
-                _data_queue.print();
-                if (_data_queue.size() > _max_data_queue_size) {
-                    _max_data_queue_size = _data_queue.size();
+                _data_queue->print();
+                if (_data_queue->size() > _max_data_queue_size) {
+                    _max_data_queue_size = _data_queue->size();
                 }
             }
             else {
                 SEEL_Print::println(F("Data message not added"));
                 SEEL_Node::set_flag(SEEL_Flags::FLAG_ADD_MAX_DATA_QUEUE);
             }
+
 
 
             return added;
