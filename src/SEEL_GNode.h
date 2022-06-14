@@ -111,7 +111,8 @@ private:
     // ***************************************************
     // Member variables
     SEEL_ID_INFO _id_container[SEEL_MAX_NODES];
-    SEEL_Queue<SEEL_ID_BCAST> _pending_bcast_ids;
+    SEEL_GNode_Queue<SEEL_Message> _gnode_data_queue;
+    SEEL_GNode_Queue<SEEL_ID_BCAST> _pending_bcast_ids;
     user_callback_broadcast_t _user_cb_broadcast;
     user_callback_data_t _user_cb_data;
     uint32_t _cycle_period_secs;
@@ -119,6 +120,7 @@ private:
     uint32_t _snode_sleep_time_secs;
     uint8_t _bcast_count;
     bool _first_bcast;
+
 };
 
 #endif // SEEL_GNode_h

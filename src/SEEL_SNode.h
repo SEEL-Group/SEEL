@@ -95,6 +95,7 @@ private:
     
     // ***************************************************
     // Member variables
+    SEEL_SNode_Queue<SEEL_Message> _snode_data_queue;
     SEEL_Queue<uint8_t> _bcast_blacklist;
     user_callback_load_t _user_cb_load;
     user_callback_forwarding_t _user_cb_forwarding;
@@ -110,6 +111,9 @@ private:
     bool _system_sync; // Set to false on Snode start-up, set to true on first non-blacklist broadcast received
     bool _acked;
     bool _WD_adjusted; // Set to true after WD timer gets corrected (more accurate sleep times)
+
 };
+
+
 
 #endif // SEEL_SNode_h
