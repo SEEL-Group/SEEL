@@ -122,6 +122,12 @@ struct SEEL_Message
 
         return *this;
     }
+
+    operator String () const {
+        return (String)this->cmd;
+    }
+
+
 };
 
 #endif // SEEL_Defines

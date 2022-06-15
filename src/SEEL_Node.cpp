@@ -91,7 +91,7 @@ bool SEEL_Node::rfm_send_msg(SEEL_Message* msg, uint8_t seq_num)
     
     msg->seq_num = seq_num;
 
-    if (!_LoRaPHY_ptr->beginPacket(true)) // true sets implicit header mode (no payload length, CR, CRC present info)
+    if (!_LoRaPHY_ptr->beginPacket()) // true sets implicit header mode (no payload length, CR, CRC present info)
     {
         SEEL_Print::println(F("Error: Transceiver not ready to send"));
         return false;
@@ -161,7 +161,7 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
     bool valid_msg = false;
     bool crc_valid = true;
 
-    uint8_t msg_len = _LoRaPHY_ptr->parsePacket(crc_valid, SEEL_MSG_TOTAL_SIZE); // TODO: Requires modified version of LoRa lib to get crc_valid info, see comment below
+    uint8_t msg_len = _LoRaPHY_ptr->parsePacket(crc_valid, 0); // TODO: Requires modified version of LoRa lib to get crc_valid info, see comment below
     // Apply patch from SEEL/patches using "git apply <patch>" to the *** Arduino LoRa ** library
 
     if (msg_len > 0) // Message is available
@@ -170,7 +170,7 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
         uint8_t buf[SEEL_MSG_TOTAL_SIZE];
         String print_msg = "";
 
-        print_msg += F(">>R: ");
+        print_msg += (crc_valid) ? F(">>R: ") : F(">>CRC FAIL: ");
         for (uint8_t i = 0; i < msg_len; ++i)
         {
             buf[i] = _LoRaPHY_ptr->read();
