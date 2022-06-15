@@ -50,6 +50,8 @@ public:
     // Searches for an element in the queue. Returns a reference to the found first element, otherwise returns NULL
     T* find(const T& val);
 
+    void print();
+
 private:
     // Member functions
 
