@@ -31,7 +31,7 @@ PLOT_LOCS_WEIGHT_SCALAR = 1000 # Smaller for thicker lines
 
 ############################################################################
 # Hardcode Section
-USE_HARDCODED_NODE_JOINS = True
+USE_HARDCODED_NODE_JOINS = False
 HARDCODED_NODE_JOINS = [
     # Format: [actual ID, assigned ID, cycle join]
     [15, 15, 6],
@@ -46,10 +46,10 @@ HC_NJ_ACTUAL_ID_IDX = 0
 HC_NJ_ASSIGNED_ID_IDX = 1
 HC_NJ_CYCLE_JOIN_IDX = 2
 
-USE_HARDCODED_NODE_LOCS = True
+USE_HARDCODED_NODE_LOCS = False
 HARDCODED_NODE_LOCS = {
     # Format: actual ID: (loc_x, loc_y)
-    0: (0, 0),
+    0: (0, 0),                      
     6: (-0.0225715, 0.0015167),
     7: (0.0023394, -0.0056706),
     8: (-0.0070375, -0.0082093),
@@ -80,8 +80,10 @@ NETWORK_DRAW_OPTIONS = {
 
 INDEX_HEADER = 0
 
+# INDEX_BT 0 used for the text "BT:"
 INDEX_BT_TIME = 1
 
+# INDEX_BD 0 used for the text "BD:"
 INDEX_BD_FIRST = 1
 INDEX_BD_BCAST_COUNT = 2
 INDEX_BD_SYS_TIME_0 = 3
@@ -423,6 +425,9 @@ def main():
 
                         analysis_prev_data = [msg.bcast_num, msg.parent_rssi, msg.queue_size]
                         analysis_reset = False
+            else: # if dup
+                duplicate_msg += 1
+        
         print("Received messages in bcast instance: " + str(len(connection_inst_set)) + "/" + str(connection_inst_max), str(0 if connection_inst_max == 0 else len( \
             connection_inst_set) / connection_inst_max))
         connection_count += len(connection_inst_set)
