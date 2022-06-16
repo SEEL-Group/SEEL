@@ -93,14 +93,16 @@ uint8_t SEEL_Queue<T>::remove(const T& val)
 template <class T>
 bool SEEL_Queue<T>::add(const T& val, bool wrap)
 {
-    if (wrap && _q_size >= SEEL_QUEUE_ALLOCATION_SIZE)
+    if ( _q_size >= SEEL_QUEUE_ALLOCATION_SIZE)
     {
         SEEL_Print::println(F("QUEUE FULL")); 
         SEEL_Print::flush();
-        pop_front();
+        if(wrap) {
+            pop_front();
+        }
     }
 
-    if (_q_size < SEEL_QUEUE_ALLOCATION_SIZE)
+    else 
     {
         uint32_t insert_index = _q_size + _q_pos;
         insert_index = insert_index % SEEL_QUEUE_ALLOCATION_SIZE;
@@ -125,4 +127,33 @@ T* SEEL_Queue<T>::find(const T& val)
     }
 
     return NULL;
+}
+
+template <class T>
+void SEEL_Queue<T>::print() {
+
+    SEEL_Print::print(F("SIZE: "));
+    SEEL_Print::print(_q_size);
+    SEEL_Print::print(F(" POS: "));
+    SEEL_Print::print(_q_pos);
+    SEEL_Print::print(F(" [ "));
+
+    int first_len = (_q_pos + _q_size > SEEL_QUEUE_ALLOCATION_SIZE) ? SEEL_QUEUE_ALLOCATION_SIZE:
+         _q_pos + _q_size;
+
+     for (uint32_t i = _q_pos; i < first_len; ++i) {
+         SEEL_Print::print(content_ary[i]->cmd);
+         SEEL_Print::print(F(" "));
+     }
+
+    // wrap print
+     if (_q_pos+_q_size > SEEL_QUEUE_ALLOCATION_SIZE) {
+            int adj_len =  _q_pos + _q_size - SEEL_QUEUE_ALLOCATION_SIZE;
+            for (uint32_t i = 0; i < adj_len; ++i) {
+                SEEL_Print::print(content_ary[i]->cmd);
+                SEEL_Print::print(F(" "));
+            }
+     }
+
+    SEEL_Print::println(F("]"));
 }
