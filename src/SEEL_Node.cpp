@@ -183,13 +183,15 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
         buf_to_SEEL_msg(msg, buf);
 
         // Check if the message has already been seen, to prevent a loop
-        if (!dup_msg_check(msg))
-        {
-            valid_msg = true;
+
+        if (!crc_valid) {
+            ++_CRC_fails; // Number of packets RECEIVED with invalid CRC
         }
-        else
-        {
+        else if (dup_msg_check(msg)) {
             SEEL_Print::println(F("Duplicate message")); 
+        }
+        else {
+            valid_msg = true;
         }
 
         method_time = millis() - receive_time;
@@ -200,16 +202,7 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
         SEEL_Print::println(print_msg);
         SEEL_Print::flush();
     }
-    else
-    {
-        // No msg available, but CRC was invalid, means received a msg but CRC error
-        if (!crc_valid)
-        {
-            SEEL_Print::println("Invalid Packet CRC");
-            ++_CRC_fails; // Number of packets RECEIVED with invalid CRC
-        }
-    }
-
+    
     return valid_msg;
 }
 
@@ -219,7 +212,14 @@ void SEEL_Node::enqueue_ack(SEEL_Message* prev_msg)
     // the data section of the message, which are filled out before sending.
     if (_ack_queue.find(prev_msg->send_id) == NULL)
     {
-        _ack_queue.add(prev_msg->send_id);
+        bool added = _ack_queue.add(prev_msg->send_id);
+        if (added) {
+        SEEL_Print::print(F("Enqueue ACK message: "));
+        _ack_queue.print();
+        }
+        else {
+            SEEL_Print::println(F("ACK message not added"));
+        }
     }
 }
 

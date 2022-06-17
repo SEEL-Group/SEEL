@@ -582,6 +582,14 @@ bool SEEL_SNode::enqueue_forwarding_msg(SEEL_Message* prev_msg)
 
     prev_msg->targ_id = original_target;
     prev_msg->send_id = original_sender;
+
+    if (added) {
+        SEEL_Print::print(F("Enqueue forwarding message: "));
+        _data_queue.print();
+    }
+    else {
+        SEEL_Print::println(F("Forwarding message not added"));
+    }
     return added;
 }
 
@@ -600,7 +608,17 @@ bool SEEL_SNode::enqueue_node_id()
     msg_data[SEEL_MSG_DATA_ID_ENCRYPT_INDEX + 3] = (uint8_t) (_unique_key);
     
     create_msg(&msg, _parent_id, SEEL_CMD_ID_CHECK, msg_data);
-    return _data_queue.add(msg);
+    bool added = _data_queue.add(msg);
+
+    if (added) {
+        SEEL_Print::print(F("Enqueue ID message: "));
+        _data_queue.print();
+    }
+    else {
+        SEEL_Print::println(F("ID message not added"));
+    }
+
+    return added;
 }
 
 bool SEEL_SNode::enqueue_data()
@@ -628,7 +646,17 @@ bool SEEL_SNode::enqueue_data()
         if(enqueue_user_message)
         {
             create_msg(&msg, _parent_id, SEEL_CMD_DATA, msg_data);
-            return _data_queue.add(msg);
+            bool added = _data_queue.add(msg);
+            if (added) {
+                SEEL_Print::print(F("Enqueue data message: "));
+                _data_queue.print();
+            }
+            else {
+                SEEL_Print::println(F("Data message not added"));
+            }
+
+
+            return added;
         }
     }
 

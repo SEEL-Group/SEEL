@@ -142,7 +142,7 @@ void SEEL_Queue<T>::print() {
          _q_pos + _q_size;
 
      for (uint32_t i = _q_pos; i < first_len; ++i) {
-         SEEL_Print::print(content_ary[i]->cmd);
+         SEEL_Print::print(content_ary[i]);
          SEEL_Print::print(F(" "));
      }
 
@@ -150,10 +150,11 @@ void SEEL_Queue<T>::print() {
      if (_q_pos+_q_size > SEEL_QUEUE_ALLOCATION_SIZE) {
             int adj_len =  _q_pos + _q_size - SEEL_QUEUE_ALLOCATION_SIZE;
             for (uint32_t i = 0; i < adj_len; ++i) {
-                SEEL_Print::print(content_ary[i]->cmd);
+                SEEL_Print::print(content_ary[i]);
                 SEEL_Print::print(F(" "));
             }
      }
 
     SEEL_Print::println(F("]"));
+    SEEL_Print::flush();
 }
