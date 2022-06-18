@@ -189,6 +189,7 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
         }
         else if (dup_msg_check(msg)) {
             SEEL_Print::println(F("Duplicate message")); 
+            SEEL_Node::set_flag(SEEL_Flags::FLAG_DUP_MSG);
         }
         else {
             valid_msg = true;
@@ -365,4 +366,12 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
 
     bool added = _inst->_ref_scheduler->add_task(&_inst->_task_send);
     SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_NODE, __LINE__);
+}
+
+void SEEL_Node::set_flag(SEEL_Flags flag) {
+    _cb_info.flags = _cb_info.flags | (1 << flag);
+}
+
+void SEEL_Node::clear_flags() {
+    _cb_info.flags = 0;
 }

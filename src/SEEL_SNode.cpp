@@ -77,6 +77,7 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
 
     _inst->_cb_info.hop_count = UINT8_MAX;
     _inst->_cb_info.parent_rssi = 0;
+    _inst->clear_flags();
     _inst->_path_rssi = INT8_MIN;
 
     // Clear ack queue
@@ -402,7 +403,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
         SEEL_Print::print(F("Error - Illegal Message")); // Error-Message
         _inst->print_msg(&msg);
         SEEL_Print::println(F(""));
-        SEEL_Assert::assert(false, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
+        _inst->set_flag(SEEL_Flags::FLAG_UNREC_MSG);
     }
     else
     {
@@ -454,6 +455,9 @@ void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
     // Store any info messages
     _inst->_cb_info.prev_data_transmissions = _inst->_data_msgs_sent;
     _inst->_cb_info.prev_CRC_fails = _inst->_CRC_fails;
+    if (!SEEL_Assert::_assert_queue.empty()) {
+        _inst->set_flag(SEEL_Flags::FLAG_ASSERT_FIRED);
+    }
     _inst->_last_parent = _inst->_parent_id;
 
     // A parent was selected and a (ack-needed) msg was sent to parent, but parent never responded back
@@ -589,6 +593,7 @@ bool SEEL_SNode::enqueue_forwarding_msg(SEEL_Message* prev_msg)
     }
     else {
         SEEL_Print::println(F("Forwarding message not added"));
+        SEEL_Node::set_flag(SEEL_Flags::FLAG_ADD_MAX_DATA_QUEUE);
     }
     return added;
 }
@@ -616,6 +621,7 @@ bool SEEL_SNode::enqueue_node_id()
     }
     else {
         SEEL_Print::println(F("ID message not added"));
+        SEEL_Node::set_flag(SEEL_Flags::FLAG_ADD_MAX_DATA_QUEUE);
     }
 
     return added;
@@ -653,6 +659,7 @@ bool SEEL_SNode::enqueue_data()
             }
             else {
                 SEEL_Print::println(F("Data message not added"));
+                SEEL_Node::set_flag(SEEL_Flags::FLAG_ADD_MAX_DATA_QUEUE);
             }
 
 
