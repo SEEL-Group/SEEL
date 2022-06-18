@@ -74,7 +74,8 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
     _inst->_cb_info.first_callback = true; // Allows ability to only send 1 message per cycle
     _inst->_bcast_avail = false;
     _inst->_bcast_sent = false; // Set to true in SEEL_Node.cpp when bcast msg sent out
-
+    
+    _inst->_cb_info.max_data_queue_size = 0;
     _inst->_cb_info.hop_count = UINT8_MAX;
     _inst->_cb_info.parent_rssi = 0;
     _inst->clear_flags();
@@ -590,6 +591,9 @@ bool SEEL_SNode::enqueue_forwarding_msg(SEEL_Message* prev_msg)
     if (added) {
         SEEL_Print::print(F("Enqueue forwarding message: "));
         _data_queue.print();
+        if (_data_queue.size() > _cb_info.max_data_queue_size) {
+             _cb_info.max_data_queue_size = _data_queue.size();
+        }
     }
     else {
         SEEL_Print::println(F("Forwarding message not added"));
@@ -618,6 +622,9 @@ bool SEEL_SNode::enqueue_node_id()
     if (added) {
         SEEL_Print::print(F("Enqueue ID message: "));
         _data_queue.print();
+        if (_data_queue.size() > _cb_info.max_data_queue_size) {
+            _cb_info.max_data_queue_size = _data_queue.size();
+        }
     }
     else {
         SEEL_Print::println(F("ID message not added"));
@@ -640,7 +647,6 @@ bool SEEL_SNode::enqueue_data()
     // Returns (true/false) whether the message should be sent out
     if(_id_verified)
     {
-        _cb_info.data_queue_size = _data_queue.size();
         bool enqueue_user_message = false;
         if (_user_cb_load != NULL)
         {
@@ -656,6 +662,9 @@ bool SEEL_SNode::enqueue_data()
             if (added) {
                 SEEL_Print::print(F("Enqueue data message: "));
                 _data_queue.print();
+                if (_data_queue.size() > _cb_info.max_data_queue_size) {
+                    _cb_info.max_data_queue_size = _data_queue.size();
+                }
             }
             else {
                 SEEL_Print::println(F("Data message not added"));
