@@ -75,10 +75,10 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
     _inst->_bcast_avail = false;
     _inst->_bcast_sent = false; // Set to true in SEEL_Node.cpp when bcast msg sent out
     
-    _inst->_cb_info.max_data_queue_size = 0;
+    _inst->_max_data_queue_size = 0;
+    _inst->clear_flags();
     _inst->_cb_info.hop_count = UINT8_MAX;
     _inst->_cb_info.parent_rssi = 0;
-    _inst->clear_flags();
     _inst->_path_rssi = INT8_MIN;
 
     // Clear ack queue
@@ -456,9 +456,11 @@ void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
     // Store any info messages
     _inst->_cb_info.prev_data_transmissions = _inst->_data_msgs_sent;
     _inst->_cb_info.prev_CRC_fails = _inst->_CRC_fails;
+    _inst->_cb_info.prev_max_data_queue_size = _inst->_max_data_queue_size;
     if (!SEEL_Assert::_assert_queue.empty()) {
         _inst->set_flag(SEEL_Flags::FLAG_ASSERT_FIRED);
     }
+    _inst->_cb_info.prev_flags = _inst->_flags;
     _inst->_last_parent = _inst->_parent_id;
 
     // A parent was selected and a (ack-needed) msg was sent to parent, but parent never responded back
@@ -591,8 +593,8 @@ bool SEEL_SNode::enqueue_forwarding_msg(SEEL_Message* prev_msg)
     if (added) {
         SEEL_Print::print(F("Enqueue forwarding message: "));
         _data_queue.print();
-        if (_data_queue.size() > _cb_info.max_data_queue_size) {
-             _cb_info.max_data_queue_size = _data_queue.size();
+        if (_data_queue.size() > _max_data_queue_size) {
+             _max_data_queue_size = _data_queue.size();
         }
     }
     else {
@@ -622,8 +624,8 @@ bool SEEL_SNode::enqueue_node_id()
     if (added) {
         SEEL_Print::print(F("Enqueue ID message: "));
         _data_queue.print();
-        if (_data_queue.size() > _cb_info.max_data_queue_size) {
-            _cb_info.max_data_queue_size = _data_queue.size();
+        if (_data_queue.size() > _max_data_queue_size) {
+            _max_data_queue_size = _data_queue.size();
         }
     }
     else {
@@ -662,8 +664,8 @@ bool SEEL_SNode::enqueue_data()
             if (added) {
                 SEEL_Print::print(F("Enqueue data message: "));
                 _data_queue.print();
-                if (_data_queue.size() > _cb_info.max_data_queue_size) {
-                    _cb_info.max_data_queue_size = _data_queue.size();
+                if (_data_queue.size() > _max_data_queue_size) {
+                    _max_data_queue_size = _data_queue.size();
                 }
             }
             else {

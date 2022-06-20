@@ -39,14 +39,14 @@ public:
         uint8_t prev_CRC_fails;
         uint8_t hop_count;
         uint8_t missed_bcasts;
-        uint8_t max_data_queue_size; // max data queue size during a cycle 
+        uint8_t prev_max_data_queue_size; // prev cycle max data queue size during a cycle 
         uint8_t bcast_count;
         int8_t parent_rssi; // RSSI value of the bcast msg received from the parent, initialized to 0
         bool first_callback; // Whether this callback call is the first one this cycle (allows for initialization)
-        uint8_t flags; // logging flags; see above enum for more information
+        uint8_t prev_flags; // prev cycle logging flags; see above enum for more information
 
         SEEL_CB_Info() : wtb_millis(0), prev_data_transmissions(0), prev_CRC_fails(0), hop_count(0), missed_bcasts(0), 
-        max_data_queue_size(0), bcast_count(0), first_callback(false), flags(0) {}
+        prev_max_data_queue_size(0), bcast_count(0), first_callback(false), prev_flags(0) {}
     };
 
     // ***************************************************
@@ -134,6 +134,8 @@ protected:
     uint8_t _seq_num; // Note: Will overflow after 255, but overflow does not affect functionality since seq_num serves to differentiate msgs
     uint8_t _data_msgs_sent; // includes ID_CHECK and FWD msgs, tracks how many data msgs we sent
     uint8_t _CRC_fails;
+    uint8_t _max_data_queue_size;
+    uint8_t _flags;
     int8_t _path_rssi; // changes based on parent selection mode
     bool _id_verified;
     bool _bcast_avail; // bcast msg is ready to be sent out

@@ -369,9 +369,9 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
 }
 
 void SEEL_Node::set_flag(SEEL_Flags flag) {
-    _cb_info.flags = _cb_info.flags | (1 << flag);
+   _flags = _flags | (1 << flag);
 }
 
 void SEEL_Node::clear_flags() {
-    _cb_info.flags = 0;
+    _flags = 0;
 }
