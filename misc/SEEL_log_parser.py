@@ -95,9 +95,9 @@ INDEX_DATA_SEND_COUNT_0 = 9
 INDEX_DATA_SEND_COUNT_1 = 10
 INDEX_DATA_PREV_TRANS = 11
 INDEX_DATA_MISSED_BCASTS = 12
-INDEX_DATA_QUEUE_SIZE = 13
+INDEX_DATA_MAX_QUEUE_SIZE = 13
 INDEX_DATA_CRC_FAILS = 14
-INDEX_DATA_ASSERT_FAIL = 15
+INDEX_DATA_FLAGS = 15
 
 ############################################################################
 # Misc Params
@@ -128,7 +128,7 @@ class Bcast_Info:
         return "Bcast num: " + str(self.bcast_num) + " Inst: " + str(self.bcast_inst) + " System time: " + str(self.sys_time) + " Awake time: " + str(self.awk_time) + " Sleep time: " + str(self.slp_time)
 
 class Data_Info:
-    def __init__(self, bcast_num, bcast_inst, wtb, prev_trans, node_id, parent_id, parent_rssi, send_count, queue_size, missed_bcasts, crc_fails,       assert_fails):
+    def __init__(self, bcast_num, bcast_inst, wtb, prev_trans, node_id, parent_id, parent_rssi, send_count, max_queue_size, missed_bcasts, crc_fails,       flags):
         self.bcast_num = bcast_num
         self.bcast_inst = bcast_inst
         self.wtb = wtb
@@ -137,16 +137,16 @@ class Data_Info:
         self.parent_id = parent_id
         self.parent_rssi = parent_rssi
         self.send_count = send_count
-        self.queue_size = queue_size
+        self.max_queue_size = max_queue_size
         self.missed_bcasts = missed_bcasts
         self.crc_fails = crc_fails
-        self.assert_fails = assert_fails
+        self.flags = flags
 
     def __str__(self):
         return "Bcast num: " + str(self.bcast_num) + "\tBcast inst: " + str(self.bcast_inst) + "\tNode ID: " + str(self.node_id) + \
         "\tParent ID: " + str(self.parent_id) + "\tSend Count: " + str(self.send_count) + "\tParent RSSI: " + str(self.parent_rssi) + \
-        "\tPrevious Transmissions: " + str(self.prev_trans) + "\tWTB: " + str(self.wtb) + "\tQ Size: " + str(self.queue_size) + \
-        "\tMissed Bcasts: " + str(self.missed_bcasts) + "\tCRC Fails: " + str(self.crc_fails) + "\tAssert Fails: " + str(self.assert_fails)
+        "\tPrevious Transmissions: " + str(self.prev_trans) + "\tWTB: " + str(self.wtb) + "\tMax Q Size: " + str(self.max_queue_size) + \
+        "\tMissed Bcasts: " + str(self.missed_bcasts) + "\tCRC Fails: " + str(self.crc_fails) + "\tFlags: " + str( "{:08b}".format(self.flags))
 
 def node_entry(actual_id, assigned_id, bcast_join):
     print("join id: " + str(actual_id) + "\tresponse: " + str(assigned_id) + "\tB. Join: " + str(bcast_join))
@@ -229,7 +229,7 @@ def main():
             send_count += line[INDEX_DATA_SEND_COUNT_1]
             if line[INDEX_DATA_ASSIGNED_ID] in node_mapping:
                 original_node_id = node_mapping[line[INDEX_DATA_ASSIGNED_ID]]
-                data_info[node_assignments.index(original_node_id)].append(Data_Info(line[INDEX_DATA_BCAST_COUNT], bcast_instance, wtb, line[INDEX_DATA_PREV_TRANS], original_node_id, line[INDEX_DATA_PARENT_ID], line[INDEX_DATA_PARENT_RSSI] - 256, send_count, line[INDEX_DATA_QUEUE_SIZE], line[INDEX_DATA_MISSED_BCASTS], line[INDEX_DATA_CRC_FAILS], line[INDEX_DATA_ASSERT_FAIL]))
+                data_info[node_assignments.index(original_node_id)].append(Data_Info(line[INDEX_DATA_BCAST_COUNT], bcast_instance, wtb, line[INDEX_DATA_PREV_TRANS], original_node_id, line[INDEX_DATA_PARENT_ID], line[INDEX_DATA_PARENT_RSSI] - 256, send_count, line[INDEX_DATA_MAX_QUEUE_SIZE], line[INDEX_DATA_MISSED_BCASTS], line[INDEX_DATA_CRC_FAILS], line[INDEX_DATA_FLAGS]))
         current_line += 1
 
     # Analysis vars
@@ -386,23 +386,23 @@ def main():
                     connections[node_assignments.index(node_mapping[msg.parent_id])] += 1
                     connections_rssi[node_assignments.index(node_mapping[msg.parent_id])] += msg.parent_rssi
 
-                queue_size_counter += msg.queue_size
-                if msg.queue_size > max_queue_size:
-                    max_queue_size = msg.queue_size
+                queue_size_counter += msg.max_queue_size
+                if msg.max_queue_size > max_queue_size:
+                    max_queue_size = msg.max_queue_size
 
                 if PLOT_RSSI_ANALYSIS:
 
                     # Compare against queue size 0 because otherwise we don't know how many msgs we got this cycle
-                    if analysis_reset or msg.prev_trans == 0 or msg.queue_size != 0 or msg.parent_id != 0 or msg.bcast_num != (analysis_prev_data[0] + 1):
-                        analysis_prev_data = [msg.bcast_num, msg.parent_rssi, msg.queue_size]
+                    if analysis_reset or msg.prev_trans == 0 or msg.max_queue_size != 0 or msg.parent_id != 0 or msg.bcast_num != (analysis_prev_data[0] + 1):
+                        analysis_prev_data = [msg.bcast_num, msg.parent_rssi, msg.max_queue_size]
                         analysis_reset = False
                     else:
-                        tpm = msg.prev_trans / (analysis_prev_data[2] - msg.queue_size + 1); # Average transmissions per msg
+                        tpm = msg.prev_trans / (analysis_prev_data[2] - msg.max_queue_size + 1); # Average transmissions per msg
 
                         analysis_rssi.append(analysis_prev_data[1]);
                         analysis_transmissions.append(tpm);
 
-                        analysis_prev_data = [msg.bcast_num, msg.parent_rssi, msg.queue_size]
+                        analysis_prev_data = [msg.bcast_num, msg.parent_rssi, msg.max_queue_size]
                         analysis_reset = False
             else: # if dup
                 duplicate_msg += 1
@@ -442,34 +442,7 @@ def main():
         if PLOT_DISPLAY:
         
             """ Bcasts Received Start """
-            
             plot_snode_bcast_nums_padded = []
-            """
-            if len(plot_snode_bcast_nums) > 0:
-                # Since SNODE may have missed GNODE bcasts, fill SNODE array with same value (graph shows horizontal line) if missed
-                n_g_count = 0
-                for n_s in plot_snode_bcast_nums:
-                    print("Debug: looking for " + str(n_s))
-                    n_g = plot_gnode_bcast_nums[n_g_count]
-                    print("\tDebug: looking at " + str(n_g))
-                    while n_s != n_g:
-                        if len(plot_snode_bcast_nums_padded) > 0:
-                            plot_snode_bcast_nums_padded.append(plot_snode_bcast_nums_padded[-1]) # Append last value
-                            print("\tDebug: padding " + str(plot_snode_bcast_nums_padded[-1]))
-                        else:
-                            plot_snode_bcast_nums_padded.append(0)
-                            print("\tDebug: padding " + str(0))
-                        n_g_count += 1
-                        if n_g_count >= len(plot_gnode_bcast_nums): # Out of GNODE nums
-                            break
-                        n_g = plot_gnode_bcast_nums[n_g_count]
-                        print("\tDebug: looking at " + str(n_g))
-                    if n_g_count < len(plot_snode_bcast_nums): # Out of GNODE nums
-                        plot_snode_bcast_nums_padded.append(n_g)
-                        n_g_count += 1
-                    else:
-                        break
-            """
             if len(plot_snode_bcast_nums) > 0:
                 # Since SNODE may have missed GNODE bcasts, fill SNODE array with same value (graph shows horizontal line) if missed
                 plot_snode_bcast_nums_padded = []
@@ -503,32 +476,6 @@ def main():
                         else:
                             plot_snode_bcast_nums_padded.append(0)
                             #print("\tDebug: padding " + str(0))
-            """
-            if len(plot_snode_bcast_nums) > 0:
-                # Since SNODE may have missed GNODE bcasts, fill SNODE array with same value (graph shows horizontal line) if missed
-                for n_s_idx in range(len(plot_snode_bcast_nums)):
-                    n_s = plot_snode_bcast_nums[n_s_idx]
-                    print("Debug: looking for " + str(n_s))
-                    window_min = max(n_s_idx - PARAM_COUNT_WRAP_SAFETY, 0)
-                    window_max = min(n_s_idx + PARAM_COUNT_WRAP_SAFETY, len(plot_snode_bcast_nums) - 1)
-                    print("Debug: Window min idx: " + str(window_min) + " Current idx: " + str(min(n_s_idx, window_max)) + " Window max idx: " + str(window_max))
-                    print("Debug: Window min: " + str(plot_snode_bcast_nums[window_min]) + " Current: " + str(plot_snode_bcast_nums[min(n_s_idx, window_max)]) + " Window max: " + str(plot_snode_bcast_nums[window_max]))
-                    found = False
-                    for n_s_local in plot_snode_bcast_nums[window_min:window_max]:
-                        print("Debug: looking at " + str(n_s_local))
-                        if n_s_local == n_s:
-                            found = True
-                            break;
-                    if found:
-                        plot_snode_bcast_nums_padded.append(n_s)
-                    else: # Append last value or 0 if no values yet
-                        if len(plot_snode_bcast_nums_padded) > 0:
-                            plot_snode_bcast_nums_padded.append(plot_snode_bcast_nums_padded[-1]) # Append last value
-                            print("\tDebug: padding " + str(plot_snode_bcast_nums_padded[-1]))
-                        else:
-                            plot_snode_bcast_nums_padded.append(0)
-                            print("\tDebug: padding " + str(0))
-            """
                             
             figure, axis = plt.subplots(2, sharex=True)
             # GNODE
