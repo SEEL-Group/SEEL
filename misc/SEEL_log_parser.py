@@ -25,9 +25,14 @@ import statistics
 ############################################################################
 # Parameters
 
+PRINT_ALL_MSGS = False
+
 PLOT_DISPLAY = True
-PLOT_RSSI_ANALYSIS = True
+PLOT_NODE_SPECIFIC = False
+PLOT_RSSI_ANALYSIS = False
 PLOT_LOCS_WEIGHT_SCALAR = 1000 # Smaller for thicker lines
+
+PARAM_COUNT_WRAP_SAFETY = 10 # Send count will not have wrapped within this many counts, keep it lower to account for node restarts too
 
 ############################################################################
 # Hardcode Section
@@ -100,10 +105,6 @@ INDEX_DATA_CRC_FAILS = 14
 INDEX_DATA_FLAGS = 15
 
 ############################################################################
-# Misc Params
-PARAM_COUNT_WRAP_SAFETY = 10 # Send count will not have wrapped within this many counts, keep it lower to account for node restarts too
-
-############################################################################
 # Global Variables
 
 bcast_times = []
@@ -113,6 +114,8 @@ bcast_instances = {} # per node, since nodes may join at different times
 node_mapping = {}
 node_assignments = []
 data_info = []
+
+node_analysis = []
 
 ############################################################################
 
@@ -145,8 +148,14 @@ class Data_Info:
     def __str__(self):
         return "Bcast num: " + str(self.bcast_num) + "\tBcast inst: " + str(self.bcast_inst) + "\tNode ID: " + str(self.node_id) + \
         "\tParent ID: " + str(self.parent_id) + "\tSend Count: " + str(self.send_count) + "\tParent RSSI: " + str(self.parent_rssi) + \
-        "\tPrevious Transmissions: " + str(self.prev_trans) + "\tWTB: " + str(self.wtb) + "\tMax Q Size: " + str(self.max_queue_size) + \
-        "\tMissed Bcasts: " + str(self.missed_bcasts) + "\tCRC Fails: " + str(self.crc_fails) + "\tFlags: " + str( "{:08b}".format(self.flags))
+        "\tPrev Transmissions: " + str(self.prev_trans) + "\tWTB: " + str(self.wtb) + "\tPrev Max Q Size: " + str(self.max_queue_size) + \
+        "\tMissed Bcasts: " + str(self.missed_bcasts) + "\tPrev CRC Fails: " + str(self.crc_fails) + "\tPrev Flags: " + str( "{:08b}".format(self.flags))
+
+class Node_Analysis: # Per node
+    def __init__(self):
+        self.node_id = 0
+        self.connections = {}
+        self.connection_total = 0        
 
 def node_entry(actual_id, assigned_id, bcast_join):
     print("join id: " + str(actual_id) + "\tresponse: " + str(assigned_id) + "\tB. Join: " + str(bcast_join))
@@ -289,6 +298,10 @@ def main():
         prev_bcast_inst = -1
         total_bcasts_for_node = total_bcasts - bcast_instances[node_id] + 1
 
+        # Analysis
+        node_analysis.append(Node_Analysis())
+        node_analysis[-1].node_id = node_id
+
         # Plotting
         plot_snode_bcast_nums = []
         plot_snode_bcast_insts = []
@@ -312,7 +325,6 @@ def main():
                 connection_inst_set = set()
                 connection_inst_max = 0
                 prev_bcast_num = -1
-                
                
             if (len(connection_inst_set) > PARAM_COUNT_WRAP_SAFETY or msg.bcast_num < (PARAM_COUNT_WRAP_SAFETY if len(connection_inst_set) == 0 else max(            connection_inst_set)+ PARAM_COUNT_WRAP_SAFETY)): # Not from previous bcast inst
                 if msg.bcast_num < prev_bcast_num and prev_bcast_num > 192 and msg.bcast_num < 64 and len(connection_inst_set) > (connection_count_last_overflow + PARAM_COUNT_WRAP_SAFETY): # Assume bcast num overflowed, values used are 3/4 of 256 and 1/4 of 256
@@ -335,25 +347,13 @@ def main():
                     plot_snode_bcast_insts.append(msg.bcast_inst)
                     plot_snode_bcast_used.append(False)
                     dup = False
-                    print(str(msg)) 
+                    if PRINT_ALL_MSGS:
+                        print(str(msg)) 
                 #else:
                     #print("Debug: dup")
             #else:
                 #print(str(msg)) 
                 #print("Debug: ignore")
-
-            '''
-            # Nodes may send duplicate messages, filter those out so their stats are not double-counted
-            if msg.send_count in duplicate_msg_tracker:
-                if msg.bcast_num - duplicate_msg_tracker[msg.send_count] < PARAM_COUNT_WRAP_SAFETY:
-                    # likely a duplicate message
-                    duplicate_msg += 1
-                    dup = True
-                duplicate_msg_tracker[msg.send_count] = msg.bcast_num
-            else:
-                # not a duplicate message
-                duplicate_msg_tracker[msg.send_count] = msg.bcast_num
-            '''
 
             if not dup:
                 # remove previously missed packet if the packet came in late
@@ -391,7 +391,6 @@ def main():
                     max_queue_size = msg.max_queue_size
 
                 if PLOT_RSSI_ANALYSIS:
-
                     # Compare against queue size 0 because otherwise we don't know how many msgs we got this cycle
                     if analysis_reset or msg.prev_trans == 0 or msg.max_queue_size != 0 or msg.parent_id != 0 or msg.bcast_num != (analysis_prev_data[0] + 1):
                         analysis_prev_data = [msg.bcast_num, msg.parent_rssi, msg.max_queue_size]
@@ -412,13 +411,14 @@ def main():
         connection_count += len(connection_inst_set)
         connection_count_max += connection_inst_max
         
-        # Print Analysis
+        # Store and Print Analysis
         print("\tJoined Network on Bcast: " + str(bcast_instances[node_id]))
         print("\tTotal Received Messages: " + str(num_node_msgs))
         print("\tDuplicate Messages: " + str(duplicate_msg))
         print("\tDropped Packets: " + str(total_bcasts_for_node - (num_node_msgs - duplicate_msg)))
         print("\tReceived (Total) Percentage: " + str(connection_count / total_bcasts_for_node)) # Total number of GNODE Bcasts received
-        print("\tReceived (Possible) Percentage: " + str(0 if connection_count_max == 0 else connection_count / connection_count_max)) # Total given times connected (until disconnect or death). This metric is a better representation of PDR
+        node_analysis[-1].PDR = (0 if connection_count_max == 0 else connection_count / connection_count_max) # Total given times connected (until disconnect or death). This metric is a better representation of PDR
+        print("\tReceived (Possible) Percentage: " + str(node_analysis[-1].PDR))
         if len(wtb) > 0:
             print("\tMean WTB: " + str(statistics.mean(wtb)))
             print("\tMedian WTB: " + str(statistics.median(wtb)))
@@ -433,13 +433,15 @@ def main():
         for j in range(len(node_assignments)):
             print("\t\t" + str(node_assignments[j]) + ":\t" + str(connections[j]))
             if connections[j] > 0:
+                node_analysis[-1].connection_total += connections[j]
                 print("\t\t\tAvg RSSI: " + str(connections_rssi[j] / connections[j]))
                 if USE_HARDCODED_NODE_LOCS:
                     G.add_edge(node_id, node_assignments[j], weight=connections[j]/PLOT_LOCS_WEIGHT_SCALAR) #total_connections)
+                node_analysis[-1].connections[node_assignments[j]] = connections[j]
         print(flush=True)
         
         # Node specific plots
-        if PLOT_DISPLAY:
+        if PLOT_DISPLAY and PLOT_NODE_SPECIFIC:
         
             """ Bcasts Received Start """
             plot_snode_bcast_nums_padded = []
@@ -478,16 +480,48 @@ def main():
                             #print("\tDebug: padding " + str(0))
                             
             figure, axis = plt.subplots(2, sharex=True)
+            plt.title("Cycle vs Bcast Num")
             # GNODE
             axis[0].plot(plot_gnode_bcast_nums)
             axis[0].set_title("GNODE")
+            axis[0].set_ylabel("Bcast Num")
             # SNODE
             axis[1].plot(plot_snode_bcast_nums_padded)
             axis[1].set_title("SNODE " + str(node_id))
+            axis[1].set_xlabel("Cycle Num")
+            axis[1].set_ylabel("Bcast Num")
             plt.show()
             """ Bcasts Received End """
 
+    # General Plots
     if PLOT_DISPLAY:
+    
+        node_PDR = {}
+        node_PDR[0] = 1 # Give GNODE a PDR of 1
+        for node in node_analysis:
+            node_PDR[node.node_id] = node.PDR
+    
+        # Plot PDR with Weighted (Connections) Parent PDR
+        self_PDR = []
+        weighted_parent_PDR = []
+        for node in node_analysis:
+            self_PDR.append(node.PDR)
+            total_parents = len(node.connections)
+            total_parent_PDR = 0
+            total_parent_connections = 0
+            for parent in node.connections:
+                total_parent_PDR += node_PDR[parent] * node.connections[parent]
+                total_parent_connections += node.connections[parent]
+            average_parent_PDR = total_parent_PDR / total_parent_connections
+            weighted_parent_PDR.append(average_parent_PDR)
+        plt.scatter(weighted_parent_PDR, self_PDR)
+        for i, node in enumerate(node_analysis):
+            plt.annotate(node.node_id, (weighted_parent_PDR[i], self_PDR[i]))
+        plt.title("Node PDR vs Weighted Parent PDR")
+        plt.xlabel("Weighted Parent PDR")
+        plt.ylabel("Node PDR")
+        plt.show()
+    
         # Plot network with parent-child connections
         if USE_HARDCODED_NODE_LOCS:
 
@@ -496,22 +530,26 @@ def main():
             nx.draw_networkx_nodes(G, locs_flipped, node_size=NETWORK_DRAW_OPTIONS["node_size"], \
                 node_color=NETWORK_DRAW_OPTIONS["node_color"], edgecolors=NETWORK_DRAW_OPTIONS["node_edge_color"],
                 linewidths=NETWORK_DRAW_OPTIONS["node_width"])
-
             # edges
             weighted_edges = [G[u][v]['weight'] for u,v in G.edges()]
             nx.draw_networkx_edges(G, locs_flipped, width=weighted_edges, connectionstyle="angle3")
-
             # labels
             nx.draw_networkx_labels(G, locs_flipped, font_size=NETWORK_DRAW_OPTIONS["node_font_size"])
 
             ax = plt.gca()
             plt.axis("off")
             plt.tight_layout()
+            plt.title("Node Parent Map")
+            plt.xlabel("GPS X")
+            plt.ylabel("GPS Y")
             plt.show()
 
         if PLOT_RSSI_ANALYSIS:
             print("RSSI Analysis # data points: " + str(len(analysis_rssi)))
             plt.scatter(analysis_rssi, analysis_transmissions, alpha=0.1);
+            plt.title("RSSI vs Transmissions")
+            plt.xlabel("RSSI")
+            plt.ylabel("Transmissions Per Msg")
             plt.show()
 
 if __name__ == "__main__":
