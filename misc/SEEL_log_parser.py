@@ -132,7 +132,7 @@ node_mapping = {}
 node_assignments = []
 data_info = []
 
-node_analysis = []
+node_analysis = {}
 
 ############################################################################
 
@@ -174,6 +174,9 @@ class Node_Analysis: # Per node
         self.connections = {}
         self.connection_total = 0  
         self.paths = []
+        self.hops = []
+        self.hc_mean = 0
+        self.hc_std_dev = 0
 
 def node_entry(actual_id, assigned_id, bcast_join):
     print("join id: " + str(actual_id) + "\tresponse: " + str(assigned_id) + "\tB. Join: " + str(bcast_join))
@@ -184,6 +187,20 @@ def node_entry(actual_id, assigned_id, bcast_join):
         node_assignments.append(actual_id)
         data_info.append([])
         bcast_instances[actual_id] = bcast_join
+
+def search_paths(node_analysis, paths, search_stack, hcount):        
+    search_val = search_stack[-1]
+        
+    # DFS for path append
+    for p in paths:
+        if paths[p] == search_val:
+            search_stack.append(p)
+            hcount += 1
+            node_analysis[p].paths.append(search_stack[:])
+            node_analysis[p].hops.append(hcount)
+            search_paths(node_analysis, paths, search_stack, hcount)
+            hcount -= 1
+            search_stack.pop()
 
 def main():
     if len(sys.argv) <= 1:
@@ -322,8 +339,8 @@ def main():
         total_bcasts_for_node = total_bcasts - bcast_instances[node_id] + 1
 
         # Analysis
-        node_analysis.append(Node_Analysis())
-        node_analysis[-1].node_id = node_id
+        node_analysis[node_id] = Node_Analysis()
+        node_analysis[node_id].node_id = node_id
 
         # Plotting
         plot_snode_bcast_nums = []
@@ -451,8 +468,8 @@ def main():
         print("\tDuplicate Messages: " + str(duplicate_msg))
         print("\tDropped Packets: " + str(connection_count_max - connection_count))
         print("\tReceived (Total) Percentage: " + str(connection_count / total_bcasts_for_node)) # Total number of GNODE Bcasts received
-        node_analysis[-1].PDR = (0 if connection_count_max == 0 else connection_count / connection_count_max) # Total given times connected (until disconnect or death). This metric is a better representation of PDR
-        print("\tReceived (Possible) Percentage: " + str(node_analysis[-1].PDR))
+        node_analysis[node_id].PDR = (0 if connection_count_max == 0 else connection_count / connection_count_max) # Total given times connected (until disconnect or death). This metric is a better representation of PDR
+        print("\tReceived (Possible) Percentage: " + str(node_analysis[node_id].PDR))
         if len(wtb) > 0:
             print("\tMean WTB: " + str(statistics.mean(wtb)))
             print("\tMedian WTB: " + str(statistics.median(wtb)))
@@ -467,11 +484,11 @@ def main():
         for j in range(len(node_assignments)):
             print("\t\t" + str(node_assignments[j]) + ":\t" + str(connections[j]))
             if connections[j] > 0:
-                node_analysis[-1].connection_total += connections[j]
+                node_analysis[node_id].connection_total += connections[j]
                 print("\t\t\tAvg RSSI: " + str(connections_rssi[j] / connections[j]))
                 if USE_HARDCODED_NODE_LOCS:
                     G.add_edge(node_id, node_assignments[j], weight=connections[j]/PLOT_LOCS_WEIGHT_SCALAR) #total_connections)
-                node_analysis[-1].connections[node_assignments[j]] = connections[j]
+                node_analysis[node_id].connections[node_assignments[j]] = connections[j]
         print(flush=True)
         
         # Node specific plots
@@ -528,24 +545,40 @@ def main():
             """ Bcasts Received End """
 
     # Data preparation
+    # Build path structure, destroys "message_paths" by the end
     for b_ind in message_paths:
         for b_num in message_paths[b_ind]:
             paths = message_paths[b_ind][b_num]
-            #print(paths)
+            search_stack = [0]
+            hcount = 0
+            search_paths(node_analysis, paths, search_stack, hcount) # Recursively adds in paths to nodes
+        
+    # General Analysis
+    print("Hop count")
+    for node in node_analysis.values():
+        print("Node " + str(node.node_id))
+        print("\tData Points: " + str(len(node.hops)))
+        node.hc_mean = statistics.mean(node.hops)
+        node.hc_std_dev = statistics.stdev(node.hops)
+        print("\tMean: " + str(node.hc_mean))
+        print("\tStd Dev: " + str(node.hc_std_dev))
+    print(flush=True)
 
     # General Plots
     if PLOT_DISPLAY:
-    
+   
         node_PDR = {}
         node_PDR[0] = 1 # Give GNODE a PDR of 1
-        for node in node_analysis:
-            node_PDR[node.node_id] = node.PDR
+        for n_key in node_analysis:
+            node_PDR[n_key] = node_analysis[n_key].PDR
     
-        # Plot PDR with Weighted (Connections) Parent PDR
         self_PDR = []
+        self_avg_HC = []
         weighted_parent_PDR = []
-        for node in node_analysis:
+        for n_key in node_analysis:
+            node = node_analysis[n_key]
             self_PDR.append(node.PDR)
+            self_avg_HC.append(node.hc_mean)
             total_parents = len(node.connections)
             total_parent_PDR = 0
             total_parent_connections = 0
@@ -554,12 +587,27 @@ def main():
                 total_parent_connections += node.connections[parent]
             average_parent_PDR = total_parent_PDR / total_parent_connections
             weighted_parent_PDR.append(average_parent_PDR)
-        plt.scatter(weighted_parent_PDR, self_PDR)
-        for i, node in enumerate(node_analysis):
-            plt.annotate(node.node_id, (weighted_parent_PDR[i], self_PDR[i]))
-        plt.title("Node PDR vs Weighted Parent PDR")
+        
+        # Plot PDR with Weighted (Connections) Parent PDR
+        x_ax = weighted_parent_PDR
+        y_ax = self_PDR
+        plt.scatter(x_ax, y_ax)
+        for i, node in enumerate(node_analysis.values()):
+            plt.annotate(node.node_id, (x_ax[i], y_ax[i]))
+        plt.title("Self PDR vs Weighted Parent PDR")
         plt.xlabel("Weighted Parent PDR")
-        plt.ylabel("Node PDR")
+        plt.ylabel("Self PDR")
+        plt.show()
+    
+        # Plot PDR vs Average Hop Count
+        x_ax = self_avg_HC
+        y_ax = self_PDR
+        plt.scatter(x_ax, y_ax)
+        for i, node in enumerate(node_analysis.values()):
+            plt.annotate(node.node_id, (x_ax[i], y_ax[i]))
+        plt.title("Average HC vs PDR")
+        plt.xlabel("Average HC")
+        plt.ylabel("PDR")
         plt.show()
     
         # Plot network with parent-child connections
