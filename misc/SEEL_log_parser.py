@@ -313,19 +313,22 @@ def main():
 
         for msg in node_data_msgs:   
             dup = True
-        
+
             # Figure out how many messages we received from the SNODE versus how many we possibly could have received
             if msg.bcast_inst != prev_bcast_inst:
+                if prev_bcast_inst >= 0:
+                    connection_inst_max -= (0 if first_bcast_num < 0 else first_bcast_num) # Check if bcast num didn't start at 0 in this inst
+                    print("Received messages in bcast instance: " + str(len(connection_inst_set)) + "/" + str(connection_inst_max), str(0 if connection_inst_max == 0 else len(connection_inst_set) / connection_inst_max))        
+                    connection_count += len(connection_inst_set)
+                    connection_count_max += connection_inst_max
                 prev_bcast_inst = msg.bcast_inst
-                print("Received messages in bcast instance: " + str(len(connection_inst_set)) + "/" + str(connection_inst_max), str(0 if connection_inst_max == 0 else len(connection_inst_set) / connection_inst_max))        
-                connection_count += len(connection_inst_set)
-                connection_count_max += connection_inst_max
                 connection_count_overflow = 0
                 connection_count_last_overflow = 0
                 connection_inst_set = set()
                 connection_inst_max = 0
                 prev_bcast_num = -1
-               
+                first_bcast_num = -1
+
             if (len(connection_inst_set) > PARAM_COUNT_WRAP_SAFETY or msg.bcast_num < (PARAM_COUNT_WRAP_SAFETY if len(connection_inst_set) == 0 else max(            connection_inst_set)+ PARAM_COUNT_WRAP_SAFETY)): # Not from previous bcast inst
                 if msg.bcast_num < prev_bcast_num and prev_bcast_num > 192 and msg.bcast_num < 64 and len(connection_inst_set) > (connection_count_last_overflow + PARAM_COUNT_WRAP_SAFETY): # Assume bcast num overflowed, values used are 3/4 of 256 and 1/4 of 256
                     #print("Debug: overflow")
@@ -342,6 +345,8 @@ def main():
                     connection_inst_set.add(overflow_comp_bcast_num)
                     if overflow_comp_bcast_num > connection_inst_max:
                         connection_inst_max = overflow_comp_bcast_num
+                    if first_bcast_num < 0:
+                        first_bcast_num = max(msg.bcast_num - 1, 0)
                     prev_bcast_num = msg.bcast_num
                     plot_snode_bcast_nums.append(msg.bcast_num)
                     plot_snode_bcast_insts.append(msg.bcast_inst)
@@ -406,8 +411,8 @@ def main():
             else: # if dup
                 duplicate_msg += 1
         
-        print("Received messages in bcast instance: " + str(len(connection_inst_set)) + "/" + str(connection_inst_max), str(0 if connection_inst_max == 0 else len( \
-            connection_inst_set) / connection_inst_max))
+        connection_inst_max -= (0 if first_bcast_num < 0 else first_bcast_num) 
+        print("Received messages in bcast instance: " + str(len(connection_inst_set)) + "/" + str(connection_inst_max), str(0 if connection_inst_max == 0 else len(connection_inst_set) / connection_inst_max))
         connection_count += len(connection_inst_set)
         connection_count_max += connection_inst_max
         
@@ -415,7 +420,7 @@ def main():
         print("\tJoined Network on Bcast: " + str(bcast_instances[node_id]))
         print("\tTotal Received Messages: " + str(num_node_msgs))
         print("\tDuplicate Messages: " + str(duplicate_msg))
-        print("\tDropped Packets: " + str(total_bcasts_for_node - (num_node_msgs - duplicate_msg)))
+        print("\tDropped Packets: " + str(connection_count_max - connection_count))
         print("\tReceived (Total) Percentage: " + str(connection_count / total_bcasts_for_node)) # Total number of GNODE Bcasts received
         node_analysis[-1].PDR = (0 if connection_count_max == 0 else connection_count / connection_count_max) # Total given times connected (until disconnect or death). This metric is a better representation of PDR
         print("\tReceived (Possible) Percentage: " + str(node_analysis[-1].PDR))
