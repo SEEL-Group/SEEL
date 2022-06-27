@@ -461,7 +461,9 @@ def main():
                 duplicate_msg += 1
         
         connection_inst_max -= (0 if first_bcast_num < 0 else first_bcast_num) 
-        print("Received messages in bcast instance: " + str(len(connection_inst_set)) + "/" + str(connection_inst_max), str(0 if connection_inst_max == 0 else len(connection_inst_set) / connection_inst_max))
+        print("Received messages in bcast instance: " + str(len(connection_inst_set)) + "/" + str(connection_inst_max), str(0 if connection_inst_max == 0 else 
+        len(connection_inst_set) / connection_inst_max))
+        print("Estimated node lifetime (cycles): " + str(connection_count_max + len(connection_inst_set)))
         connection_count += len(connection_inst_set)
         connection_count_max += connection_inst_max
         
