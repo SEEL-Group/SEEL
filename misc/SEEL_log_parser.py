@@ -31,8 +31,12 @@ class Parameters:
     PRINT_ALL_MSGS = False
 
     PLOT_DISPLAY = False
+    
+    # Per node plots
     PLOT_NODE_SPECIFIC_BCASTS = False
+    PLOT_NODE_SPECIFIC_CONNECTIONS = False
     PLOT_NODE_SPECIFIC_MAPS = False
+    
     PLOT_RSSI_ANALYSIS = False
     PLOT_LOCS_WEIGHT_SCALAR = 1000 # Smaller for thicker lines
     PLOT_LOCS_WEIGHT_SCALAR_SPECIFIC = 500 # Smaller for thicker lines
@@ -113,7 +117,7 @@ parameters = Parameters()
 ############################################################################
 # External Parameters
 
-# Pull in overriding paramaters from cmd line argument
+# Pull in overriding parameters from cmd line argument
 # Pass in path to a file as the 2nd argument to this script
 # File must have a "Parameters" class similar to the one in this script
 # See the example file format in "misc/deployment_info/deployment_info.py"
@@ -178,9 +182,11 @@ class Node_Analysis: # Per node
         self.connections = {}
         self.connection_total = 0  
         self.paths = []
+        self.cycle_children = {} # per cycle, 0 padded if no data. Index by bcast_inst and then bcast_num
+        self.cycle_hops = {} # per cycle, 0 padded if no data. Index by bcast_inst and then bcast_num
         self.hops = []
         self.hc_mean = 0
-        self.hc_std_dev = 0
+        self.children_mean = 0
 
 def node_entry(actual_id, assigned_id, bcast_join):
     print("join id: " + str(actual_id) + "\tresponse: " + str(assigned_id) + "\tB. Join: " + str(bcast_join))
@@ -192,7 +198,7 @@ def node_entry(actual_id, assigned_id, bcast_join):
         data_info.append([])
         bcast_instances[actual_id] = bcast_join
 
-def search_paths(node_analysis, paths, search_stack, hcount):        
+def search_paths(b_ind, b_num, node_analysis, paths, search_stack, hcount):        
     search_val = search_stack[-1]
         
     # DFS for path append
@@ -202,7 +208,10 @@ def search_paths(node_analysis, paths, search_stack, hcount):
             hcount += 1
             node_analysis[p].paths.append(search_stack[:])
             node_analysis[p].hops.append(hcount)
-            search_paths(node_analysis, paths, search_stack, hcount)
+            if not b_ind in node_analysis[p].cycle_hops:
+                node_analysis[p].cycle_hops[b_ind] = {}
+            node_analysis[p].cycle_hops[b_ind][b_num] = hcount
+            search_paths(b_ind, b_num, node_analysis, paths, search_stack, hcount)
             hcount -= 1
             search_stack.pop()
 
@@ -297,12 +306,6 @@ def main():
         if parameters.PLOT_RSSI_ANALYSIS:
             analysis_rssi = []
             analysis_transmissions = []
-            
-        plot_gnode_bcast_nums = []
-        plot_gnode_bcast_insts = []
-        for b in bcast_info:
-            plot_gnode_bcast_nums.append(b.bcast_num)
-            plot_gnode_bcast_insts.append(b.bcast_inst)
 
     # GNODE 
     print("Total Bcasts: " + str(total_bcasts))
@@ -512,9 +515,9 @@ def main():
                 # Since SNODE may have missed GNODE bcasts, fill SNODE array with same value (graph shows horizontal line) if missed
                 plot_snode_bcast_nums_padded = []
                 n_s_count = 0
-                for n_g_idx in range(len(plot_gnode_bcast_nums)): # Start tracking when SNODE joined the network
-                    n_g = plot_gnode_bcast_nums[n_g_idx]
-                    n_g_inst = plot_gnode_bcast_insts[n_g_idx]
+                for n_g_idx in range(len(bcast_info)): # Start tracking when SNODE joined the network
+                    n_g = bcast_info[n_g_idx].bcast_num
+                    n_g_inst = bcast_info[n_g_idx].bcast_inst
                     #print("Debug: looking for " + str(n_g))
                     window_min = max(n_s_count - parameters.PARAM_COUNT_WRAP_SAFETY, 0)
                     window_max = min(n_s_count + parameters.PARAM_COUNT_WRAP_SAFETY, len(plot_snode_bcast_nums) - 1)
@@ -545,7 +548,7 @@ def main():
             figure, axis = plt.subplots(2, sharex=True)
             plt.title("Cycle vs Bcast Num")
             # GNODE
-            axis[0].plot(plot_gnode_bcast_nums)
+            axis[0].plot([bi.bcast_num for bi in bcast_info])
             axis[0].set_title("GNODE")
             axis[0].set_ylabel("Bcast Num")
             # SNODE
@@ -557,23 +560,47 @@ def main():
             """ Bcasts Received End """
 
     # Data preparation
-    # Build path structure, destroys "message_paths" by the end
+    # Build path structurea
     for b_ind in message_paths:
         for b_num in message_paths[b_ind]:
             paths = message_paths[b_ind][b_num]
             search_stack = [0]
             hcount = 0
-            search_paths(node_analysis, paths, search_stack, hcount) # Recursively adds in paths to nodes
+            search_paths(b_ind, b_num, node_analysis, paths, search_stack, hcount) # Recursively adds in paths to nodes
+            # Find and assign children
+            for child in paths:
+                parent = paths[child]
+                if parent != 0: # node_analysis does not have data for GNODE (ID 0)
+                    if not b_ind in node_analysis[parent].cycle_children:
+                        node_analysis[parent].cycle_children[b_ind] = {}
+                    if not b_num in node_analysis[parent].cycle_children[b_ind]:
+                        node_analysis[parent].cycle_children[b_ind][b_num] = []
+                    node_analysis[parent].cycle_children[b_ind][b_num].append(child)
         
     # General Analysis
-    print("Hop count")
+    print("Holistic Analysis")
     for node in node_analysis.values():
+        print("********************************************************")
         print("Node " + str(node.node_id))
-        print("\tData Points: " + str(len(node.hops)))
-        node.hc_mean = statistics.mean(node.hops)
-        node.hc_std_dev = statistics.stdev(node.hops)
-        print("\tMean: " + str(node.hc_mean))
-        print("\tStd Dev: " + str(node.hc_std_dev))
+        print("Cycle Hopcount")
+        if len(node.hops) > 0:
+            print("\tData Points: " + str(len(node.hops)))
+            node.hc_mean = statistics.mean(node.hops) # Save for use later
+            print("\tMean: " + str(node.hc_mean))
+            print("\tStd Dev: " + str(statistics.stdev(node.hops)))
+        else:
+            print("\tNot enough data")
+        print("Cycle Children")
+        if len(node.cycle_children) > 0:
+            children_count = []
+            for b_inst in node.cycle_children:
+                for b_num in node.cycle_children[b_inst]:
+                    children_count.append(len(node.cycle_children[b_inst][b_num]))
+            node.children_mean = statistics.mean(children_count) # Save for use later
+            print("\tMean: " + str(node.children_mean))
+            print("\tStd Dev: " + str(statistics.stdev(children_count)))
+        else:
+            print("\tNot enough data")            
     print(flush=True)
 
     # Plots
@@ -587,11 +614,13 @@ def main():
         # Calculate Hop Counts
         self_PDR = []
         self_avg_HC = []
+        self_avg_children = []
         weighted_parent_PDR = []
         for n_key in node_analysis:
             node = node_analysis[n_key]
             self_PDR.append(node.PDR)
             self_avg_HC.append(node.hc_mean)
+            self_avg_children.append(node.children_mean)
             total_parents = len(node.connections)
             total_parent_PDR = 0
             total_parent_connections = 0
@@ -601,7 +630,7 @@ def main():
             average_parent_PDR = total_parent_PDR / total_parent_connections
             weighted_parent_PDR.append(average_parent_PDR)
         
-        # Plot PDR with Weighted (Connections) Parent PDR
+        # Plot self PDR vs Weighted (Connections) Parent PDR
         x_ax = weighted_parent_PDR
         y_ax = self_PDR
         plt.scatter(x_ax, y_ax)
@@ -612,16 +641,55 @@ def main():
         plt.ylabel("Self PDR")
         plt.show()
     
-        # Plot PDR vs Average Hop Count
+        # Average Hop Count vs Plot PDR
         x_ax = self_avg_HC
         y_ax = self_PDR
         plt.scatter(x_ax, y_ax)
         for i, node in enumerate(node_analysis.values()):
             plt.annotate(node.node_id, (x_ax[i], y_ax[i]))
-        plt.title("Average HC vs PDR")
-        plt.xlabel("Average HC")
+        plt.title("Avg Cycle HC vs PDR")
+        plt.xlabel("Avg HC")
         plt.ylabel("PDR")
         plt.show()
+    
+        # Average Children vs Plot PDR
+        x_ax = self_avg_children
+        y_ax = self_PDR
+        plt.scatter(x_ax, y_ax)
+        for i, node in enumerate(node_analysis.values()):
+            plt.annotate(node.node_id, (x_ax[i], y_ax[i]))
+        plt.title("Avg Cycle Children vs PDR")
+        plt.xlabel("Average Children")
+        plt.ylabel("PDR")
+        plt.show()
+    
+        # Plot HC and number of children connections per cycle per node
+        if parameters.PLOT_NODE_SPECIFIC_CONNECTIONS:
+            for n_key in node_analysis:
+                node = node_analysis[n_key]
+                plot_cycles = range(len(bcast_info))
+                plot_hop_count = []
+                plot_children = []
+                for b in bcast_info:
+                    if b.bcast_inst in node.cycle_hops and b.bcast_num in node.cycle_hops[b.bcast_inst]:
+                        plot_hop_count.append(node.cycle_hops[b.bcast_inst][b.bcast_num])
+                    else:
+                        plot_hop_count.append(0)
+                    if b.bcast_inst in node.cycle_children and b.bcast_num in node.cycle_children[b.bcast_inst]:
+                        plot_children.append(len(node.cycle_children[b.bcast_inst][b.bcast_num]))
+                    else:
+                        plot_children.append(0)
+                figure, axis = plt.subplots(2, sharex=True)
+                # GNODE
+                axis[0].scatter(plot_cycles, plot_hop_count)
+                axis[0].set_title("Node " + str(n_key) + ": Cycle vs Hop Count")
+                axis[0].set_ylabel("Hop Count")
+                # SNODE
+                axis[1].scatter(plot_cycles, plot_children)
+                axis[1].set_title("Cycle vs Num Children")
+                axis[1].set_xlabel("Cycle")
+                axis[1].set_ylabel("Num Children")
+                plt.show()
     
         # Plot network with parent-child connections
         if parameters.USE_HARDCODED_NODE_LOCS:
@@ -681,8 +749,6 @@ def main():
             plt.xlabel("RSSI")
             plt.ylabel("Transmissions Per Msg")
             plt.show()
-
-
 
 if __name__ == "__main__":
     main()

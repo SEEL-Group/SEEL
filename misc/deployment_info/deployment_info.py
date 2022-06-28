@@ -5,6 +5,7 @@ class Parameters:
 
     PLOT_DISPLAY = True
     PLOT_NODE_SPECIFIC_BCASTS = True
+    PLOT_NODE_SPECIFIC_CONNECTIONS = True
     PLOT_NODE_SPECIFIC_MAPS = True
     PLOT_RSSI_ANALYSIS = True
     PLOT_LOCS_WEIGHT_SCALAR = 1000 # Smaller for thicker lines
