@@ -6,7 +6,7 @@
 
 # Tested with Python 3.5.2
 
-# To run: python3 <path_to_this_file>/SEEL_log_parser.py <path_to_data_file>/<data_file> (optional)<path_to_deployment_info file>
+# To run: python3 <path_to_this_file>/SEEL_log_parser.py <path_to_data_file>/<data_file> (optional)<path to param file>/<param file>
 
 # Expected input format (All <> is 1 byte):
 # Broadcast time: "BT: <time>"
@@ -17,8 +17,10 @@
 
 # Use the deployment info file argument to override default parser parameters. See the "External Variables Section" for more info.
 
+import os
 import sys
 import math
+import importlib
 import matplotlib.pyplot as plt
 import networkx as nx
 import statistics
@@ -111,17 +113,16 @@ parameters = Parameters()
 ############################################################################
 # External Parameters
 
-# Pull in variable defines from "deployment_info.py"
-# Pass in relative path to a file named "deployment_info.py" as the 2nd argument to this script
-# Format: python3 <path_to_this_file>/SEEL_log_parser.py <path_to_data_file>/<data_file> (optional)<path_to_deployment_info file>
-# File must be exactly named "deployment_info.py"
-# NOTE: Only pass in the PATH to the "deployment_info.py" file, not the actual file.
-# See the example file format in "misc/deployment_info"
+# Pull in overriding paramaters from cmd line argument
+# Pass in path to a file as the 2nd argument to this script
+# File must have a "Parameters" class similar to the one in this script
+# See the example file format in "misc/deployment_info/deployment_info.py"
+# Format: python3 <path_to_this_file>/SEEL_log_parser.py <path_to_data_file>/<data_file> (optional)<path to param file>/<param file>
 
 if len(sys.argv) > 2:
-    sys.path.insert(1, sys.argv[2])
-    import deployment_info
-    Parameters_Mixed = type("Parameters_Mixed", (deployment_info.Parameters, Parameters), {})
+    sys.path.insert(1, os.path.dirname(sys.argv[2]))
+    extern_file = __import__(os.path.basename(os.path.splitext(sys.argv[2])[0])) 
+    Parameters_Mixed = type("Parameters_Mixed", (extern_file.Parameters, Parameters), {})
     parameters = Parameters_Mixed()
 
 ############################################################################
