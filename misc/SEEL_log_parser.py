@@ -336,6 +336,7 @@ def main():
         connections_rssi = [0] * len(node_assignments)
         queue_size_counter = 0
         max_queue_size = 0
+        total_missed_bcasts = {}
         total_crc_fails = 0
         first_wtb = True
         prev_bcast_num = -1
@@ -445,6 +446,11 @@ def main():
                 if msg.max_queue_size > max_queue_size:
                     max_queue_size = msg.max_queue_size
 
+                if msg.missed_bcasts in total_missed_bcasts:
+                    total_missed_bcasts[msg.missed_bcasts] += 1
+                else:
+                    total_missed_bcasts[msg.missed_bcasts] = 1
+
                 if parameters.PLOT_RSSI_ANALYSIS:
                     # Compare against queue size 0 because otherwise we don't know how many msgs we got this cycle
                     if analysis_reset or msg.prev_trans == 0 or msg.max_queue_size != 0 or msg.parent_id != 0 or msg.bcast_num != (analysis_prev_data[0] + 1):
@@ -485,6 +491,7 @@ def main():
         print("\tAvg Data Queue Size: " + str(queue_size_counter / total_bcasts_for_node))
         print("\tMax Data Queue Size: " + str(max_queue_size))
         print("\tAvg CRC fails per cycle: " + str(total_crc_fails / total_bcasts_for_node))
+        print("\tTotal Missed Bcasts: " + str(total_missed_bcasts))
         print("\tConnections: ")
         total_connections = sum(connections)
         for j in range(len(node_assignments)):
