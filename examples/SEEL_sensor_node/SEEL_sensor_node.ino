@@ -78,7 +78,7 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
     msg_data[10] = (uint8_t)(send_count);
     msg_data[11] = info->prev_data_transmissions;
     msg_data[12] = info->missed_bcasts;
-    msg_data[13] = info->data_queue_size;
+    msg_data[13] = info->prev_max_data_queue_size;
     msg_data[14] = info->prev_CRC_fails;
     msg_data[15] = !SEEL_Assert::_assert_queue.empty();
 
