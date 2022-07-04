@@ -184,9 +184,16 @@ class Node_Analysis: # Per node
         self.paths = []
         self.cycle_children = {} # per cycle, 0 padded if no data. Index by bcast_inst and then bcast_num
         self.cycle_hops = {} # per cycle, 0 padded if no data. Index by bcast_inst and then bcast_num
+        self.children_counts = {}
+        self.children_rssi = {}
         self.hops = []
         self.hc_mean = 0
         self.children_mean = 0
+
+class Parent:
+    def __init__(self, id, rssi):
+        self.id = id
+        self.rssi = rssi
 
 def node_entry(actual_id, assigned_id, bcast_join):
     print("join id: " + str(actual_id) + "\tresponse: " + str(assigned_id) + "\tB. Join: " + str(bcast_join))
@@ -203,7 +210,7 @@ def search_paths(b_ind, b_num, node_analysis, paths, search_stack, hcount):
         
     # DFS for path append
     for p in paths:
-        if paths[p] == search_val:
+        if paths[p].id == search_val:
             search_stack.append(p)
             hcount += 1
             node_analysis[p].paths.append(search_stack[:])
@@ -443,7 +450,7 @@ def main():
                         message_paths[msg.bcast_inst] = {}
                     if not overflow_comp_bcast_num in message_paths[msg.bcast_inst]:
                         message_paths[msg.bcast_inst][overflow_comp_bcast_num] = {}
-                    message_paths[msg.bcast_inst][overflow_comp_bcast_num][msg.node_id] = node_mapping[msg.parent_id]
+                    message_paths[msg.bcast_inst][overflow_comp_bcast_num][msg.node_id] = Parent(node_mapping[msg.parent_id], msg.parent_rssi)
 
                 queue_size_counter += msg.max_queue_size
                 if msg.max_queue_size > max_queue_size:
@@ -495,7 +502,7 @@ def main():
         print("\tMax Data Queue Size: " + str(max_queue_size))
         print("\tAvg CRC fails per cycle: " + str(total_crc_fails / total_bcasts_for_node))
         print("\tTotal Missed Bcasts: " + str(total_missed_bcasts))
-        print("\tConnections: ")
+        print("\tParent Connections: ")
         total_connections = sum(connections)
         for j in range(len(node_assignments)):
             print("\t\t" + str(node_assignments[j]) + ":\t" + str(connections[j]))
@@ -570,15 +577,28 @@ def main():
             # Find and assign children
             for child in paths:
                 parent = paths[child]
-                if parent != 0: # node_analysis does not have data for GNODE (ID 0)
-                    if not b_ind in node_analysis[parent].cycle_children:
-                        node_analysis[parent].cycle_children[b_ind] = {}
-                    if not b_num in node_analysis[parent].cycle_children[b_ind]:
-                        node_analysis[parent].cycle_children[b_ind][b_num] = []
-                    node_analysis[parent].cycle_children[b_ind][b_num].append(child)
+                if parent.id != 0: # node_analysis does not have data for GNODE (ID 0)
+                    if not b_ind in node_analysis[parent.id].cycle_children:
+                        node_analysis[parent.id].cycle_children[b_ind] = {}
+                    if not b_num in node_analysis[parent.id].cycle_children[b_ind]:
+                        node_analysis[parent.id].cycle_children[b_ind][b_num] = []
+                    node_analysis[parent.id].cycle_children[b_ind][b_num].append(child)
+                    if not child in node_analysis[parent.id].children_counts:
+                        node_analysis[parent.id].children_counts[child] = 1
+                        node_analysis[parent.id].children_rssi[child] = parent.rssi
+                    else:
+                        node_analysis[parent.id].children_counts[child] += 1
+                        node_analysis[parent.id].children_rssi[child] += parent.rssi
+    
+    # Average children rssi
+    for node in node_analysis.values():
+        for child in node.children_counts:
+            node.children_rssi[child] /= node.children_counts[child]
         
     # General Analysis
     print("Holistic Analysis")
+    print("********************************************************")
+    print("********************************************************")
     for node in node_analysis.values():
         print("********************************************************")
         print("Node " + str(node.node_id))
@@ -592,15 +612,19 @@ def main():
             print("\tNot enough data")
         print("Cycle Children")
         if len(node.cycle_children) > 0:
-            children_count = []
+            children = []
             for b_inst in node.cycle_children:
                 for b_num in node.cycle_children[b_inst]:
-                    children_count.append(len(node.cycle_children[b_inst][b_num]))
-            node.children_mean = statistics.mean(children_count) # Save for use later
+                    children.append(len(node.cycle_children[b_inst][b_num]))
+            node.children_mean = statistics.mean(children) # Save for use later
             print("\tMean: " + str(node.children_mean))
-            print("\tStd Dev: " + str(statistics.stdev(children_count)))
+            print("\tStd Dev: " + str(statistics.stdev(children)))
         else:
-            print("\tNot enough data")            
+            print("\tNot enough data")     
+        print("Children Connections")
+        for child in node.children_counts:
+            print("\t" + str(child) + ":\t" + str(node.children_counts[child]))
+            print("\t\tAvg RSSI: " + str(node.children_rssi[child]))
     print(flush=True)
 
     # Plots
