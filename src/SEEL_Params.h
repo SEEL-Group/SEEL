@@ -39,11 +39,10 @@ constexpr uint16_t SEEL_ASSERT_NVM_MAX_LINE_NUM = 65535; // 16 bits for line
 // ***************************************************
 /* SEEL Queue */
 
-
-constexpr uint8_t SEEL_DEFAULT_QUEUE_SIZE = 7; // Allocation size of ALL queues used in SEEL
+constexpr uint8_t SEEL_DEFAULT_QUEUE_SIZE = 10; // Allocation size of ALL queues used in SEEL
 constexpr uint8_t SEEL_SNODE_MSG_QUEUE_SIZE = 7; // Optimize for message size in buffers
 constexpr uint8_t SEEL_GNODE_MSG_QUEUE_SIZE = 7; // Optimize for message size in buffers
-constexpr uint8_t SEEL_SCHED_QUEUE_SIZE = 7; // Must maintain minimum size (7) for scheduler to function
+constexpr uint8_t SEEL_SCHED_QUEUE_SIZE = 10; // Must maintain minimum size (7) for scheduler to function
 
 // ***************************************************
 /* SEEL LoRa Params */

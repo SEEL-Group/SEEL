@@ -119,8 +119,8 @@ protected:
     LoRaClass* _LoRaPHY_ptr; // Transceiver library pointer
     user_callback_presend_t _user_cb_presend;
 
-    SEEL_Queue<uint8_t> _ack_queue;
-    SEEL_Queue<SEEL_Message>* _data_queue; // includes ID_CHECK and FWD msgs
+    SEEL_Default_Queue<uint8_t> _ack_queue;
+    SEEL_Queue<SEEL_Message>* _data_queue_ptr; // includes ID_CHECK and FWD msgs
     SEEL_Message _bcast_msg;
     SEEL_CB_Info _cb_info;
 

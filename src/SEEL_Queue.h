@@ -17,16 +17,13 @@ template <class T>
 class SEEL_Queue
 {
 public:
-    // Member functions
-
-    // Constructor
-    SEEL_Queue();
-
     // Getters & Setters
     bool empty() { return _q_size == 0; }
     uint8_t size() { return _q_size; }
-    uint8_t max_size() {return SEEL_DEFAULT_QUEUE_SIZE;}
+    uint8_t max_size() {return Q_MAX_SIZE; }
 
+    // ***************************************************
+    // Member functions
     // Resets all class member variables which clears queue
     void clear();
 
@@ -53,14 +50,17 @@ public:
     void print();
 
 protected:
-    // Member functions
+    // Constructor, prevent instatiation
+    SEEL_Queue();
 
+    // ***************************************************
+    // Member functions
     void inc_q_pos() 
     {
         ++_q_pos;
-        if (_q_pos >= SEEL_DEFAULT_QUEUE_SIZE)
+        if (_q_pos >= Q_MAX_SIZE)
         {
-            _q_pos -= SEEL_DEFAULT_QUEUE_SIZE;
+            _q_pos -= Q_MAX_SIZE;
         }
     }
 
@@ -69,14 +69,12 @@ protected:
     uint32_t _q_pos;
     uint32_t _q_size;
     T* _content_ary_ptr;
-    uint32_t Q_MAX_SIZE = SEEL_DEFAULT_QUEUE_SIZE;
-
+    uint32_t Q_MAX_SIZE;
 };
 
 template <class T> 
 class SEEL_Default_Queue : public SEEL_Queue<T> {
 private:
-
     T content_ary[SEEL_DEFAULT_QUEUE_SIZE];
 public:
     SEEL_Default_Queue() {
@@ -86,23 +84,22 @@ public:
 };
 
 template <class T> 
-class SEEL_SNode_Queue : public SEEL_Queue<T> {
+class SEEL_SNode_Msg_Queue : public SEEL_Queue<T> {
 private:
     T content_ary[SEEL_SNODE_MSG_QUEUE_SIZE];
 public:
-    SEEL_SNode_Queue() {
+    SEEL_SNode_Msg_Queue() {
         this->_content_ary_ptr = content_ary;
         this->Q_MAX_SIZE = SEEL_SNODE_MSG_QUEUE_SIZE;
     }
-
 };
 
 template <class T> 
-class SEEL_GNode_Queue : public SEEL_Queue<T> {
+class SEEL_GNode_Msg_Queue : public SEEL_Queue<T> {
 private:
     T content_ary[SEEL_GNODE_MSG_QUEUE_SIZE];
 public:
-    SEEL_GNode_Queue() {
+    SEEL_GNode_Msg_Queue() {
         this->_content_ary_ptr = content_ary;
         this->Q_MAX_SIZE = SEEL_GNODE_MSG_QUEUE_SIZE;
     }

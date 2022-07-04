@@ -71,7 +71,7 @@ public:
     }
 
 #if SEEL_ASSERT_ENABLE == TRUE
-    static SEEL_Queue<uint32_t> _assert_queue;
+    static SEEL_Default_Queue<uint32_t> _assert_queue;
 #endif // SEEL_ASSERT_ENABLE
 
 private:

@@ -95,8 +95,8 @@ private:
     
     // ***************************************************
     // Member variables
-    SEEL_SNode_Queue<SEEL_Message> _snode_data_queue;
-    SEEL_Queue<uint8_t> _bcast_blacklist;
+    SEEL_SNode_Msg_Queue<SEEL_Message> _snode_data_queue;
+    SEEL_Default_Queue<uint8_t> _bcast_blacklist;
     user_callback_load_t _user_cb_load;
     user_callback_forwarding_t _user_cb_forwarding;
     uint32_t _snode_awake_time_secs; // How long node should be awake for, set with bcast
