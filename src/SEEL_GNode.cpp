@@ -30,7 +30,7 @@ void SEEL_GNode::init(  SEEL_Scheduler* ref_scheduler,
     _cb_info.hop_count = 0;
     _path_rssi = 0;
     _first_bcast = true;
-    _data_queue = &_gnode_data_queue;
+    _data_queue_ptr = &_gnode_data_queue;
 
     // Initialize tasks with this inst
     _task_bcast.set_inst(this);
@@ -151,6 +151,7 @@ void SEEL_GNode::SEEL_Task_GNode_Receive::run()
     SEEL_Message msg;
     int8_t msg_rssi;
     uint32_t receive_offset;
+
     // Check if there is a message available
     if (!_inst->rfm_receive_msg(&msg, msg_rssi, receive_offset))
     {

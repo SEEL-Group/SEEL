@@ -11,7 +11,7 @@ File purpose:   See SEEL_Assert.h
 #include "SEEL_Queue.cpp"
 
 #if SEEL_ASSERT_ENABLE == TRUE
-SEEL_Queue<uint32_t> SEEL_Assert::_assert_queue;
+SEEL_Default_Queue<uint32_t> SEEL_Assert::_assert_queue;
 
 #if SEEL_ASSERT_ENABLE_NVM == TRUE
 uint32_t SEEL_Assert::_nvm_arr_start = 0;
