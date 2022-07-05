@@ -243,13 +243,8 @@ def search_paths(b_ind, b_num, node_analysis, paths, search_stack, hcount):
             hcount -= 1
             search_stack.pop()
 
-def plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, annotate=True, regression=True):
+def plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, regression=True):
         plt.scatter(x_ax, y_ax)
-        
-        if annotate:
-            i = 0
-            for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
-                plt.annotate(node_id, (x_ax[i], y_ax[i]))
         if regression:
             lin_reg_model = np.polyfit(x_ax, y_ax, deg=1)
             xseq = np.linspace(min(x_ax), max(x_ax), num=100)
@@ -743,6 +738,8 @@ def main():
         title = "NODE: Weighted Parent PDR vs Self PDR"
         x_label = "Self PDR"
         y_label = "Weighted Parent PDR"
+        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
+            plt.annotate(node_id, (x_ax[i], y_ax[i]))
         plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
     
         # Average Hop Count vs Self PDR
@@ -751,6 +748,8 @@ def main():
         title = "NODE: Avg HC vs Self PDR"
         x_label = "Avg HC"
         y_label = "Self PDR"
+        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
+            plt.annotate(node_id, (x_ax[i], y_ax[i]))
         plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
     
         # Average Num Children vs Self PDR
@@ -759,6 +758,8 @@ def main():
         title = "NODE: Avg Children vs Self PDR"
         x_label = "Avg Children"
         y_label = "Self PDR"
+        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
+            plt.annotate(node_id, (x_ax[i], y_ax[i]))
         plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
     
         # Avg Hop Count vs Lifetime (Cycles)
@@ -767,6 +768,8 @@ def main():
         title = "NODE: Avg HC vs Lifetime (Cycles)"
         x_label = "Avg HC"
         y_label = "Cycles"
+        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
+            plt.annotate(node_id, (x_ax[i], y_ax[i]))
         plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
         
         # Avg Num Children vs Lifetime (Cycles)
@@ -775,6 +778,8 @@ def main():
         title = "NODE: Avg Num Children vs Lifetime (Cycles)"
         x_label = "Avg Children"
         y_label = "Cycles"
+        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
+            plt.annotate(node_id, (x_ax[i], y_ax[i]))
         plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
 
         # *********** MSG PLOTS ***********
@@ -784,21 +789,21 @@ def main():
         title = "MSG: Parent RSSI vs CRC Fails"
         x_label = "Parent RSSI"
         y_label = "CRC Fails"
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, annotate=False, regression=False)
+        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, regression=False)
         
         x_ax = msg_parent_rssi
         y_ax = msg_data_transmissions
         title = "MSG: Parent RSSI vs Data Transmissions"
         x_label = "Parent RSSI"
         y_label = "Data Transmissions"
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, annotate=False, regression=False)
+        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, regression=False)
         
         x_ax = msg_data_transmissions
         y_ax = msg_crc_fails
         title = "MSG: Data Transmissions vs CRC Fails"
         x_label = "Data Transmissions"
         y_label = "CRC Fails"
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, annotate=False, regression=False)
+        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, regression=False)
 
         # Plot HC and number of children connections per cycle per node
         if parameters.PLOT_NODE_SPECIFIC_CONNECTIONS:
