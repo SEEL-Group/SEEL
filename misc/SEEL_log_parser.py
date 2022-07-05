@@ -6,6 +6,8 @@
 
 # Tested with Python 3.5.2
 
+# Requires installation of sklearn: "pip3 install sklearn"
+
 # To run: python3 <path_to_this_file>/SEEL_log_parser.py <path_to_data_file>/<data_file> (optional)<path to param file>/<param file>
 
 # Expected input format (All <> is 1 byte):
@@ -21,6 +23,8 @@ import os
 import sys
 import math
 import importlib
+import numpy as np
+from sklearn.metrics import r2_score
 import matplotlib.pyplot as plt
 import networkx as nx
 import statistics
@@ -45,17 +49,21 @@ class Parameters:
 
 ############################################################################
     # Hardcode Section
-    USE_HARDCODED_NODE_JOINS = False
     HARDCODED_NODE_JOINS = [
-        # Format: [actual ID, assigned ID, cycle join]
+        # Format -> [actual ID, assigned ID, cycle join]
     ]
     HC_NJ_ACTUAL_ID_IDX = 0
     HC_NJ_ASSIGNED_ID_IDX = 1
     HC_NJ_CYCLE_JOIN_IDX = 2
 
-    USE_HARDCODED_NODE_LOCS = False
     HARDCODED_NODE_LOCS = {
-        # Format: actual ID: (loc_x, loc_y)
+        # Format -> actual ID: (loc_x, loc_y)
+    }
+    
+    # Excludes nodes from correlation plots
+    # Useful for any outliers that may skew regressions
+    HARDCODED_Analysis_EXCLUDE = {
+        # Format -> node_id
     }
 
     NETWORK_DRAW_OPTIONS = {
@@ -189,6 +197,7 @@ class Node_Analysis: # Per node
         self.hops = []
         self.hc_mean = 0
         self.children_mean = 0
+        self.cycles = 0 # cycles alive for
 
 class Parent:
     def __init__(self, id, rssi):
@@ -222,6 +231,22 @@ def search_paths(b_ind, b_num, node_analysis, paths, search_stack, hcount):
             hcount -= 1
             search_stack.pop()
 
+def plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label):
+        plt.scatter(x_ax, y_ax)
+        i = 0
+        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
+            plt.annotate(node_id, (x_ax[i], y_ax[i]))
+                
+        lin_reg_model = np.polyfit(x_ax, y_ax, deg=1)
+        xseq = np.linspace(min(x_ax), max(x_ax), num=100)
+        plt.plot(xseq, lin_reg_model[1] + lin_reg_model[0] * xseq)
+        model_predict = np.poly1d(lin_reg_model)
+        r2 = r2_score(y_ax, model_predict(x_ax))
+        plt.title(title + ", R^2=" + str(r2))
+        plt.xlabel(x_label)
+        plt.ylabel(y_label)
+        plt.show()
+
 def main():
     if len(sys.argv) <= 1:
         print("Unspecified data file")
@@ -237,16 +262,19 @@ def main():
     df_read = df.readlines()
     df_length = len(df_read)
 
-    if parameters.USE_HARDCODED_NODE_JOINS:
+    if len(parameters.HARDCODED_NODE_JOINS) > 0:
         print("Using HARDCODED Node Joins")
         for i in parameters.HARDCODED_NODE_JOINS:
             node_entry(i[parameters.HC_NJ_ACTUAL_ID_IDX], i[parameters.HC_NJ_ASSIGNED_ID_IDX], i[parameters.HC_NJ_CYCLE_JOIN_IDX]);
 
-    if parameters.USE_HARDCODED_NODE_LOCS:
+    if len(parameters.HARDCODED_NODE_LOCS) > 0:
         print("Using HARDCODED Node Locs")
         # Uncomment and use for location normalization
         #for i in HARDCODED_NODE_LOCS:
             #print("[" + str(i) + ", " + str(round(HARDCODED_NODE_LOCS[i][0] - <NORM_X>, 7)) + ", " + str(round(HARDCODED_NODE_LOCS[i][1] - <NORM_Y>, 7)) + "]")
+
+    if len(parameters.HARDCODED_PLOT_EXCLUDE) > 0:
+        print("Using HARDCODED Plot Excludes")
 
     # Parse Logs
     current_line = 0
@@ -480,7 +508,8 @@ def main():
         connection_inst_max -= (0 if first_bcast_num < 0 else first_bcast_num) 
         print("Received messages in bcast instance: " + str(len(connection_inst_set)) + "/" + str(connection_inst_max), str(0 if connection_inst_max == 0 else 
         len(connection_inst_set) / connection_inst_max))
-        print("Estimated node lifetime (cycles): " + str(connection_count_max + len(connection_inst_set)))
+        node_analysis[node_id].cycles = connection_count_max + len(connection_inst_set)
+        print("Estimated node lifetime (cycles): " + str(node_analysis[node_id].cycles))
         connection_count += len(connection_inst_set)
         connection_count_max += connection_inst_max
         
@@ -629,22 +658,26 @@ def main():
 
     # Plots
     if parameters.PLOT_DISPLAY:
-        # Store PDR
+        # Store PDR, prepares map for use below in append plot data
         node_PDR = {}
         node_PDR[0] = 1 # Give GNODE a PDR of 1
         for n_key in node_analysis:
             node_PDR[n_key] = node_analysis[n_key].PDR
     
-        # Calculate Hop Counts
+        # Append plot data
         self_PDR = []
         self_avg_HC = []
         self_avg_children = []
+        self_lifetime_cycles = []
         weighted_parent_PDR = []
         for n_key in node_analysis:
             node = node_analysis[n_key]
+            if n_key in parameters.HARDCODED_PLOT_EXCLUDE:
+                continue # Skip any nodes we mark as "exclude", such as outliers seen from previous runs
             self_PDR.append(node.PDR)
             self_avg_HC.append(node.hc_mean)
             self_avg_children.append(node.children_mean)
+            self_lifetime_cycles.append(node.cycles)
             total_parents = len(node.connections)
             total_parent_PDR = 0
             total_parent_connections = 0
@@ -654,39 +687,46 @@ def main():
             average_parent_PDR = total_parent_PDR / total_parent_connections
             weighted_parent_PDR.append(average_parent_PDR)
         
-        # Plot self PDR vs Weighted (Connections) Parent PDR
+        # Weighted (Connections) Parent PDR vs Self PDR
         x_ax = weighted_parent_PDR
         y_ax = self_PDR
-        plt.scatter(x_ax, y_ax)
-        for i, node in enumerate(node_analysis.values()):
-            plt.annotate(node.node_id, (x_ax[i], y_ax[i]))
-        plt.title("Self PDR vs Weighted Parent PDR")
-        plt.xlabel("Weighted Parent PDR")
-        plt.ylabel("Self PDR")
-        plt.show()
+        title = "Weighted Parent PDR vs Self PDR"
+        x_label = "Self PDR"
+        y_label = "Weighted Parent PDR"
+        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
     
-        # Average Hop Count vs Plot PDR
+        # Average Hop Count vs Self PDR
         x_ax = self_avg_HC
         y_ax = self_PDR
-        plt.scatter(x_ax, y_ax)
-        for i, node in enumerate(node_analysis.values()):
-            plt.annotate(node.node_id, (x_ax[i], y_ax[i]))
-        plt.title("Avg Cycle HC vs PDR")
-        plt.xlabel("Avg HC")
-        plt.ylabel("PDR")
-        plt.show()
+        title = "Avg HC vs Self PDR"
+        x_label = "Avg HC"
+        y_label = "Self PDR"
+        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
     
-        # Average Children vs Plot PDR
+        # Average Num Children vs Self PDR
         x_ax = self_avg_children
         y_ax = self_PDR
-        plt.scatter(x_ax, y_ax)
-        for i, node in enumerate(node_analysis.values()):
-            plt.annotate(node.node_id, (x_ax[i], y_ax[i]))
-        plt.title("Avg Cycle Children vs PDR")
-        plt.xlabel("Average Children")
-        plt.ylabel("PDR")
-        plt.show()
+        title = "Avg Children vs Self PDR"
+        x_label = "Avg Children"
+        y_label = "Self PDR"
+        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
     
+        # Avg Hop Count vs Lifetime (Cycles)
+        x_ax = self_avg_HC
+        y_ax = self_lifetime_cycles
+        title = "Avg HC vs Lifetime (Cycles)"
+        x_label = "Avg HC"
+        y_label = "Cycles"
+        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+        
+        # Avg Num Children vs Lifetime (Cycles)
+        x_ax = self_avg_children
+        y_ax = self_lifetime_cycles
+        title = "Avg Num Children vs Lifetime (Cycles)"
+        x_label = "Avg Children"
+        y_label = "Cycles"
+        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+
         # Plot HC and number of children connections per cycle per node
         if parameters.PLOT_NODE_SPECIFIC_CONNECTIONS:
             for n_key in node_analysis:
