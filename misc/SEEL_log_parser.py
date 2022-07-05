@@ -148,9 +148,21 @@ node_mapping = {}
 node_assignments = []
 data_info = []
 
-node_analysis = {}
+node_analysis = {} # per node
+msg_analysis = {} # per node
 
 ############################################################################
+
+class Parent:
+    def __init__(self, id, rssi):
+        self.id = id
+        self.rssi = rssi
+        
+class Cycle_Stats:
+    def __init__(self):
+        self.parent_rssi = 0
+        self.crc_fails = -1
+        self.data_transmissions = -1
 
 class Bcast_Info:
     def __init__(self, bcast_num, bcast_inst, sys_time, awk_time, slp_time):
@@ -164,25 +176,25 @@ class Bcast_Info:
         return "Bcast num: " + str(self.bcast_num) + " Inst: " + str(self.bcast_inst) + " System time: " + str(self.sys_time) + " Awake time: " + str(self.awk_time) + " Sleep time: " + str(self.slp_time)
 
 class Data_Info:
-    def __init__(self, bcast_num, bcast_inst, wtb, prev_trans, node_id, parent_id, parent_rssi, send_count, max_queue_size, missed_bcasts, crc_fails,       flags):
+    def __init__(self, bcast_num, bcast_inst, wtb, prev_trans, node_id, parent_id, parent_rssi, send_count, prev_max_queue_size, prev_missed_bcasts, prev_crc_fails, prev_flags):
         self.bcast_num = bcast_num
         self.bcast_inst = bcast_inst
         self.wtb = wtb
-        self.prev_trans = prev_trans
         self.node_id = node_id
         self.parent_id = parent_id
         self.parent_rssi = parent_rssi
         self.send_count = send_count
-        self.max_queue_size = max_queue_size
-        self.missed_bcasts = missed_bcasts
-        self.crc_fails = crc_fails
-        self.flags = flags
+        self.prev_trans = prev_trans
+        self.prev_max_queue_size = prev_max_queue_size
+        self.prev_missed_bcasts = prev_missed_bcasts
+        self.prev_crc_fails = prev_crc_fails
+        self.prev_flags = prev_flags
 
     def __str__(self):
         return "Bcast num: " + str(self.bcast_num) + "\tBcast inst: " + str(self.bcast_inst) + "\tNode ID: " + str(self.node_id) + \
         "\tParent ID: " + str(self.parent_id) + "\tSend Count: " + str(self.send_count) + "\tParent RSSI: " + str(self.parent_rssi) + \
-        "\tPrev Transmissions: " + str(self.prev_trans) + "\tWTB: " + str(self.wtb) + "\tPrev Max Q Size: " + str(self.max_queue_size) + \
-        "\tMissed Bcasts: " + str(self.missed_bcasts) + "\tPrev CRC Fails: " + str(self.crc_fails) + "\tPrev Flags: " + str( "{:08b}".format(self.flags))
+        "\tPrev Transmissions: " + str(self.prev_trans) + "\tWTB: " + str(self.wtb) + "\tPrev Max Q Size: " + str(self.prev_max_queue_size) + \
+        "\tMissed Bcasts: " + str(self.prev_missed_bcasts) + "\tPrev CRC Fails: " + str(self.prev_crc_fails) + "\tPrev Flags: " + str( "{:08b}".format(self.prev_flags))
 
 class Node_Analysis: # Per node
     def __init__(self):
@@ -199,10 +211,10 @@ class Node_Analysis: # Per node
         self.children_mean = 0
         self.cycles = 0 # cycles alive for
 
-class Parent:
-    def __init__(self, id, rssi):
-        self.id = id
-        self.rssi = rssi
+class Msg_Analysis: # Per node
+    def __init__(self):
+        self.node_id = 0
+        self.cycle_stats = {} # per bcast inst, per bcast cycle
 
 def node_entry(actual_id, assigned_id, bcast_join):
     print("join id: " + str(actual_id) + "\tresponse: " + str(assigned_id) + "\tB. Join: " + str(bcast_join))
@@ -231,18 +243,22 @@ def search_paths(b_ind, b_num, node_analysis, paths, search_stack, hcount):
             hcount -= 1
             search_stack.pop()
 
-def plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label):
+def plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, annotate=True, regression=True):
         plt.scatter(x_ax, y_ax)
-        i = 0
-        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
-            plt.annotate(node_id, (x_ax[i], y_ax[i]))
-                
-        lin_reg_model = np.polyfit(x_ax, y_ax, deg=1)
-        xseq = np.linspace(min(x_ax), max(x_ax), num=100)
-        plt.plot(xseq, lin_reg_model[1] + lin_reg_model[0] * xseq)
-        model_predict = np.poly1d(lin_reg_model)
-        r2 = r2_score(y_ax, model_predict(x_ax))
-        plt.title(title + ", R^2=" + str(r2))
+        
+        if annotate:
+            i = 0
+            for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
+                plt.annotate(node_id, (x_ax[i], y_ax[i]))
+        if regression:
+            lin_reg_model = np.polyfit(x_ax, y_ax, deg=1)
+            xseq = np.linspace(min(x_ax), max(x_ax), num=100)
+            plt.plot(xseq, lin_reg_model[1] + lin_reg_model[0] * xseq)
+            model_predict = np.poly1d(lin_reg_model)
+            r2 = r2_score(y_ax, model_predict(x_ax))
+            plt.title(title + ", R^2=" + str(r2))
+        else:
+            plt.title(title)
         plt.xlabel(x_label)
         plt.ylabel(y_label)
         plt.show()
@@ -384,6 +400,8 @@ def main():
         # Analysis
         node_analysis[node_id] = Node_Analysis()
         node_analysis[node_id].node_id = node_id
+        msg_analysis[node_id] = Msg_Analysis()
+        msg_analysis[node_id].node_id = node_id
 
         # Plotting
         plot_snode_bcast_nums = []
@@ -465,7 +483,7 @@ def main():
                 # were done by the node in the previous cycle. Duplicates within a cycle can exist
 
                 total_transmissions += msg.prev_trans
-                total_crc_fails += msg.crc_fails
+                total_crc_fails += msg.prev_crc_fails
 
                 if msg.parent_rssi != -256: # Impossible value, used to flag RSSI unavailable
                     total_parent_rssi += msg.parent_rssi
@@ -480,14 +498,25 @@ def main():
                         message_paths[msg.bcast_inst][overflow_comp_bcast_num] = {}
                     message_paths[msg.bcast_inst][overflow_comp_bcast_num][msg.node_id] = Parent(node_mapping[msg.parent_id], msg.parent_rssi)
 
-                queue_size_counter += msg.max_queue_size
-                if msg.max_queue_size > max_queue_size:
-                    max_queue_size = msg.max_queue_size
+                queue_size_counter += msg.prev_max_queue_size
+                if msg.prev_max_queue_size > max_queue_size:
+                    max_queue_size = msg.prev_max_queue_size
 
-                if msg.missed_bcasts in total_missed_bcasts:
-                    total_missed_bcasts[msg.missed_bcasts] += 1
+                if msg.prev_missed_bcasts in total_missed_bcasts:
+                    total_missed_bcasts[msg.prev_missed_bcasts] += 1
                 else:
-                    total_missed_bcasts[msg.missed_bcasts] = 1
+                    total_missed_bcasts[msg.prev_missed_bcasts] = 1
+
+                if not msg.bcast_inst in msg_analysis[node_id].cycle_stats:
+                    msg_analysis[node_id].cycle_stats[msg.bcast_inst] = {}
+                if not msg.bcast_num in msg_analysis[node_id].cycle_stats[msg.bcast_inst]:
+                    msg_analysis[node_id].cycle_stats[msg.bcast_inst][msg.bcast_num] = Cycle_Stats()
+                msg_analysis[node_id].cycle_stats[msg.bcast_inst][msg.bcast_num].parent_rssi = msg.parent_rssi
+                # Prev cycle msgs
+                if not (msg.bcast_num - 1) in msg_analysis[node_id].cycle_stats[msg.bcast_inst]:
+                    msg_analysis[node_id].cycle_stats[msg.bcast_inst][msg.bcast_num - 1] = Cycle_Stats()
+                msg_analysis[node_id].cycle_stats[msg.bcast_inst][msg.bcast_num - 1].data_transmissions = msg.prev_trans
+                msg_analysis[node_id].cycle_stats[msg.bcast_inst][msg.bcast_num - 1].crc_fails = msg.prev_crc_fails
 
                 if parameters.PLOT_RSSI_ANALYSIS:
                     # Compare against queue size 0 because otherwise we don't know how many msgs we got this cycle
@@ -664,20 +693,20 @@ def main():
         for n_key in node_analysis:
             node_PDR[n_key] = node_analysis[n_key].PDR
     
-        # Append plot data
-        self_PDR = []
-        self_avg_HC = []
-        self_avg_children = []
-        self_lifetime_cycles = []
-        weighted_parent_PDR = []
+        # Append node plot data
+        node_avg_HC = []
+        node_avg_children = []
+        node_lifetime_cycles = []
+        node_self_PDR = []
+        node_weighted_parent_PDR = []
         for n_key in node_analysis:
             node = node_analysis[n_key]
             if n_key in parameters.HARDCODED_PLOT_EXCLUDE:
                 continue # Skip any nodes we mark as "exclude", such as outliers seen from previous runs
-            self_PDR.append(node.PDR)
-            self_avg_HC.append(node.hc_mean)
-            self_avg_children.append(node.children_mean)
-            self_lifetime_cycles.append(node.cycles)
+            node_self_PDR.append(node.PDR)
+            node_avg_HC.append(node.hc_mean)
+            node_avg_children.append(node.children_mean)
+            node_lifetime_cycles.append(node.cycles)
             total_parents = len(node.connections)
             total_parent_PDR = 0
             total_parent_connections = 0
@@ -685,47 +714,91 @@ def main():
                 total_parent_PDR += node_PDR[parent] * node.connections[parent]
                 total_parent_connections += node.connections[parent]
             average_parent_PDR = total_parent_PDR / total_parent_connections
-            weighted_parent_PDR.append(average_parent_PDR)
+            node_weighted_parent_PDR.append(average_parent_PDR)
         
+        # Append msg plot data
+        msg_parent_rssi = []
+        msg_crc_fails = []
+        msg_data_transmissions = []
+        msg_dropped_cycles = 0
+        for msg in msg_analysis.values():
+            for bi in msg.cycle_stats:
+                for bn in msg.cycle_stats[bi]:
+                    cs = msg.cycle_stats[bi][bn] # cycles stats
+                    # Only take Cycle Stats with entire stats filled out
+                    if cs.parent_rssi != 0 and cs.data_transmissions != -1 and cs.crc_fails != -1:
+                        msg_parent_rssi.append(cs.parent_rssi)
+                        msg_data_transmissions.append(cs.data_transmissions)
+                        msg_crc_fails.append(cs.crc_fails)
+                    else:
+                        msg_dropped_cycles += 1
+        print("Plot Msg total good data: " + str(len(msg_parent_rssi)))
+        print("Plot Msg total bad data: " + str(msg_dropped_cycles)) 
+           
+        # *********** NODE PLOTS ***********
+           
         # Weighted (Connections) Parent PDR vs Self PDR
-        x_ax = weighted_parent_PDR
-        y_ax = self_PDR
-        title = "Weighted Parent PDR vs Self PDR"
+        x_ax = node_weighted_parent_PDR
+        y_ax = node_self_PDR
+        title = "NODE: Weighted Parent PDR vs Self PDR"
         x_label = "Self PDR"
         y_label = "Weighted Parent PDR"
         plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
     
         # Average Hop Count vs Self PDR
-        x_ax = self_avg_HC
-        y_ax = self_PDR
-        title = "Avg HC vs Self PDR"
+        x_ax = node_avg_HC
+        y_ax = node_self_PDR
+        title = "NODE: Avg HC vs Self PDR"
         x_label = "Avg HC"
         y_label = "Self PDR"
         plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
     
         # Average Num Children vs Self PDR
-        x_ax = self_avg_children
-        y_ax = self_PDR
-        title = "Avg Children vs Self PDR"
+        x_ax = node_avg_children
+        y_ax = node_self_PDR
+        title = "NODE: Avg Children vs Self PDR"
         x_label = "Avg Children"
         y_label = "Self PDR"
         plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
     
         # Avg Hop Count vs Lifetime (Cycles)
-        x_ax = self_avg_HC
-        y_ax = self_lifetime_cycles
-        title = "Avg HC vs Lifetime (Cycles)"
+        x_ax = node_avg_HC
+        y_ax = node_lifetime_cycles
+        title = "NODE: Avg HC vs Lifetime (Cycles)"
         x_label = "Avg HC"
         y_label = "Cycles"
         plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
         
         # Avg Num Children vs Lifetime (Cycles)
-        x_ax = self_avg_children
-        y_ax = self_lifetime_cycles
-        title = "Avg Num Children vs Lifetime (Cycles)"
+        x_ax = node_avg_children
+        y_ax = node_lifetime_cycles
+        title = "NODE: Avg Num Children vs Lifetime (Cycles)"
         x_label = "Avg Children"
         y_label = "Cycles"
         plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+
+        # *********** MSG PLOTS ***********
+
+        x_ax = msg_parent_rssi
+        y_ax = msg_crc_fails
+        title = "MSG: Parent RSSI vs CRC Fails"
+        x_label = "Parent RSSI"
+        y_label = "CRC Fails"
+        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, annotate=False, regression=False)
+        
+        x_ax = msg_parent_rssi
+        y_ax = msg_data_transmissions
+        title = "MSG: Parent RSSI vs Data Transmissions"
+        x_label = "Parent RSSI"
+        y_label = "Data Transmissions"
+        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, annotate=False, regression=False)
+        
+        x_ax = msg_data_transmissions
+        y_ax = msg_crc_fails
+        title = "MSG: Data Transmissions vs CRC Fails"
+        x_label = "Data Transmissions"
+        y_label = "CRC Fails"
+        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, annotate=False, regression=False)
 
         # Plot HC and number of children connections per cycle per node
         if parameters.PLOT_NODE_SPECIFIC_CONNECTIONS:
