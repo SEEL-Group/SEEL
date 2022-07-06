@@ -142,6 +142,7 @@ if len(sys.argv) > 2:
 
 bcast_times = []
 bcast_info = []
+bcast_info_overflow = {}
 bcast_instances = {} # per node, since nodes may join at different times
 
 node_mapping = {}
@@ -157,7 +158,7 @@ class Parent:
     def __init__(self, id, rssi):
         self.id = id
         self.rssi = rssi
-        
+     
 class Cycle_Stats:
     def __init__(self):
         self.parent_rssi = 0
@@ -174,7 +175,7 @@ class Bcast_Info:
 
     def __str__(self):
         return "Bcast num: " + str(self.bcast_num) + " Inst: " + str(self.bcast_inst) + " System time: " + str(self.sys_time) + " Awake time: " + str(self.awk_time) + " Sleep time: " + str(self.slp_time)
-
+    
 class Data_Info:
     def __init__(self, bcast_num, bcast_inst, wtb, prev_trans, node_id, parent_id, parent_rssi, send_count, prev_max_queue_size, prev_missed_bcasts, prev_crc_fails, prev_flags):
         self.bcast_num = bcast_num
@@ -457,6 +458,11 @@ def main():
                 #print("Debug: ignore")
 
             if not dup:
+                if not msg.bcast_inst in bcast_info_overflow:
+                    bcast_info_overflow[msg.bcast_inst] = overflow_comp_bcast_num
+                else:
+                    bcast_info_overflow[msg.bcast_inst] = (overflow_comp_bcast_num if overflow_comp_bcast_num > bcast_info_overflow[msg.bcast_inst] else bcast_info_overflow[msg.bcast_inst]) # Insert largest bcast_info_overflow value for a bcast_inst
+            
                 # remove previously missed packet if the packet came in late
                 if dropped_packet_tracker.count(msg.send_count) > 0:
                     dropped_packet_tracker.remove(msg.send_count)
@@ -809,18 +815,19 @@ def main():
         if parameters.PLOT_NODE_SPECIFIC_CONNECTIONS:
             for n_key in node_analysis:
                 node = node_analysis[n_key]
-                plot_cycles = range(len(bcast_info))
+                plot_cycles = range(sum(bcast_info_overflow.values()) + len(bcast_info_overflow)) # Add len since values are MAX (not length) and 0 start
                 plot_hop_count = []
                 plot_children = []
-                for b in bcast_info:
-                    if b.bcast_inst in node.cycle_hops and b.bcast_num in node.cycle_hops[b.bcast_inst]:
-                        plot_hop_count.append(node.cycle_hops[b.bcast_inst][b.bcast_num])
-                    else:
-                        plot_hop_count.append(0)
-                    if b.bcast_inst in node.cycle_children and b.bcast_num in node.cycle_children[b.bcast_inst]:
-                        plot_children.append(len(node.cycle_children[b.bcast_inst][b.bcast_num]))
-                    else:
-                        plot_children.append(0)
+                for bi in bcast_info_overflow:
+                    for bn in range(bcast_info_overflow[bi] + 1):
+                        if bi in node.cycle_hops and bn in node.cycle_hops[bi]:
+                            plot_hop_count.append(node.cycle_hops[bi][bn])
+                        else:
+                            plot_hop_count.append(0)
+                        if bi in node.cycle_children and bn in node.cycle_children[bi]:
+                            plot_children.append(len(node.cycle_children[bi][bn]))
+                        else:
+                            plot_children.append(0)
                 figure, axis = plt.subplots(2, sharex=True)
                 # GNODE
                 axis[0].scatter(plot_cycles, plot_hop_count)
