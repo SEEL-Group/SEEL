@@ -612,7 +612,7 @@ def main():
                             #print("\tDebug: padding " + str(0))
                             
             figure, axis = plt.subplots(2, sharex=True)
-            plt.title("Cycle vs Bcast Num")
+            plt.title("Bcast Num vs Cycle")
             # GNODE
             axis[0].plot([bi.bcast_num for bi in bcast_info])
             axis[0].set_title("GNODE")
@@ -751,7 +751,7 @@ def main():
         # Average Hop Count vs Self PDR
         x_ax = node_avg_HC
         y_ax = node_self_PDR
-        title = "NODE: Avg HC vs Self PDR"
+        title = "NODE: Self PDR vs Avg HC"
         x_label = "Avg HC"
         y_label = "Self PDR"
         for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
@@ -761,7 +761,7 @@ def main():
         # Average Num Children vs Self PDR
         x_ax = node_avg_children
         y_ax = node_self_PDR
-        title = "NODE: Avg Children vs Self PDR"
+        title = "NODE: Self PDR vs Avg Children"
         x_label = "Avg Children"
         y_label = "Self PDR"
         for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
@@ -771,7 +771,7 @@ def main():
         # Avg Hop Count vs Lifetime (Cycles)
         x_ax = node_avg_HC
         y_ax = node_lifetime_cycles
-        title = "NODE: Avg HC vs Lifetime (Cycles)"
+        title = "NODE: Lifetime (Cycles) vs Avg HC"
         x_label = "Avg HC"
         y_label = "Cycles"
         for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
@@ -781,7 +781,7 @@ def main():
         # Avg Num Children vs Lifetime (Cycles)
         x_ax = node_avg_children
         y_ax = node_lifetime_cycles
-        title = "NODE: Avg Num Children vs Lifetime (Cycles)"
+        title = "NODE: Lifetime (Cycles) vs Avg Num Children"
         x_label = "Avg Children"
         y_label = "Cycles"
         for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
@@ -792,21 +792,21 @@ def main():
 
         x_ax = msg_parent_rssi
         y_ax = msg_crc_fails
-        title = "MSG: Parent RSSI vs CRC Fails"
+        title = "MSG: CRC Fails vs Parent RSSI"
         x_label = "Parent RSSI"
         y_label = "CRC Fails"
         plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, regression=False)
         
         x_ax = msg_parent_rssi
         y_ax = msg_data_transmissions
-        title = "MSG: Parent RSSI vs Data Transmissions"
+        title = "MSG: Data Transmissions vs Parent RSSI"
         x_label = "Parent RSSI"
         y_label = "Data Transmissions"
         plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, regression=False)
         
         x_ax = msg_data_transmissions
         y_ax = msg_crc_fails
-        title = "MSG: Data Transmissions vs CRC Fails"
+        title = "MSG: CRC Fails vs Data Transmissions"
         x_label = "Data Transmissions"
         y_label = "CRC Fails"
         plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, regression=False)
@@ -831,11 +831,11 @@ def main():
                 figure, axis = plt.subplots(2, sharex=True)
                 # GNODE
                 axis[0].scatter(plot_cycles, plot_hop_count)
-                axis[0].set_title("Node " + str(n_key) + ": Cycle vs Hop Count")
+                axis[0].set_title("Node " + str(n_key) + ": Hop Count vs Cycle")
                 axis[0].set_ylabel("Hop Count")
                 # SNODE
                 axis[1].scatter(plot_cycles, plot_children)
-                axis[1].set_title("Cycle vs Num Children")
+                axis[1].set_title("Num Children vs Cycle")
                 axis[1].set_xlabel("Cycle")
                 axis[1].set_ylabel("Num Children")
                 plt.show()
@@ -894,9 +894,9 @@ def main():
         if parameters.PLOT_RSSI_ANALYSIS:
             print("RSSI Analysis # data points: " + str(len(analysis_rssi)))
             plt.scatter(analysis_rssi, analysis_transmissions, alpha=0.1);
-            plt.title("RSSI vs Transmissions")
+            plt.title("Transmissions vs RSSI")
             plt.xlabel("RSSI")
-            plt.ylabel("Transmissions Per Msg")
+            plt.ylabel("Transmissions")
             plt.show()
 
 if __name__ == "__main__":
