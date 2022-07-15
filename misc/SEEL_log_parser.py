@@ -244,8 +244,8 @@ def search_paths(b_ind, b_num, node_analysis, paths, search_stack, hcount):
             hcount -= 1
             search_stack.pop()
 
-def plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, regression=True):
-        plt.scatter(x_ax, y_ax)
+def plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, regression=True, a=1):
+        plt.scatter(x_ax, y_ax, alpha=a)
         if regression:
             lin_reg_model = np.polyfit(x_ax, y_ax, deg=1)
             xseq = np.linspace(min(x_ax), max(x_ax), num=100)
@@ -795,21 +795,21 @@ def main():
         title = "MSG: CRC Fails vs Parent RSSI"
         x_label = "Parent RSSI"
         y_label = "CRC Fails"
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, regression=False)
+        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, False, 0.1)
         
         x_ax = msg_parent_rssi
         y_ax = msg_data_transmissions
         title = "MSG: Data Transmissions vs Parent RSSI"
         x_label = "Parent RSSI"
         y_label = "Data Transmissions"
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, regression=False)
+        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, False, 0.1)
         
         x_ax = msg_data_transmissions
         y_ax = msg_crc_fails
         title = "MSG: CRC Fails vs Data Transmissions"
         x_label = "Data Transmissions"
         y_label = "CRC Fails"
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, regression=False)
+        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, False, 0.1)
 
         # Plot HC and number of children connections per cycle per node
         if parameters.PLOT_NODE_SPECIFIC_CONNECTIONS:
