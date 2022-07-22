@@ -15,17 +15,27 @@ class Parameters:
 
 ############################################################################
     # Hardcode Section
-    USE_HARDCODED_NODE_JOINS = False
-    HARDCODED_NODE_JOINS = [
-        # Format: [actual ID, assigned ID, cycle join]
-    ]
     HC_NJ_ACTUAL_ID_IDX = 0
     HC_NJ_ASSIGNED_ID_IDX = 1
     HC_NJ_CYCLE_JOIN_IDX = 2
+    HARDCODED_NODE_JOINS = [
+        # Format: [actual ID, assigned ID, cycle join]
+    ]
 
-    USE_HARDCODED_NODE_LOCS = False
+
     HARDCODED_NODE_LOCS = {
         # Format: actual ID: (loc_x, loc_y)
+    }
+    
+    # Node TDMA slots
+    HARDCODED_NODE_TDMA = {
+        # Format -> node ID: TDMA slot
+    }
+    
+    # Excludes nodes from correlation plots
+    # Useful for any outliers that may skew regressions
+    HARDCODED_PLOT_EXCLUDE = {
+        # Format -> node_id
     }
 
     NETWORK_DRAW_OPTIONS = {
