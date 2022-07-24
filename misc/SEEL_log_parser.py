@@ -585,11 +585,17 @@ def main():
         print("\tAvg CRC received fails per delivered msg: " + str(node_analysis[node_id].avg_CRC_fails))
         print("\tAvg CRC received fails per cycle: " + str(total_crc_fails / total_bcasts_for_node))
         print("\tTotal Missed Bcasts: " + str(total_missed_bcasts))
-        print("\tParent Connections: ")
+        if len(parameters.HARDCODED_NODE_TDMA) > 0:
+            print("\tParent Connections (TDMA): ")
+        else:
+            print("\tParent Connections: ")
         node_analysis[node_id].connection_total = sum(connections)
         node_analysis[node_id].highest_parent_ratio = 0
         for j in range(len(node_assignments)):
-            print("\t\t" + str(node_assignments[j]) + ":\t" + str(connections[j]))
+            if len(parameters.HARDCODED_NODE_TDMA) > 0:
+                print("\t\t" + str(node_assignments[j]) + " (" + str(parameters.HARDCODED_NODE_TDMA[node_assignments[j]]) + ")" + ":\t" + str(connections[j]))
+            else:
+                print("\t\t" + str(node_assignments[j]) + ":\t" + str(connections[j]))
             if connections[j] > 0:
                 parent_connection_ratio = connections[j] / node_analysis[node_id].connection_total
                 if parent_connection_ratio > node_analysis[node_id].highest_parent_ratio:
@@ -698,19 +704,43 @@ def main():
         else:
             print("\tNot enough data")
         print("Cycle Children")
+        TDMA_conflicts = []
         if len(node.cycle_children) > 0:
             children = []
             for b_inst in node.cycle_children:
                 for b_num in node.cycle_children[b_inst]:
                     children.append(len(node.cycle_children[b_inst][b_num]))
+                    if len(parameters.HARDCODED_NODE_TDMA) > 0:
+                        cycle_TMDA_slots = set()
+                        for child in node.cycle_children[b_inst][b_num]:
+                            child_TDMA_slot = parameters.HARDCODED_NODE_TDMA[child]
+                            dups = []
+                            if not child_TDMA_slot in cycle_TMDA_slots:
+                                for c in node.cycle_children[b_inst][b_num]:
+                                    c_TDMA_slot = parameters.HARDCODED_NODE_TDMA[c]
+                                    if c_TDMA_slot == child_TDMA_slot:
+                                        dups.append(c)
+                                cycle_TMDA_slots.add(child_TDMA_slot)
+                            if len(dups) > 1:
+                                TDMA_conflicts.append(dups)
             node.children_mean = statistics.mean(children) # Save for use later
             print("\tMean: " + str(node.children_mean))
             print("\tStd Dev: " + str(statistics.stdev(children)))
+            if len(parameters.HARDCODED_NODE_TDMA) > 0:
+                print("\tTDMA Conflicts: " + str(len(TDMA_conflicts)))
+                print("\t\t" + str(TDMA_conflicts))
         else:
-            print("\tNot enough data")     
-        print("Children Connections")
+            print("\tNot enough data")
+        
+        if len(parameters.HARDCODED_NODE_TDMA) > 0:
+            print("Children Connections (TDMA)")
+        else:
+            print("Children Connections")
         for child in node.children_counts:
-            print("\t" + str(child) + ":\t" + str(node.children_counts[child]))
+            if len(parameters.HARDCODED_NODE_TDMA) > 0:
+                print("\t" + str(child) + " (" + str(parameters.HARDCODED_NODE_TDMA[child]) + ")" + ":\t" + str(node.children_counts[child]))
+            else:
+                print("\t" + str(child) + ":\t" + str(node.children_counts[child]))
             print("\t\tAvg RSSI: " + str(node.children_rssi[child]))
     print(flush=True)
 
