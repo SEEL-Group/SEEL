@@ -30,7 +30,7 @@ import networkx as nx
 import statistics
 
 class Parameters:
-############################################################################
+    ############################################################################
     # General Parameters
     PRINT_ALL_MSGS = False
 
@@ -47,7 +47,7 @@ class Parameters:
 
     PARAM_COUNT_WRAP_SAFETY = 10 # Send count will not have wrapped within this many counts, keep it lower to account for node restarts too
 
-############################################################################
+    ############################################################################
     # Hardcode Section
     HC_NJ_ACTUAL_ID_IDX = 0
     HC_NJ_ASSIGNED_ID_IDX = 1
@@ -80,7 +80,7 @@ class Parameters:
         "edge_width": 1,
     }
 
-############################################################################
+    ############################################################################
     # Indexes Section
     INDEX_HEADER = 0
     # INDEX_BT 0 used for the text "BT:"
@@ -121,6 +121,15 @@ class Parameters:
     INDEX_DATA_MAX_QUEUE_SIZE = 13
     INDEX_DATA_CRC_FAILS = 14
     INDEX_DATA_FLAGS = 15
+
+    ############################################################################
+    # SEEL Parameters
+    SEEL_CYCLE_AWAKE_TIME_MILLIS = 180000 # Current not used
+    SEEL_CYCLE_SLEEP_TIME_MILLIS = 3420000 # Current not used
+    
+    SEEL_FORCE_SLEEP_AWAKE_MULT = 1.0 # Current not used
+    SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE = 1.5 # Current not used
+    SEEL_FORCE_SLEEP_RESET_COUNT = 3
 
 ############################################################################
 # Default Parameters
@@ -182,7 +191,7 @@ class Bcast_Info:
         return "Bcast num: " + str(self.bcast_num) + " Inst: " + str(self.bcast_inst) + " System time: " + str(self.sys_time) + " Awake time: " + str(self.awk_time) + " Sleep time: " + str(self.slp_time)
     
 class Data_Info:
-    def __init__(self, bcast_num, bcast_inst, wtb, prev_data_trans, node_id, parent_id, parent_rssi, send_count, prev_max_queue_size, prev_missed_bcasts, prev_crc_fails, prev_flags):
+    def __init__(self, bcast_num, bcast_inst, wtb, prev_data_trans, node_id, parent_id, parent_rssi, send_count, prev_queue_size, prev_missed_bcasts, prev_crc_fails, prev_flags):
         self.bcast_num = bcast_num
         self.bcast_inst = bcast_inst
         self.wtb = wtb
@@ -191,15 +200,15 @@ class Data_Info:
         self.parent_rssi = parent_rssi
         self.send_count = send_count
         self.prev_data_trans = prev_data_trans
-        self.prev_max_queue_size = prev_max_queue_size
+        self.prev_queue_size = prev_queue_size
         self.prev_missed_bcasts = prev_missed_bcasts
-        self.prev_crc_fails = prev_crc_fails
+        self.prev_crc_fails = prev_crc_fails # Received CRC fails, not sent
         self.prev_flags = prev_flags
 
     def __str__(self):
         return "Bcast num: " + str(self.bcast_num) + "\tBcast inst: " + str(self.bcast_inst) + "\tNode ID: " + str(self.node_id) + \
         "\tParent ID: " + str(self.parent_id) + "\tSend Count: " + str(self.send_count) + "\tParent RSSI: " + str(self.parent_rssi) + \
-        "\tPrev Transmissions: " + str(self.prev_data_trans) + "\tWTB: " + str(self.wtb) + "\tPrev Max Q Size: " + str(self.prev_max_queue_size) + \
+        "\tPrev Transmissions: " + str(self.prev_data_trans) + "\tWTB: " + str(self.wtb) + "\tPrev Max Q Size: " + str(self.prev_queue_size) + \
         "\tMissed Bcasts: " + str(self.prev_missed_bcasts) + "\tPrev CRC Fails: " + str(self.prev_crc_fails) + "\tPrev Flags: " + str( "{:08b}".format(self.prev_flags))
 
 class Node_Analysis: # Per node
@@ -381,7 +390,9 @@ def main():
             print("No messages received")
             continue
         duplicate_msg_tracker = {}
-        wtb = []
+        wtb_general = []
+        wtb_missed_bcast = []
+        wtb_max_missed_bcast = []
         node_id = node_data_msgs[0].node_id
         num_node_msgs = len(node_data_msgs)
         total_data_transmissions = 0
@@ -491,13 +502,18 @@ def main():
 
                 # Ignore first WTB during analysis since not system sync'd yet
                 if not first_wtb:
-                    wtb.append(msg.wtb)
+                    # After SEEL_FORCE_SLEEP_RESET_COUNT missed bcasts, WTB factors the entire missed cycle since the 
+                    # device stays awake the entire cycle. Separately track these values to see how impactful they are.
+                    if msg.prev_missed_bcasts > 0: 
+                        wtb_missed_bcast.append(msg.wtb)
+                    if msg.prev_missed_bcasts == parameters.SEEL_FORCE_SLEEP_RESET_COUNT: 
+                        wtb_max_missed_bcast.append(msg.wtb)
+                    wtb_general.append(msg.wtb)
                 else:
                     first_wtb = False
 
                 # Not all sent msgs are received, "prev_data_trans" indicates how many total data transmissions 
                 # were done by the node in the previous cycle. Duplicates within a cycle can exist
-
                 total_data_transmissions += msg.prev_data_trans
                 total_crc_fails += msg.prev_crc_fails
 
@@ -514,9 +530,9 @@ def main():
                         message_paths[msg.bcast_inst][overflow_comp_bcast_num] = {}
                     message_paths[msg.bcast_inst][overflow_comp_bcast_num][msg.node_id] = Parent(node_mapping[msg.parent_id], msg.parent_rssi)
 
-                queue_size_counter += msg.prev_max_queue_size
-                if msg.prev_max_queue_size > max_queue_size:
-                    max_queue_size = msg.prev_max_queue_size
+                queue_size_counter += msg.prev_queue_size
+                if msg.prev_queue_size > max_queue_size:
+                    max_queue_size = msg.prev_queue_size
 
                 if msg.prev_missed_bcasts in total_missed_bcasts:
                     total_missed_bcasts[msg.prev_missed_bcasts] += 1
@@ -525,7 +541,7 @@ def main():
         
                 node_analysis[node_id].data_transmissions.append(msg.prev_data_trans)
                 node_analysis[node_id].crc_fails.append(msg.prev_crc_fails)
-                node_analysis[node_id].max_queue_sizes.append(msg.prev_max_queue_size)
+                node_analysis[node_id].max_queue_sizes.append(msg.prev_queue_size)
                 node_analysis[node_id].rssi.append(msg.parent_rssi)
         
                 if not msg.bcast_inst in msg_analysis[node_id].cycle_stats:
@@ -567,21 +583,46 @@ def main():
         print("\tJoined Network on Bcast: " + str(bcast_instances[node_id]))
         print("\tTotal Received Messages: " + str(num_node_msgs))
         print("\tDuplicate Messages: " + str(duplicate_msg))
-        print("\tDropped Packets: " + str(connection_count_max - connection_count))
-        print("\tReceived (Total) Percentage: " + str(connection_count / total_bcasts_for_node)) # Total number of GNODE Bcasts received
+        print("\tPDR")
+        print("\t\tDropped Packets: " + str(connection_count_max - connection_count))
+        print("\t\tReceived (Total) Percentage: " + str(connection_count / total_bcasts_for_node)) # Total number of GNODE Bcasts received
         node_analysis[node_id].PDR = (0 if connection_count_max == 0 else connection_count / connection_count_max) # Total given times connected (until disconnect or death). This metric is a better representation of PDR
-        print("\tReceived (Possible) Percentage: " + str(node_analysis[node_id].PDR))
-        if len(wtb) > 0:
-            node_analysis[node_id].avg_wtb = statistics.mean(wtb)
-            print("\tMean WTB: " + str(node_analysis[node_id].avg_wtb))
-            print("\tMedian WTB: " + str(statistics.median(wtb)))
-            print("\tStd Dev. WTB: " + str(statistics.stdev(wtb)))
+        print("\t\tReceived (Possible) Percentage: " + str(node_analysis[node_id].PDR))
+        print("\tWTB")
+        if len(wtb_general) > 0:
+            node_analysis[node_id].avg_wtb = statistics.mean(wtb_general)
+            print("\t\tMean WTB Millis: " + str(node_analysis[node_id].avg_wtb))
+            print("\t\tMedian WTB Millis: " + str(statistics.median(wtb_general)))
+            print("\t\tStd Dev. WTB Millis: " + str(statistics.stdev(wtb_general)))
+            total_wtb_general = node_analysis[node_id].avg_wtb * len(wtb_general)
+            print("\t\tTotal WTB Millis: " + str(total_wtb_general))
+            print("\t\tWTB Instances: " + str(len(wtb_general)))
+            print("\t\tComparing Overall WTB to ANY MISS WTB (a node missing > 0 number of bcasts)")
+            if len(wtb_missed_bcast) > 0:
+                mean_wtb_missed_bcast = statistics.mean(wtb_missed_bcast)
+                print("\t\t\tMean ANY MISS WTB Millis: " + str(mean_wtb_missed_bcast))
+                print("\t\t\tANY MISS WTB Instances: " + str(len(wtb_missed_bcast)))
+                MM_adjusted_WTB = (total_wtb_general - (mean_wtb_missed_bcast * len(wtb_missed_bcast))) / (len(wtb_general) - len(wtb_missed_bcast))
+                print("\t\t\tMean (Overall WTB - ANY MISS WTB) MILLIS: " + str(MM_adjusted_WTB))
+            else:
+                print("\t\t\tNo MISSES")
+            print("\t\tComparing Overall WTB to MAX MISS WTB (a node missing SEEL_FORCE_SLEEP_RESET_COUNT number of bcasts)")
+            if len(wtb_max_missed_bcast) > 0:
+                mean_wtb_mass_missed_bcast = statistics.mean(wtb_max_missed_bcast)
+                print("\t\t\tMean MAX MISS WTB Millis: " + str(mean_wtb_mass_missed_bcast))
+                print("\t\t\tMAX MISS WTB Instances: " + str(len(wtb_max_missed_bcast)))
+                MM_adjusted_WTB = (total_wtb_general - (mean_wtb_mass_missed_bcast * len(wtb_max_missed_bcast))) / (len(wtb_general) - len(wtb_max_missed_bcast))
+                print("\t\t\tMean (Overall WTB - MAX MISS WTB) MILLIS: " + str(MM_adjusted_WTB))
+            else:
+                print("\t\t\tNo MAX MISSES")
+        else:
+            print("\t\tNo WTB info available")
         node_analysis[node_id].avg_data_transmissions = statistics.mean(node_analysis[node_id].data_transmissions)
         print("\tAvg data Transmissions per delivered msg: " + str(node_analysis[node_id].avg_data_transmissions))
         print("\tAvg data Transmissions per cycle: " + str(total_data_transmissions / total_bcasts_for_node))
         node_analysis[node_id].avg_max_queue_sizes = statistics.mean(node_analysis[node_id].max_queue_sizes)
-        print("\tAvg Max Data Queue Size per delivered msg: " + str(node_analysis[node_id].avg_max_queue_sizes))
-        print("\tAvg Max Data Queue Size per cycle: " + str(queue_size_counter / total_bcasts_for_node))
+        print("\tAvg Data Queue Size per delivered msg: " + str(node_analysis[node_id].avg_max_queue_sizes))
+        print("\tAvg Data Queue Size per cycle: " + str(queue_size_counter / total_bcasts_for_node))
         print("\tMax Data Queue Size: " + str(max_queue_size))
         node_analysis[node_id].avg_CRC_fails = statistics.mean(node_analysis[node_id].crc_fails)
         print("\tAvg CRC received fails per delivered msg: " + str(node_analysis[node_id].avg_CRC_fails))

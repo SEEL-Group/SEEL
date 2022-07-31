@@ -1,5 +1,5 @@
 class Parameters:
-############################################################################
+    ############################################################################
     # General Parameters
     PRINT_ALL_MSGS = True
 
@@ -13,7 +13,7 @@ class Parameters:
 
     PARAM_COUNT_WRAP_SAFETY = 10 # Send count will not have wrapped within this many counts, keep it lower to account for node restarts too
 
-############################################################################
+    ############################################################################
     # Hardcode Section
     HC_NJ_ACTUAL_ID_IDX = 0
     HC_NJ_ASSIGNED_ID_IDX = 1
@@ -47,7 +47,7 @@ class Parameters:
         "edge_width": 1,
     }
 
-############################################################################
+    ############################################################################
     # Indexes Section
     INDEX_HEADER = 0
     # INDEX_BT 0 used for the text "BT:"
@@ -89,4 +89,11 @@ class Parameters:
     INDEX_DATA_CRC_FAILS = 14
     INDEX_DATA_FLAGS = 15
 
-############################################################################
+    ############################################################################
+    # SEEL Parameters
+    SEEL_CYCLE_AWAKE_TIME_MILLIS = 180000
+    SEEL_CYCLE_SLEEP_TIME_MILLIS = 3420000
+    
+    SEEL_FORCE_SLEEP_AWAKE_MULT = 1.0
+    SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE = 1.5
+    SEEL_FORCE_SLEEP_RESET_COUNT = 3
