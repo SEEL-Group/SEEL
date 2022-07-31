@@ -225,6 +225,7 @@ class Node_Analysis: # Per node
         self.rssi = []
         self.avg_rssi = 0
         self.highest_parent_ratio = 0 # Highest connection parent ratio [0, 1]
+        self.avg_wtb = 0
 
 class Msg_Analysis: # Per node
     def __init__(self):
@@ -571,7 +572,8 @@ def main():
         node_analysis[node_id].PDR = (0 if connection_count_max == 0 else connection_count / connection_count_max) # Total given times connected (until disconnect or death). This metric is a better representation of PDR
         print("\tReceived (Possible) Percentage: " + str(node_analysis[node_id].PDR))
         if len(wtb) > 0:
-            print("\tMean WTB: " + str(statistics.mean(wtb)))
+            node_analysis[node_id].avg_wtb = statistics.mean(wtb)
+            print("\tMean WTB: " + str(node_analysis[node_id].avg_wtb))
             print("\tMedian WTB: " + str(statistics.median(wtb)))
             print("\tStd Dev. WTB: " + str(statistics.stdev(wtb)))
         node_analysis[node_id].avg_data_transmissions = statistics.mean(node_analysis[node_id].data_transmissions)
@@ -763,6 +765,7 @@ def main():
         node_avg_max_queue_sizes = []
         node_avg_rssi = []
         node_highest_parent_ratio = []
+        node_avg_WTB = []
         for n_key in node_analysis:
             node = node_analysis[n_key]
             if n_key in parameters.HARDCODED_PLOT_EXCLUDE:
@@ -776,6 +779,7 @@ def main():
             node_avg_max_queue_sizes.append(node.avg_max_queue_sizes)
             node_highest_parent_ratio.append(node.highest_parent_ratio)
             node_avg_rssi.append(node.avg_rssi)
+            node_avg_WTB.append(node.avg_wtb)
             total_parents = len(node.connections)
             total_parent_PDR = 0
             total_parent_connections = 0
@@ -933,6 +937,16 @@ def main():
         title = "NODE: Lifetime vs Avg Children"
         x_label = "Avg Children"
         y_label = "Lifetime (Cycles)"
+        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
+            plt.annotate(node_id, (x_ax[i], y_ax[i]))
+        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+        
+        # Avg WTB vs Avg Num Children
+        x_ax = node_avg_HC
+        y_ax = node_avg_WTB
+        title = "NODE: Avg WTB vs Avg HC"
+        x_label = "Avg HC"
+        y_label = "Avg WTB"
         for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
             plt.annotate(node_id, (x_ax[i], y_ax[i]))
         plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
