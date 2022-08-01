@@ -123,12 +123,12 @@ class Parameters:
     INDEX_DATA_FLAGS = 15
 
     ############################################################################
-    # SEEL Parameters
-    SEEL_CYCLE_AWAKE_TIME_MILLIS = 180000 # Current not used
-    SEEL_CYCLE_SLEEP_TIME_MILLIS = 3420000 # Current not used
+    # SEEL Parameters    
+    SEEL_CYCLE_AWAKE_TIME_MILLIS = 180000
+    SEEL_CYCLE_SLEEP_TIME_MILLIS = 3420000
     
-    SEEL_FORCE_SLEEP_AWAKE_MULT = 1.0 # Current not used
-    SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE = 1.5 # Current not used
+    SEEL_FORCE_SLEEP_AWAKE_MULT = 1.0
+    SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE = 1.5
     SEEL_FORCE_SLEEP_RESET_COUNT = 3
 
 ############################################################################
@@ -502,13 +502,19 @@ def main():
 
                 # Ignore first WTB during analysis since not system sync'd yet
                 if not first_wtb:
+                    wtb_general.append(msg.wtb)
                     # After SEEL_FORCE_SLEEP_RESET_COUNT missed bcasts, WTB factors the entire missed cycle since the 
                     # device stays awake the entire cycle. Separately track these values to see how impactful they are.
                     if msg.prev_missed_bcasts > 0: 
-                        wtb_missed_bcast.append(msg.wtb)
-                    if msg.prev_missed_bcasts == parameters.SEEL_FORCE_SLEEP_RESET_COUNT: 
-                        wtb_max_missed_bcast.append(msg.wtb)
-                    wtb_general.append(msg.wtb)
+                        if msg.prev_missed_bcasts < parameters.SEEL_FORCE_SLEEP_RESET_COUNT:
+                            # Scalar should be (AWAKE_MULT * DUR_SCALE ^ 1 - 1) + (AWAKE_MULT * DUR_SCALE ^ 2 - 1) + ... + (AWAKE_MULT * DUR_SCALE ^ MISSED_BCASTS - 1)
+                            # Which reduces to the following form
+                            awake_time_scalar = np.sum(np.power(parameters.SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE, np.arange(1, msg.prev_missed_bcasts + 1))) * parameters.SEEL_FORCE_SLEEP_AWAKE_MULT - msg.prev_missed_bcasts
+                            extra_awake_time_millis = parameters.SEEL_CYCLE_AWAKE_TIME_MILLIS * awake_time_scalar
+                            wtb_missed_bcast.append(extra_awake_time_millis)
+                        elif msg.prev_missed_bcasts == parameters.SEEL_FORCE_SLEEP_RESET_COUNT:
+                            wtb_missed_bcast.append(msg.wtb)
+                            wtb_max_missed_bcast.append(msg.wtb)
                 else:
                     first_wtb = False
 
@@ -591,28 +597,28 @@ def main():
         print("\tWTB")
         if len(wtb_general) > 0:
             node_analysis[node_id].avg_wtb = statistics.mean(wtb_general)
-            print("\t\tMean WTB Millis: " + str(node_analysis[node_id].avg_wtb))
-            print("\t\tMedian WTB Millis: " + str(statistics.median(wtb_general)))
-            print("\t\tStd Dev. WTB Millis: " + str(statistics.stdev(wtb_general)))
+            print("\t\tMean General WTB Millis: " + str(node_analysis[node_id].avg_wtb))
+            print("\t\tMedian General WTB Millis: " + str(statistics.median(wtb_general)))
+            print("\t\tStd Dev. General WTB Millis: " + str(statistics.stdev(wtb_general)))
             total_wtb_general = node_analysis[node_id].avg_wtb * len(wtb_general)
-            print("\t\tTotal WTB Millis: " + str(total_wtb_general))
-            print("\t\tWTB Instances: " + str(len(wtb_general)))
-            print("\t\tComparing Overall WTB to ANY MISS WTB (a node missing > 0 number of bcasts)")
+            print("\t\tTotal General WTB Millis: " + str(total_wtb_general))
+            print("\t\tGeneral WTB Instances: " + str(len(wtb_general)))
+            print("\t\tComparing General WTB to ANY MISS WTB (a node missing > 0 number of bcasts)")
             if len(wtb_missed_bcast) > 0:
                 mean_wtb_missed_bcast = statistics.mean(wtb_missed_bcast)
                 print("\t\t\tMean ANY MISS WTB Millis: " + str(mean_wtb_missed_bcast))
                 print("\t\t\tANY MISS WTB Instances: " + str(len(wtb_missed_bcast)))
                 MM_adjusted_WTB = (total_wtb_general - (mean_wtb_missed_bcast * len(wtb_missed_bcast))) / (len(wtb_general) - len(wtb_missed_bcast))
-                print("\t\t\tMean (Overall WTB - ANY MISS WTB) MILLIS: " + str(MM_adjusted_WTB))
+                print("\t\t\tMean Drift WTB (General WTB - ANY MISS WTB) MILLIS: " + str(MM_adjusted_WTB))
             else:
                 print("\t\t\tNo MISSES")
-            print("\t\tComparing Overall WTB to MAX MISS WTB (a node missing SEEL_FORCE_SLEEP_RESET_COUNT number of bcasts)")
+            print("\t\tComparing General WTB to MAX MISS WTB (a node missing SEEL_FORCE_SLEEP_RESET_COUNT number of bcasts)")
             if len(wtb_max_missed_bcast) > 0:
                 mean_wtb_mass_missed_bcast = statistics.mean(wtb_max_missed_bcast)
                 print("\t\t\tMean MAX MISS WTB Millis: " + str(mean_wtb_mass_missed_bcast))
                 print("\t\t\tMAX MISS WTB Instances: " + str(len(wtb_max_missed_bcast)))
                 MM_adjusted_WTB = (total_wtb_general - (mean_wtb_mass_missed_bcast * len(wtb_max_missed_bcast))) / (len(wtb_general) - len(wtb_max_missed_bcast))
-                print("\t\t\tMean (Overall WTB - MAX MISS WTB) MILLIS: " + str(MM_adjusted_WTB))
+                print("\t\t\tMean (General WTB - MAX MISS WTB) MILLIS: " + str(MM_adjusted_WTB))
             else:
                 print("\t\t\tNo MAX MISSES")
         else:
