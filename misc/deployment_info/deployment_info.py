@@ -7,6 +7,8 @@ class Parameters:
     PLOT_NODE_SPECIFIC_BCASTS = True
     PLOT_NODE_SPECIFIC_CONNECTIONS = True
     PLOT_NODE_SPECIFIC_MAPS = True
+    PLOT_NODE_PARENT_CYCLE_RSSI = True
+    
     PLOT_RSSI_ANALYSIS = True
     PLOT_LOCS_WEIGHT_SCALAR = 1000 # Smaller for thicker lines
     PLOT_LOCS_WEIGHT_SCALAR_SPECIFIC = 500 # Smaller for thicker lines

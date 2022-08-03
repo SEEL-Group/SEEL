@@ -40,6 +40,7 @@ class Parameters:
     PLOT_NODE_SPECIFIC_BCASTS = False
     PLOT_NODE_SPECIFIC_CONNECTIONS = False
     PLOT_NODE_SPECIFIC_MAPS = False
+    PLOT_NODE_PARENT_CYCLE_RSSI = False
     
     PLOT_RSSI_ANALYSIS = False
     PLOT_LOCS_WEIGHT_SCALAR = 1000 # Smaller for thicker lines
@@ -231,6 +232,7 @@ class Node_Analysis: # Per node
         self.avg_crc_fails = 0
         self.max_queue_sizes = []
         self.avg_max_queue_sizes = 0 # Max queue size avg'd across all received messages
+        self.parent_cycle_rssi = {}
         self.rssi = []
         self.avg_rssi = 0
         self.highest_parent_ratio = 0 # Highest connection parent ratio [0, 1]
@@ -415,6 +417,7 @@ def main():
         total_missed_bcasts = {}
         total_crc_fails = 0
         first_wtb = True
+        first_bcast_num = -1
         prev_bcast_num = -1
         prev_bcast_inst = -1
         total_bcasts_for_node = total_bcasts - bcast_instances[node_id] + 1
@@ -436,11 +439,10 @@ def main():
 
         for msg in node_data_msgs:
             dup = True
-
             # Figure out how many messages we received from the SNODE versus how many we possibly could have received
             if msg.bcast_inst != prev_bcast_inst:
                 if prev_bcast_inst >= 0:
-                    connection_inst_max -= (0 if first_bcast_num < 0 else first_bcast_num) # Check if bcast num didn't start at 0 in this inst
+                    connection_inst_max -= (0 if first_bcast_num < 0 else (first_bcast_num - 1)) # Check if bcast num didn't start at 0 in this inst
                     print("Received messages in bcast instance: " + str(len(connection_inst_set)) + "/" + str(connection_inst_max), str(0 if connection_inst_max == 0 else len(connection_inst_set) / connection_inst_max))        
                     connection_count += len(connection_inst_set)
                     connection_count_max += connection_inst_max
@@ -466,10 +468,11 @@ def main():
                 if not overflow_comp_bcast_num in connection_inst_set: # Dup check
                     #print("DEBUG: add " + str(overflow_comp_bcast_num))
                     connection_inst_set.add(overflow_comp_bcast_num)
+                    #print("DEBUG: connection_inst_max -> " + str(connection_inst_max))
                     if overflow_comp_bcast_num > connection_inst_max:
                         connection_inst_max = overflow_comp_bcast_num
                     if first_bcast_num < 0:
-                        first_bcast_num = max(msg.bcast_num - 1, 0)
+                        first_bcast_num = msg.bcast_num
                     prev_bcast_num = msg.bcast_num
                     plot_snode_bcast_nums.append(msg.bcast_num)
                     plot_snode_bcast_insts.append(msg.bcast_inst)
@@ -484,6 +487,10 @@ def main():
                 #print("Debug: ignore")
 
             if not dup:
+                # Unique bcast number across all bcast instances
+                node_unique_bcast = connection_count_max + overflow_comp_bcast_num - (0 if first_bcast_num < 0 else first_bcast_num)
+                #print("Debug: node unique bcast" + str(node_unique_bcast))
+                
                 if not msg.bcast_inst in bcast_info_overflow:
                     bcast_info_overflow[msg.bcast_inst] = overflow_comp_bcast_num
                 else:
@@ -577,7 +584,7 @@ def main():
             else: # if dup
                 duplicate_msg += 1
         
-        connection_inst_max -= (0 if first_bcast_num < 0 else first_bcast_num) 
+        connection_inst_max -= (0 if first_bcast_num < 0 else (first_bcast_num - 1)) 
         print("Received messages in bcast instance: " + str(len(connection_inst_set)) + "/" + str(connection_inst_max), str(0 if connection_inst_max == 0 else 
         len(connection_inst_set) / connection_inst_max))
         node_analysis[node_id].cycles = connection_count_max + len(connection_inst_set)
@@ -688,7 +695,7 @@ def main():
                         n_s_count += count_inc
                     else:
                         if len(plot_snode_bcast_nums_padded) > 0:
-                            plot_snode_bcast_nums_padded.append(0) # Append last value
+                            plot_snode_bcast_nums_padded.append(0)
                             #print("\tDebug: padding " + str(plot_snode_bcast_nums_padded[-1]))
                         else:
                             plot_snode_bcast_nums_padded.append(0)
@@ -845,6 +852,11 @@ def main():
             for bi in msg.cycle_stats:
                 for bn in msg.cycle_stats[bi]:
                     cs = msg.cycle_stats[bi][bn] # cycles stats
+                
+                    # Plot each parent-child combination's RSSI's over all cycles
+                    #if parameters.PLOT_NODE_PARENT_CYCLE_RSSI:
+            
+                    
                     # Only take Cycle Stats with entire stats filled out
                     if cs.parent_rssi != 0 and cs.data_transmissions != -1 and cs.crc_fails != -1:
                         msg_parent_rssi.append(cs.parent_rssi)
@@ -854,7 +866,7 @@ def main():
                         msg_dropped_cycles += 1
         print("Plot Msg total good data: " + str(len(msg_parent_rssi)))
         print("Plot Msg total bad data: " + str(msg_dropped_cycles)) 
-           
+        
         # *********** NODE PLOTS ***********
            
         # Self PDR vs Weighted (Connections) Parent PDR
