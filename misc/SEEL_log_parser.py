@@ -410,8 +410,8 @@ def main():
         connection_count_last_overflow = 0 # Enforces overflow rates so single late msg cannot cause another overflow
         connection_inst_set = set() # Tracks current bcast number per bcast instance, make set to remove dups
         connection_inst_max = 0 # Tracks current max bcast number per bcast instance
-        connections = [0] * len(node_assignments)
-        connections_rssi = [0] * len(node_assignments)
+        connections = {}
+        connections_rssi = {}
         queue_size_counter = 0
         max_queue_size = 0
         total_missed_bcasts = {}
@@ -487,9 +487,14 @@ def main():
                 #print("Debug: ignore")
 
             if not dup:
+                if not msg.parent_id in node_mapping:
+                    print("Invalid parent ID: " + str(msg.parent_id), flush=True)
+                    exit()
+                
                 # Unique bcast number across all bcast instances
-                node_unique_bcast = connection_count_max + overflow_comp_bcast_num - (0 if first_bcast_num < 0 else first_bcast_num)
-                #print("Debug: node unique bcast" + str(node_unique_bcast))
+                node_unique_cycle_num = connection_count_max + overflow_comp_bcast_num - (0 if first_bcast_num < 0 else first_bcast_num)
+                #print("Debug: node unique bcast" + str(node_unique_cycle_num))
+                parent_original_id = node_mapping[msg.parent_id]
                 
                 if not msg.bcast_inst in bcast_info_overflow:
                     bcast_info_overflow[msg.bcast_inst] = overflow_comp_bcast_num
@@ -532,16 +537,23 @@ def main():
 
                 if msg.parent_rssi != -256: # Impossible value, used to flag RSSI unavailable
                     total_parent_rssi += msg.parent_rssi
-                    
-                if msg.parent_id in node_mapping:
-                    connections[node_assignments.index(node_mapping[msg.parent_id])] += 1
-                    connections_rssi[node_assignments.index(node_mapping[msg.parent_id])] += msg.parent_rssi
-                    # Create a structure that contains all the paths in the network per bcast num separated by bcast inst
-                    if not msg.bcast_inst in message_paths:
-                        message_paths[msg.bcast_inst] = {}
-                    if not overflow_comp_bcast_num in message_paths[msg.bcast_inst]:
-                        message_paths[msg.bcast_inst][overflow_comp_bcast_num] = {}
-                    message_paths[msg.bcast_inst][overflow_comp_bcast_num][msg.node_id] = Parent(node_mapping[msg.parent_id], msg.parent_rssi)
+                    if not parent_original_id in node_analysis[node_id].parent_cycle_rssi:
+                        node_analysis[node_id].parent_cycle_rssi[parent_original_id] = []
+                    bcast_rssi_pair = [node_unique_cycle_num, msg.parent_rssi]
+                    node_analysis[node_id].parent_cycle_rssi[parent_original_id].append(bcast_rssi_pair)
+                
+                if not parent_original_id in connections:
+                    connections[parent_original_id] = []
+                    connections_rssi[parent_original_id] = []
+                connections[parent_original_id].append(node_unique_cycle_num)
+                connections_rssi[parent_original_id].append(msg.parent_rssi)
+                
+                # Create a structure that contains all the paths in the network per bcast num separated by bcast inst
+                if not msg.bcast_inst in message_paths:
+                    message_paths[msg.bcast_inst] = {}
+                if not overflow_comp_bcast_num in message_paths[msg.bcast_inst]:
+                    message_paths[msg.bcast_inst][overflow_comp_bcast_num] = {}
+                message_paths[msg.bcast_inst][overflow_comp_bcast_num][msg.node_id] = Parent(parent_original_id, msg.parent_rssi)
 
                 queue_size_counter += msg.prev_queue_size
                 if msg.prev_queue_size > max_queue_size:
@@ -583,7 +595,6 @@ def main():
                         analysis_reset = False
             else: # if dup
                 duplicate_msg += 1
-        
         connection_inst_max -= (0 if first_bcast_num < 0 else (first_bcast_num - 1)) 
         print("Received messages in bcast instance: " + str(len(connection_inst_set)) + "/" + str(connection_inst_max), str(0 if connection_inst_max == 0 else 
         len(connection_inst_set) / connection_inst_max))
@@ -645,21 +656,22 @@ def main():
             print("\tParent Connections (TDMA): ")
         else:
             print("\tParent Connections: ")
-        node_analysis[node_id].connection_total = sum(connections)
+        node_analysis[node_id].connection_total = sum([len(x) for x in connections.values()])
         node_analysis[node_id].highest_parent_ratio = 0
-        for j in range(len(node_assignments)):
+        for p_key in connections:
+            total_connections = len(connections[p_key])
             if len(parameters.HARDCODED_NODE_TDMA) > 0:
-                print("\t\t" + str(node_assignments[j]) + " (" + str(parameters.HARDCODED_NODE_TDMA[node_assignments[j]]) + ")" + ":\t" + str(connections[j]))
+                print("\t\t" + str(p_key) + " (" + str(parameters.HARDCODED_NODE_TDMA[p_key]) + ")" + ":\t" + str(total_connections))
             else:
-                print("\t\t" + str(node_assignments[j]) + ":\t" + str(connections[j]))
-            if connections[j] > 0:
-                parent_connection_ratio = connections[j] / node_analysis[node_id].connection_total
+                print("\t\t" + str(p_key) + ":\t" + str(total_connections))
+            if total_connections > 0:
+                parent_connection_ratio = total_connections / node_analysis[node_id].connection_total
                 if parent_connection_ratio > node_analysis[node_id].highest_parent_ratio:
                     node_analysis[node_id].highest_parent_ratio  = parent_connection_ratio
-                print("\t\t\tAvg RSSI: " + str(connections_rssi[j] / connections[j]))
+                print("\t\t\tAvg RSSI: " + str(sum(connections_rssi[p_key]) / total_connections))
                 if parameters.PLOT_DISPLAY and len(parameters.HARDCODED_NODE_LOCS) > 0:
-                    G.add_edge(node_id, node_assignments[j], weight=connections[j]/parameters.PLOT_LOCS_WEIGHT_SCALAR)
-                node_analysis[node_id].connections[node_assignments[j]] = connections[j]
+                    G.add_edge(node_id, p_key, weight=total_connections/parameters.PLOT_LOCS_WEIGHT_SCALAR)
+                node_analysis[node_id].connections[p_key] = total_connections
         node_analysis[node_id].avg_rssi = statistics.mean(node_analysis[node_id].rssi)
         print(flush=True)
         
@@ -852,11 +864,6 @@ def main():
             for bi in msg.cycle_stats:
                 for bn in msg.cycle_stats[bi]:
                     cs = msg.cycle_stats[bi][bn] # cycles stats
-                
-                    # Plot each parent-child combination's RSSI's over all cycles
-                    #if parameters.PLOT_NODE_PARENT_CYCLE_RSSI:
-            
-                    
                     # Only take Cycle Stats with entire stats filled out
                     if cs.parent_rssi != 0 and cs.data_transmissions != -1 and cs.crc_fails != -1:
                         msg_parent_rssi.append(cs.parent_rssi)
@@ -867,8 +874,38 @@ def main():
         print("Plot Msg total good data: " + str(len(msg_parent_rssi)))
         print("Plot Msg total bad data: " + str(msg_dropped_cycles)) 
         
+        # *********** SPECIFIC ANALYSIS PLOTS ***********
+        
+        if parameters.PLOT_RSSI_ANALYSIS:
+            print("RSSI Analysis # data points: " + str(len(analysis_rssi)))
+            plt.scatter(analysis_rssi, analysis_transmissions, alpha=0.1);
+            plt.title("Transmissions vs RSSI")
+            plt.xlabel("RSSI")
+            plt.ylabel("Transmissions")
+            plt.show()
+            
+        # Plot each parent-child combination's RSSI's over all cycles
+        if parameters.PLOT_NODE_PARENT_CYCLE_RSSI:
+            for n_key in node_analysis:
+                node = node_analysis[n_key]
+                for p_key in node.parent_cycle_rssi:
+                    # print(node.parent_cycle_rssi[p_key], flush=True)
+                    unique_cycle_num = []
+                    connection_RSSI = []
+                    for cycle in node.parent_cycle_rssi[p_key]:
+                        unique_cycle_num.append(cycle[0])
+                        connection_RSSI.append(cycle[1])
+                    plt.scatter(unique_cycle_num, connection_RSSI);
+                    plt.title("Node " + str(n_key) + " to Parent " + str(p_key) + " RSSI")
+                    plt.xlabel("Cycle")
+                    plt.ylabel("RSSI")
+                    plt.xlim([0, len(bcast_times)])
+                    plt.ylim([min(-120, min(connection_RSSI)), max(-50, max(connection_RSSI))])
+                    plt.show()
+                    
+        
         # *********** NODE PLOTS ***********
-           
+        
         # Self PDR vs Weighted (Connections) Parent PDR
         x_ax = node_weighted_parent_PDR
         y_ax = node_self_PDR
@@ -1062,6 +1099,8 @@ def main():
                 axis[1].set_ylabel("Num Children")
                 plt.show()
     
+        # *********** TOPOLOGY PLOTS ***********
+    
         # Plot network with parent-child connections
         if len(parameters.HARDCODED_NODE_LOCS) > 0:
             # nodes
@@ -1111,15 +1150,7 @@ def main():
                     plt.title("Node " + str(n_key) + " Map")
                     plt.xlabel("GPS X")
                     plt.ylabel("GPS Y")
-                    plt.show()
-
-        if parameters.PLOT_RSSI_ANALYSIS:
-            print("RSSI Analysis # data points: " + str(len(analysis_rssi)))
-            plt.scatter(analysis_rssi, analysis_transmissions, alpha=0.1);
-            plt.title("Transmissions vs RSSI")
-            plt.xlabel("RSSI")
-            plt.ylabel("Transmissions")
-            plt.show()
+                    plt.show()       
 
 if __name__ == "__main__":
     main()
