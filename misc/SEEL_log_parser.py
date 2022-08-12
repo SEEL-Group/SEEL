@@ -237,6 +237,8 @@ class Node_Analysis: # Per node
         self.avg_rssi = 0
         self.highest_parent_ratio = 0 # Highest connection parent ratio [0, 1]
         self.avg_wtb = 0
+        self.missed_bcasts = []
+        self.avg_missed_bcasts = 0
 
 class Msg_Analysis: # Per node
     def __init__(self):
@@ -568,6 +570,7 @@ def main():
                 node_analysis[node_id].crc_fails.append(msg.prev_crc_fails)
                 node_analysis[node_id].max_queue_sizes.append(msg.prev_queue_size)
                 node_analysis[node_id].rssi.append(msg.parent_rssi)
+                node_analysis[node_id].missed_bcasts.append(msg.prev_missed_bcasts)
         
                 if not msg.bcast_inst in msg_analysis[node_id].cycle_stats:
                     msg_analysis[node_id].cycle_stats[msg.bcast_inst] = {}
@@ -673,6 +676,7 @@ def main():
                     G.add_edge(node_id, p_key, weight=total_connections/parameters.PLOT_LOCS_WEIGHT_SCALAR)
                 node_analysis[node_id].connections[p_key] = total_connections
         node_analysis[node_id].avg_rssi = statistics.mean(node_analysis[node_id].rssi)
+        node_analysis[node_id].avg_missed_bcasts = statistics.mean(node_analysis[node_id].missed_bcasts)
         print(flush=True)
         
         # Node specific plots
@@ -832,6 +836,7 @@ def main():
         node_avg_rssi = []
         node_highest_parent_ratio = []
         node_avg_WTB = []
+        node_avg_missed_bcasts = []
         for n_key in node_analysis:
             node = node_analysis[n_key]
             if n_key in parameters.HARDCODED_PLOT_EXCLUDE:
@@ -846,6 +851,7 @@ def main():
             node_highest_parent_ratio.append(node.highest_parent_ratio)
             node_avg_rssi.append(node.avg_rssi)
             node_avg_WTB.append(node.avg_wtb)
+            node_avg_missed_bcasts.append(node.avg_missed_bcasts)
             total_parents = len(node.connections)
             total_parent_PDR = 0
             total_parent_connections = 0
@@ -987,12 +993,32 @@ def main():
             plt.annotate(node_id, (x_ax[i], y_ax[i]))
         plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
     
-        # Avg RSSI vs Avg Data Transmissions
+        # Avg Data Transmissions vs Avg RSSI
         x_ax = node_avg_rssi
         y_ax = node_avg_data_transmissions
         title = "NODE: Avg Data Transmissionsvs vs Avg RSSI"
         x_label = "Avg RSSI"
         y_label = "Avg Data Transmissions"
+        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
+            plt.annotate(node_id, (x_ax[i], y_ax[i]))
+        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+    
+        # Avg Missed Bcasts vs Avg RSSI
+        x_ax = node_avg_rssi
+        y_ax = node_avg_missed_bcasts
+        title = "NODE: Avg Missed Bcasts vs Avg RSSI"
+        x_label = "Avg RSSI"
+        y_label = "Avg Missed Bcasts"
+        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
+            plt.annotate(node_id, (x_ax[i], y_ax[i]))
+        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+        
+        # Avg PDR vs Avg Missed Bcasts
+        x_ax = node_avg_missed_bcasts
+        y_ax = node_self_PDR
+        title = "NODE: Avg PDR vs Avg Missed Bcasts"
+        x_label = "Avg Missed Bcasts"
+        y_label = "Avg PDR"
         for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
             plt.annotate(node_id, (x_ax[i], y_ax[i]))
         plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
