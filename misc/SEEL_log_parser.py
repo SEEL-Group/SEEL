@@ -1073,6 +1073,16 @@ def main():
             plt.annotate(node_id, (x_ax[i], y_ax[i]))
         plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
 
+        # Avg Data Trans vs Avg HC
+        x_ax = node_avg_HC
+        y_ax = node_avg_data_transmissions
+        title = "Avg Data Trans vs Avg HC"
+        x_label = "Avg HC"
+        y_label = "Avg Data Transmissions"
+        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
+            plt.annotate(node_id, (x_ax[i], y_ax[i]))
+        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+
         # *********** MSG PLOTS ***********
 
         x_ax = msg_parent_rssi
