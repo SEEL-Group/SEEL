@@ -69,6 +69,7 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
     _inst->_msg_send_delay = 0;
     _inst->_unack_msgs = 0;
     _inst->_data_msgs_sent = 0;
+    _inst->_any_msgs_sent = 0;
     _inst->_CRC_fails = 0;
     _inst->_bcast_received = false;
     _inst->_parent_sync = false;
@@ -456,6 +457,7 @@ void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
 {
     // Store any info messages
     _inst->_cb_info.prev_data_transmissions = _inst->_data_msgs_sent;
+    _inst->_cb_info.prev_transmissions = _inst->_any_msgs_sent;
     _inst->_cb_info.prev_CRC_fails = _inst->_CRC_fails;
     _inst->_cb_info.prev_max_data_queue_size = _inst->_max_data_queue_size;
     if (!SEEL_Assert::_assert_queue.empty()) {
