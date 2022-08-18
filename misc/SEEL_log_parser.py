@@ -157,6 +157,7 @@ if len(sys.argv) > 2:
 
 bcast_times = []
 bcast_info = []
+bcast_inst_count = {} # Tracks number of previous bcasts at the start of a new bcast instance
 bcast_info_overflow = {}
 bcast_instances = {} # per node, since nodes may join at different times
 
@@ -237,7 +238,7 @@ class Node_Analysis: # Per node
         self.avg_rssi = 0
         self.highest_parent_ratio = 0 # Highest connection parent ratio [0, 1]
         self.avg_wtb = 0
-        self.missed_bcasts = []
+        self.missed_bcasts = [] # Format [Unique cycle, num_missed_bcasts]
         self.avg_missed_bcasts = 0
 
 class Msg_Analysis: # Per node
@@ -319,6 +320,8 @@ def main():
     # Parse Logs
     current_line = 0
     bcast_instance = -1
+    bcast_count = 0
+    bcast_inst_count[0] = 0
     while current_line < df_length:
         line = df_read[current_line].split()
         if len(line) == 0:
@@ -345,8 +348,11 @@ def main():
             slp_time += line[parameters.INDEX_BD_SNODE_SLEEP_TIME_3]
             if line[parameters.INDEX_BD_FIRST] > 0:
                 bcast_instance += 1
+                bcast_inst_count[bcast_instance] = bcast_count
+            bcast_count += 1            
             bcast_info.append(Bcast_Info(line[parameters.INDEX_BD_BCAST_COUNT], bcast_instance, sys_time, awk_time, slp_time))
-
+            
+            
             for i in range(math.floor((len(line) - parameters.INDEX_BD_SNODE_JOIN_ID) / 2)):
                 repeat_index = i * 2
                 join_id = line[parameters.INDEX_BD_SNODE_JOIN_ID + repeat_index]
@@ -494,7 +500,7 @@ def main():
                     exit()
                 
                 # Unique bcast number across all bcast instances
-                node_unique_cycle_num = connection_count_max + overflow_comp_bcast_num - (0 if first_bcast_num < 0 else first_bcast_num)
+                node_unique_cycle_num = bcast_inst_count[msg.bcast_inst] + overflow_comp_bcast_num - (0 if first_bcast_num < 0 else first_bcast_num)
                 #print("Debug: node unique bcast" + str(node_unique_cycle_num))
                 parent_original_id = node_mapping[msg.parent_id]
                 
@@ -570,7 +576,7 @@ def main():
                 node_analysis[node_id].crc_fails.append(msg.prev_crc_fails)
                 node_analysis[node_id].max_queue_sizes.append(msg.prev_queue_size)
                 node_analysis[node_id].rssi.append(msg.parent_rssi)
-                node_analysis[node_id].missed_bcasts.append(msg.prev_missed_bcasts)
+                node_analysis[node_id].missed_bcasts.append([node_unique_cycle_num, msg.prev_missed_bcasts])
         
                 if not msg.bcast_inst in msg_analysis[node_id].cycle_stats:
                     msg_analysis[node_id].cycle_stats[msg.bcast_inst] = {}
@@ -601,6 +607,7 @@ def main():
         connection_inst_max -= (0 if first_bcast_num < 0 else (first_bcast_num - 1)) 
         print("Received messages in bcast instance: " + str(len(connection_inst_set)) + "/" + str(connection_inst_max), str(0 if connection_inst_max == 0 else 
         len(connection_inst_set) / connection_inst_max))
+        # Node lifetime is the current connection instances plus the previous max instances
         node_analysis[node_id].cycles = connection_count_max + len(connection_inst_set)
         print("Estimated node lifetime (cycles): " + str(node_analysis[node_id].cycles))
         connection_count += len(connection_inst_set)
@@ -610,11 +617,11 @@ def main():
         print("\tJoined Network on Bcast: " + str(bcast_instances[node_id]))
         print("\tTotal Received Messages: " + str(num_node_msgs))
         print("\tDuplicate Messages: " + str(duplicate_msg))
-        print("\tPDR")
+        print("\tPDR Calculations")
         print("\t\tDropped Packets: " + str(connection_count_max - connection_count))
-        print("\t\tReceived (Total) Percentage: " + str(connection_count / total_bcasts_for_node)) # Total number of GNODE Bcasts received
-        node_analysis[node_id].PDR = (0 if connection_count_max == 0 else connection_count / connection_count_max) # Total given times connected (until disconnect or death). This metric is a better representation of PDR
-        print("\t\tReceived (Possible) Percentage: " + str(node_analysis[node_id].PDR))
+        print("\t\tPercentage over GNODE lifetime: " + str(connection_count / total_bcasts_for_node)) # Total number of GNODE Bcasts received
+        node_analysis[node_id].PDR = (0 if connection_count_max == 0 else connection_count / connection_count_max) # Total given times connected and generated a msg (until disconnect or death). This metric is a better representation of PDR.
+        print("\t\tPDR: " + str(node_analysis[node_id].PDR))
         print("\tWTB")
         if len(wtb_general) > 0:
             node_analysis[node_id].avg_wtb = statistics.mean(wtb_general)
@@ -676,7 +683,7 @@ def main():
                     G.add_edge(node_id, p_key, weight=total_connections/parameters.PLOT_LOCS_WEIGHT_SCALAR)
                 node_analysis[node_id].connections[p_key] = total_connections
         node_analysis[node_id].avg_rssi = statistics.mean(node_analysis[node_id].rssi)
-        node_analysis[node_id].avg_missed_bcasts = statistics.mean(node_analysis[node_id].missed_bcasts)
+        node_analysis[node_id].avg_missed_bcasts = statistics.mean([x[1] for x in node_analysis[node_id].missed_bcasts])
         print(flush=True)
         
         # Node specific plots
@@ -716,20 +723,31 @@ def main():
                         else:
                             plot_snode_bcast_nums_padded.append(0)
                             #print("\tDebug: padding " + str(0))
-                            
-            figure, axis = plt.subplots(2, sharex=True)
-            plt.title("Bcast Num vs Cycle")
-            # GNODE
-            axis[0].plot([bi.bcast_num for bi in bcast_info])
-            axis[0].set_title("GNODE")
-            axis[0].set_ylabel("Bcast Num")
-            # SNODE
-            axis[1].plot(plot_snode_bcast_nums_padded)
-            axis[1].set_title("SNODE " + str(node_id))
-            axis[1].set_xlabel("Cycle Num")
-            axis[1].set_ylabel("Bcast Num")
-            plt.show()
-            """ Bcasts Received End """
+                    
+                mb_x = [] # Bcast num
+                mb_y = [] # 0
+                for mb in node_analysis[node_id].missed_bcasts:
+                    mb_bcast = mb[0]
+                    mb_count = mb[1]
+                    for c in range(mb_count):
+                        mb_x.append(mb_bcast - c - 1)
+                        mb_y.append(0)
+                print(mb_x)
+                     
+                figure, axis = plt.subplots(2, sharex=True)
+                plt.title("Bcast Num vs Cycle")
+                # GNODE
+                axis[0].plot([bi.bcast_num for bi in bcast_info])
+                axis[0].set_title("GNODE")
+                axis[0].set_ylabel("Bcast Num")
+                # SNODE
+                axis[1].plot(plot_snode_bcast_nums_padded)
+                axis[1].scatter(mb_x, mb_y, color="Red")
+                axis[1].set_title("SNODE " + str(node_id))
+                axis[1].set_xlabel("Cycle Num (Red dots are missed bcasts)")
+                axis[1].set_ylabel("Bcast Num")
+                plt.show()
+                """ Bcasts Received End """
 
     # Data preparation
     # Build path structurea
