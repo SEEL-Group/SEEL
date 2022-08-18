@@ -36,6 +36,7 @@ public:
     {
         uint32_t wtb_millis; // Time between waking up and this NODE receiving the broadcast message
         uint8_t prev_data_transmissions; // Number of data/id_check/fwd tranmissions in the PREVIOUS cycle
+        uint8_t prev_transmissions;
         uint8_t prev_CRC_fails;
         uint8_t hop_count;
         uint8_t missed_bcasts;
@@ -133,6 +134,7 @@ protected:
     uint8_t _tdma_slot; // TDMA
     uint8_t _seq_num; // Note: Will overflow after 255, but overflow does not affect functionality since seq_num serves to differentiate msgs
     uint8_t _data_msgs_sent; // includes ID_CHECK and FWD msgs, tracks how many data msgs we sent
+    uint8_t _any_msgs_sent;
     uint8_t _CRC_fails;
     uint8_t _max_data_queue_size;
     uint8_t _flags;

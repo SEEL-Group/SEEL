@@ -178,6 +178,7 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
             print_msg += F(" ");
         }
         rssi = _LoRaPHY_ptr->packetRssi();
+        float snr = _LoRaPHY_ptr->packetSnr();
 
         // Converts raw msg buffer to SEEL_Message
         buf_to_SEEL_msg(msg, buf);
@@ -196,6 +197,8 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
         }
 
         method_time = millis() - receive_time;
+        print_msg += F("SNR: ");
+        print_msg += snr;
         print_msg += F("RSSI: ");
         print_msg += rssi;
         print_msg += F(", Rec. Time: ");
@@ -312,6 +315,7 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
         {
             _inst->_bcast_avail = false;
             _inst->_bcast_sent = true;
+            ++(_inst->_any_msgs_sent);
         }
     }
     else if (!_inst->_ack_queue.empty())
@@ -325,7 +329,9 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
         }
         _inst->create_msg(to_send_ptr, SEEL_GNODE_ID, SEEL_CMD_ACK);
 
-        _inst->try_send(to_send_ptr, true);
+        if (_inst->try_send(to_send_ptr, true)) {
+            ++(_inst->_any_msgs_sent);
+        }
     }
     else if (!_inst->_data_queue_ptr->empty())// DATA or ID_CHECK or FORWARDED message
     {
@@ -359,6 +365,7 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
         {
             ++(_inst->_unack_msgs);
             ++(_inst->_data_msgs_sent);
+            ++(_inst->_any_msgs_sent);
         }
         // Do not pop msg from queue until msg is ack'd
     }
