@@ -199,7 +199,7 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
         method_time = millis() - receive_time;
         print_msg += F("SNR: ");
         print_msg += snr;
-        print_msg += F("RSSI: ");
+        print_msg += F(" RSSI: ");
         print_msg += rssi;
         print_msg += F(", Rec. Time: ");
         print_msg += method_time;

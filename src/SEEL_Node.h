@@ -41,6 +41,7 @@ public:
         uint8_t hop_count;
         uint8_t missed_bcasts;
         uint8_t prev_max_data_queue_size; // prev cycle max data queue size during a cycle 
+        uint8_t prev_queue_dropped_msgs;
         uint8_t bcast_count;
         int8_t parent_rssi; // RSSI value of the bcast msg received from the parent, initialized to 0
         bool first_callback; // Whether this callback call is the first one this cycle (allows for initialization)
@@ -137,11 +138,13 @@ protected:
     uint8_t _any_msgs_sent;
     uint8_t _CRC_fails;
     uint8_t _max_data_queue_size;
+    uint8_t _queue_dropped_msgs;
     uint8_t _flags;
     int8_t _path_rssi; // changes based on parent selection mode
     bool _id_verified;
     bool _bcast_avail; // bcast msg is ready to be sent out
     bool _bcast_sent; // bcast msg has been sent out this cycle
+
     
 
 private:

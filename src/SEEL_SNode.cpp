@@ -77,6 +77,7 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
     _inst->_bcast_avail = false;
     _inst->_bcast_sent = false; // Set to true in SEEL_Node.cpp when bcast msg sent out
     
+    _inst->_cb_info.prev_queue_dropped_msgs = 0;
     _inst->_max_data_queue_size = 0;
     _inst->clear_flags();
     _inst->_cb_info.hop_count = UINT8_MAX;
@@ -460,6 +461,7 @@ void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
     _inst->_cb_info.prev_transmissions = _inst->_any_msgs_sent;
     _inst->_cb_info.prev_CRC_fails = _inst->_CRC_fails;
     _inst->_cb_info.prev_max_data_queue_size = _inst->_max_data_queue_size;
+    _inst->_cb_info.prev_queue_dropped_msgs = _inst->_queue_dropped_msgs;
     if (!SEEL_Assert::_assert_queue.empty()) {
         _inst->set_flag(SEEL_Flags::FLAG_ASSERT_FIRED);
     }
@@ -603,6 +605,7 @@ bool SEEL_SNode::enqueue_forwarding_msg(SEEL_Message* prev_msg)
     }
     else {
         SEEL_Print::println(F("Forwarding message not added"));
+        _queue_dropped_msgs += 1;
         SEEL_Node::set_flag(SEEL_Flags::FLAG_ADD_MAX_DATA_QUEUE);
     }
     return added;
@@ -634,6 +637,7 @@ bool SEEL_SNode::enqueue_node_id()
     }
     else {
         SEEL_Print::println(F("ID message not added"));
+        _queue_dropped_msgs += 1;
         SEEL_Node::set_flag(SEEL_Flags::FLAG_ADD_MAX_DATA_QUEUE);
     }
 
@@ -676,6 +680,7 @@ bool SEEL_SNode::enqueue_data()
             }
             else {
                 SEEL_Print::println(F("Data message not added"));
+                _queue_dropped_msgs += 1;
                 SEEL_Node::set_flag(SEEL_Flags::FLAG_ADD_MAX_DATA_QUEUE);
             }
             
