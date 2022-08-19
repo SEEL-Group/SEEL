@@ -63,7 +63,7 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
   }
 
   // Pseudo check for if we're using the right message size to prevent out of bounds access
-  if (SEEL_MSG_MISC_SIZE >= 16)
+  if (SEEL_MSG_DATA_SIZE >= 20)
   {
     msg_data[0] = SEEL_SNODE_ID; // original ID
     msg_data[1] = seel_snode.get_node_id(); // assigned ID
@@ -83,9 +83,11 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
     msg_data[15] = !SEEL_Assert::_assert_queue.empty();
     msg_data[16] = info->prev_transmissions;
     msg_data[17] = info->prev_queue_dropped_msgs;
+    msg_data[18] = info->hop_count; // tracks downstream node hop count
+    msg_data[19] = 1; // tracks upstream msg hop count, initialized to 1 and incremented with every forward
 
     // Fill rest with zeros
-    for (uint32_t i = 17; i < SEEL_MSG_DATA_SIZE; ++i)
+    for (uint32_t i = 20; i < SEEL_MSG_DATA_SIZE; ++i)
     {
       msg_data[i] = 0;
     }
@@ -119,12 +121,15 @@ void user_callback_presend(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node
 // Write Parameter: "msg_data", which is the data packet to forward
 // Read-Only Parameter: "info" contains misc SEEL info, defined in SEEL_Node.h
 // Return: Whether message should be forwarded
-/*
 bool user_callback_forwarding(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::SEEL_CB_Info* info)
 {
+  if (SEEL_MSG_DATA_SIZE >= 20)
+  {
+    msg_data[19] += 1; // tracks upstream msg hop count, initialized to 1 and incremented with every forward
+  }
+    
   return true;
 }
-*/
 
 void setup()
 {
@@ -144,7 +149,7 @@ void setup()
 
   // Initialize sensor node and link response function
   seel_snode.init(&seel_sched, // Scheduler reference
-                  user_callback_load, user_callback_presend, NULL, //user_callback_forwarding, /* User callback functions
+                  user_callback_load, user_callback_presend, user_callback_forwarding, // User callback functions
                   SEEL_LoRaPHY_CS_PIN, SEEL_LoRaPHY_RESET_PIN, SEEL_LoRaPHY_INT_PIN, // Pins
                   SEEL_SNODE_ID, SEEL_TDMA_SLOT_ASSIGNMENT); // ID and TDMA slot assignments
 
