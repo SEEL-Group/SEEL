@@ -80,7 +80,7 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
     msg_data[12] = info->missed_bcasts;
     msg_data[13] = info->prev_max_data_queue_size;
     msg_data[14] = info->prev_CRC_fails;
-    msg_data[15] = !info->prev_flags;
+    msg_data[15] = info->prev_flags;
     msg_data[16] = info->prev_transmissions;
     msg_data[17] = info->prev_queue_dropped_msgs;
     msg_data[18] = info->hop_count; // tracks downstream node hop count
