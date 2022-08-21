@@ -648,7 +648,13 @@ def main():
         print("\t\tDropped Packets: " + str(connection_count_max - connection_count))
         print("\t\tPercentage over GNODE lifetime: " + str(connection_count / total_bcasts_for_node)) # Total number of GNODE Bcasts received
         node_analysis[node_id].PDR = (0 if connection_count_max == 0 else connection_count / connection_count_max) # Total given times connected and generated a msg (until disconnect or death). This metric is a better representation of PDR.
+        connection_count_adjustment = 0
+        for mb_key in total_missed_bcasts:
+            connection_count_adjustment += mb_key * total_missed_bcasts[mb_key] # Warning: This will ignore bcasts in packets with more than the max missed bcast count
+        pdr_mb_adjustment = (0 if connection_count_max == 0 else connection_count / (connection_count_max - connection_count_adjustment)) # Adjusts missed bcasts, where a packet was NOT created so it should not affect PDR
         print("\t\tPDR: " + str(node_analysis[node_id].PDR))
+        print("\t\tPDR (Missed Bcast Adjustment): " + str(pdr_mb_adjustment))
+        node_analysis[node_id].PDR = pdr_mb_adjustment
         print("\tWTB")
         if len(wtb_general) > 0:
             node_analysis[node_id].avg_wtb = statistics.mean(wtb_general)
@@ -1011,8 +1017,8 @@ def main():
         # Naming here is difficult; since queue sizes are reported as the max during a cycle, we take the avg of max queue sizes across received msgs
         x_ax = node_avg_max_queue_sizes
         y_ax = node_self_PDR
-        title = "NODE: PDR vs Avg Max Queue Size"
-        x_label = "Avg Max Queue Size"
+        title = "NODE: PDR vs Avg Queue Size"
+        x_label = "Avg Queue Size"
         y_label = "PDR"
         for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
             plt.annotate(node_id, (x_ax[i], y_ax[i]))
