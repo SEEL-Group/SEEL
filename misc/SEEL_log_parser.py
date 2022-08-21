@@ -122,11 +122,15 @@ class Parameters:
     INDEX_DATA_MAX_QUEUE_SIZE = 13
     INDEX_DATA_CRC_FAILS = 14
     INDEX_DATA_FLAGS = 15
+    INDEX_DATA_ANY_TRANSMISSIONS = 16
+    INDEX_DATA_DROPPED_MSGS = 17
+    INDEX_DATA_HC_DOWNSTREAM = 18
+    INDEX_DATA_HC_UPSTREAM = 19
 
     ############################################################################
     # SEEL Parameters    
-    SEEL_CYCLE_AWAKE_TIME_MILLIS = 180000
-    SEEL_CYCLE_SLEEP_TIME_MILLIS = 3420000
+    SEEL_CYCLE_AWAKE_TIME_MILLIS = 6000
+    SEEL_CYCLE_SLEEP_TIME_MILLIS = 6000
     
     SEEL_FORCE_SLEEP_AWAKE_MULT = 1.0
     SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE = 1.5
@@ -193,7 +197,7 @@ class Bcast_Info:
         return "Bcast num: " + str(self.bcast_num) + " Inst: " + str(self.bcast_inst) + " System time: " + str(self.sys_time) + " Awake time: " + str(self.awk_time) + " Sleep time: " + str(self.slp_time)
     
 class Data_Info:
-    def __init__(self, bcast_num, bcast_inst, wtb, prev_data_trans, node_id, parent_id, parent_rssi, send_count, prev_queue_size, prev_missed_bcasts, prev_crc_fails, prev_flags):
+    def __init__(self, bcast_num, bcast_inst, wtb, prev_data_trans, node_id, parent_id, parent_rssi, send_count, prev_queue_size, prev_missed_bcasts, prev_crc_fails, prev_flags, prev_any_trans, prev_dropped_msgs, hc_downstream, hc_upstream):
         self.bcast_num = bcast_num
         self.bcast_inst = bcast_inst
         self.wtb = wtb
@@ -206,12 +210,18 @@ class Data_Info:
         self.prev_missed_bcasts = prev_missed_bcasts
         self.prev_crc_fails = prev_crc_fails # Received CRC fails, not sent
         self.prev_flags = prev_flags
+        self.prev_any_trans = prev_any_trans
+        self.prev_dropped_msgs = prev_dropped_msgs
+        self.hc_downstream = hc_downstream
+        self.hc_upstream = hc_upstream
 
     def __str__(self):
         return "Bcast num: " + str(self.bcast_num) + "\tBcast inst: " + str(self.bcast_inst) + "\tNode ID: " + str(self.node_id) + \
-        "\tParent ID: " + str(self.parent_id) + "\tSend Count: " + str(self.send_count) + "\tParent RSSI: " + str(self.parent_rssi) + \
-        "\tPrev Transmissions: " + str(self.prev_data_trans) + "\tWTB: " + str(self.wtb) + "\tPrev Max Q Size: " + str(self.prev_queue_size) + \
-        "\tMissed Bcasts: " + str(self.prev_missed_bcasts) + "\tPrev CRC Fails: " + str(self.prev_crc_fails) + "\tPrev Flags: " + str( "{:08b}".format(self.prev_flags))
+        "\tParent ID: " + str(self.parent_id) + "\tParent RSSI: " + str(self.parent_rssi) + "\tSend Count: " + str(self.send_count) + \
+        "\tDownstream HC: " + str(self.hc_downstream) + "\tUpstream HC: " + str(self.hc_upstream) + "\tWTB: " + str(self.wtb) + \
+        "\tPrev Data Trans: " + str(self.prev_data_trans) + "\tPrev Any Trans: " + str(self.prev_any_trans) + "\tPrev Dropped Msgs: " + \
+        str(self.prev_dropped_msgs) + "\tPrev Max Q Size: " + str(self.prev_queue_size) + "\tMissed Bcasts: " + str(self.prev_missed_bcasts) + \
+        "\tPrev CRC Fails: " + str(self.prev_crc_fails) + "\tPrev Flags: " + str( "{:08b}".format(self.prev_flags))
 
 class Node_Analysis: # Per node
     def __init__(self):
@@ -240,6 +250,11 @@ class Node_Analysis: # Per node
         self.avg_wtb = 0
         self.missed_bcasts = [] # Format [Unique cycle, num_missed_bcasts]
         self.avg_missed_bcasts = 0
+        self.flags = {}
+        self.any_transmissions = []
+        self.dropped_msgs = []
+        self.hc_downstream = []
+        self.hc_upstream = []
 
 class Msg_Analysis: # Per node
     def __init__(self):
@@ -276,12 +291,16 @@ def search_paths(b_ind, b_num, node_analysis, paths, search_stack, hcount):
 def plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, regression=True, a=1):
         plt.scatter(x_ax, y_ax, alpha=a)
         if regression:
-            lin_reg_model = np.polyfit(x_ax, y_ax, deg=1)
-            xseq = np.linspace(min(x_ax), max(x_ax), num=100)
-            plt.plot(xseq, lin_reg_model[1] + lin_reg_model[0] * xseq)
-            model_predict = np.poly1d(lin_reg_model)
-            r2 = r2_score(y_ax, model_predict(x_ax))
-            plt.title(title + ", R^2=" + str(r2))
+            try:
+                lin_reg_model = np.polyfit(x_ax, y_ax, deg=1)
+                xseq = np.linspace(min(x_ax), max(x_ax), num=100)
+                plt.plot(xseq, lin_reg_model[1] + lin_reg_model[0] * xseq)
+                model_predict = np.poly1d(lin_reg_model)
+                r2 = r2_score(y_ax, model_predict(x_ax))
+                plt.title(title + ", R^2=" + str(r2))
+            except:
+                print("Linear Regression failed")
+                plt.title(title)
         else:
             plt.title(title)
         plt.xlabel(x_label)
@@ -371,7 +390,7 @@ def main():
             send_count += line[parameters.INDEX_DATA_SEND_COUNT_1]
             if line[parameters.INDEX_DATA_ASSIGNED_ID] in node_mapping:
                 original_node_id = node_mapping[line[parameters.INDEX_DATA_ASSIGNED_ID]]
-                data_info[node_assignments.index(original_node_id)].append(Data_Info(line[parameters.INDEX_DATA_BCAST_COUNT], bcast_instance, wtb, line[parameters.INDEX_DATA_PREV_DATA_TRANS], original_node_id, line[parameters.INDEX_DATA_PARENT_ID], line[parameters.INDEX_DATA_PARENT_RSSI] - 256, send_count, line[parameters.INDEX_DATA_MAX_QUEUE_SIZE], line[parameters.INDEX_DATA_MISSED_BCASTS], line[parameters.INDEX_DATA_CRC_FAILS], line[parameters.INDEX_DATA_FLAGS]))
+                data_info[node_assignments.index(original_node_id)].append(Data_Info(line[parameters.INDEX_DATA_BCAST_COUNT], bcast_instance, wtb, line[parameters.INDEX_DATA_PREV_DATA_TRANS], original_node_id, line[parameters.INDEX_DATA_PARENT_ID], line[parameters.INDEX_DATA_PARENT_RSSI] - 256, send_count, line[parameters.INDEX_DATA_MAX_QUEUE_SIZE], line[parameters.INDEX_DATA_MISSED_BCASTS], line[parameters.INDEX_DATA_CRC_FAILS], line[parameters.INDEX_DATA_FLAGS], line[parameters.INDEX_DATA_ANY_TRANSMISSIONS], line[parameters.INDEX_DATA_DROPPED_MSGS], line[parameters.INDEX_DATA_HC_DOWNSTREAM], line[parameters.INDEX_DATA_HC_UPSTREAM]))
         current_line += 1
 
     # Analysis vars
@@ -462,7 +481,7 @@ def main():
                 prev_bcast_num = -1
                 first_bcast_num = -1
 
-            if (len(connection_inst_set) > parameters.PARAM_COUNT_WRAP_SAFETY or msg.bcast_num < (parameters.PARAM_COUNT_WRAP_SAFETY if len(connection_inst_set) == 0 else max(            connection_inst_set)+ parameters.PARAM_COUNT_WRAP_SAFETY)): # Not from previous bcast inst
+            if (len(connection_inst_set) > parameters.PARAM_COUNT_WRAP_SAFETY or msg.bcast_num < (parameters.PARAM_COUNT_WRAP_SAFETY if len(connection_inst_set) == 0 else max(connection_inst_set)+ parameters.PARAM_COUNT_WRAP_SAFETY)): # Not from previous bcast inst
                 if msg.bcast_num < prev_bcast_num and prev_bcast_num > 192 and msg.bcast_num < 64 and len(connection_inst_set) > (connection_count_last_overflow + parameters.PARAM_COUNT_WRAP_SAFETY): # Assume bcast num overflowed, values used are 3/4 of 256 and 1/4 of 256
                     #print("Debug: overflow")
                     connection_count_overflow += 256
@@ -577,6 +596,14 @@ def main():
                 node_analysis[node_id].max_queue_sizes.append(msg.prev_queue_size)
                 node_analysis[node_id].rssi.append(msg.parent_rssi)
                 node_analysis[node_id].missed_bcasts.append([node_unique_cycle_num, msg.prev_missed_bcasts])
+                node_analysis[node_id].any_transmissions.append(msg.prev_any_trans)
+                node_analysis[node_id].dropped_msgs.append(msg.prev_dropped_msgs)
+                node_analysis[node_id].hc_downstream.append(msg.hc_downstream)
+                node_analysis[node_id].hc_upstream.append(msg.hc_upstream)
+        
+                if not msg.prev_flags in node_analysis[node_id].flags:
+                    node_analysis[node_id].flags[msg.prev_flags] = 0
+                node_analysis[node_id].flags[msg.prev_flags] += 1
         
                 if not msg.bcast_inst in msg_analysis[node_id].cycle_stats:
                     msg_analysis[node_id].cycle_stats[msg.bcast_inst] = {}
@@ -591,16 +618,16 @@ def main():
 
                 if parameters.PLOT_RSSI_ANALYSIS:
                     # Compare against queue size 0 because otherwise we don't know how many msgs we got this cycle
-                    if analysis_reset or msg.prev_data_trans == 0 or msg.max_queue_size != 0 or msg.parent_id != 0 or msg.bcast_num != (analysis_prev_data[0] + 1):
-                        analysis_prev_data = [msg.bcast_num, msg.parent_rssi, msg.max_queue_size]
+                    if analysis_reset or msg.prev_data_trans == 0 or msg.prev_queue_size != 0 or msg.parent_id != 0 or msg.bcast_num != (analysis_prev_data[0] + 1):
+                        analysis_prev_data = [msg.bcast_num, msg.parent_rssi, msg.prev_queue_size]
                         analysis_reset = False
                     else:
-                        tpm = msg.prev_data_trans / (analysis_prev_data[2] - msg.max_queue_size + 1); # Average transmissions per msg
+                        tpm = msg.prev_data_trans / (analysis_prev_data[2] - msg.prev_queue_size + 1); # Average transmissions per msg
 
                         analysis_rssi.append(analysis_prev_data[1]);
                         analysis_transmissions.append(tpm);
 
-                        analysis_prev_data = [msg.bcast_num, msg.parent_rssi, msg.max_queue_size]
+                        analysis_prev_data = [msg.bcast_num, msg.parent_rssi, msg.prev_queue_size]
                         analysis_reset = False
             else: # if dup
                 duplicate_msg += 1
@@ -651,17 +678,19 @@ def main():
                 print("\t\t\tNo MAX MISSES")
         else:
             print("\t\tNo WTB info available")
+        print("\tAvg Downstream HC: " + str(statistics.mean(node_analysis[node_id].hc_downstream)))
+        print("\tAvg Upstream HC: " + str(statistics.mean(node_analysis[node_id].hc_upstream)))
         node_analysis[node_id].avg_data_transmissions = statistics.mean(node_analysis[node_id].data_transmissions)
-        print("\tAvg data Transmissions per delivered msg: " + str(node_analysis[node_id].avg_data_transmissions))
-        print("\tAvg data Transmissions per cycle: " + str(total_data_transmissions / total_bcasts_for_node))
+        print("\tAvg Data Transmissions: " + str(node_analysis[node_id].avg_data_transmissions))        
+        print("\tAvg Transmissions (Any type): " + str(statistics.mean(node_analysis[node_id].any_transmissions)))
+        print("\tAvg Dropped Msgs: " + str(statistics.mean(node_analysis[node_id].dropped_msgs)))
         node_analysis[node_id].avg_max_queue_sizes = statistics.mean(node_analysis[node_id].max_queue_sizes)
-        print("\tAvg Data Queue Size per delivered msg: " + str(node_analysis[node_id].avg_max_queue_sizes))
-        print("\tAvg Data Queue Size per cycle: " + str(queue_size_counter / total_bcasts_for_node))
+        print("\tAvg Data Queue Size: " + str(node_analysis[node_id].avg_max_queue_sizes))
         print("\tMax Data Queue Size: " + str(max_queue_size))
         node_analysis[node_id].avg_CRC_fails = statistics.mean(node_analysis[node_id].crc_fails)
-        print("\tAvg CRC received fails per delivered msg: " + str(node_analysis[node_id].avg_CRC_fails))
-        print("\tAvg CRC received fails per cycle: " + str(total_crc_fails / total_bcasts_for_node))
-        print("\tTotal Missed Bcasts: " + str(total_missed_bcasts))
+        print("\tAvg CRC received fails: " + str(node_analysis[node_id].avg_CRC_fails))
+        print("\tMissed Bcasts: " + str(total_missed_bcasts))
+        print("\tFlags: " + str(node_analysis[node_id].flags))
         if len(parameters.HARDCODED_NODE_TDMA) > 0:
             print("\tParent Connections (TDMA): ")
         else:
@@ -901,7 +930,7 @@ def main():
         # *********** SPECIFIC ANALYSIS PLOTS ***********
         
         if parameters.PLOT_RSSI_ANALYSIS:
-            print("RSSI Analysis # data points: " + str(len(analysis_rssi)))
+            print("RSSI Analysis # data points: " + str(len(analysis_rssi)), flush=True)
             plt.scatter(analysis_rssi, analysis_transmissions, alpha=0.1);
             plt.title("Transmissions vs RSSI")
             plt.xlabel("RSSI")
