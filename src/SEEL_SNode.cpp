@@ -77,7 +77,7 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
     _inst->_bcast_avail = false;
     _inst->_bcast_sent = false; // Set to true in SEEL_Node.cpp when bcast msg sent out
     
-    _inst->_cb_info.prev_queue_dropped_msgs = 0;
+    _inst->_queue_dropped_msgs = 0;
     _inst->_max_data_queue_size = 0;
     _inst->clear_flags();
     _inst->_cb_info.hop_count = UINT8_MAX;
