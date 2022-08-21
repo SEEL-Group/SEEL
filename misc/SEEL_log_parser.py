@@ -761,8 +761,6 @@ def main():
                     for c in range(mb_count):
                         mb_x.append(mb_bcast - c - 1)
                         mb_y.append(0)
-                print(mb_x)
-                     
                 figure, axis = plt.subplots(2, sharex=True)
                 plt.title("Bcast Num vs Cycle")
                 # GNODE
