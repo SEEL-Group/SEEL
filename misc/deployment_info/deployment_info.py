@@ -17,7 +17,7 @@ class Parameters:
 
     ############################################################################
     # Hardcode Section
-    HC_NJ_ACTUAL_ID_IDX = 0
+    HC_NJ_ORIGINAL_ID_IDX = 0
     HC_NJ_ASSIGNED_ID_IDX = 1
     HC_NJ_CYCLE_JOIN_IDX = 2
     HARDCODED_NODE_JOINS = [

@@ -50,7 +50,7 @@ class Parameters:
 
     ############################################################################
     # Hardcode Section
-    HC_NJ_ACTUAL_ID_IDX = 0
+    HC_NJ_ORIGINAL_ID_IDX = 0
     HC_NJ_ASSIGNED_ID_IDX = 1
     HC_NJ_CYCLE_JOIN_IDX = 2
     HARDCODED_NODE_JOINS = [
@@ -166,8 +166,7 @@ bcast_info_overflow = {}
 bcast_instances = {} # per node, since nodes may join at different times
 
 node_mapping = {}
-node_assignments = []
-data_info = []
+node_msgs = {}
 
 node_analysis = {} # per node
 msg_analysis = {} # per node
@@ -196,12 +195,13 @@ class Bcast_Info:
     def __str__(self):
         return "Bcast num: " + str(self.bcast_num) + " Inst: " + str(self.bcast_inst) + " System time: " + str(self.sys_time) + " Awake time: " + str(self.awk_time) + " Sleep time: " + str(self.slp_time)
     
-class Data_Info:
-    def __init__(self, bcast_num, bcast_inst, wtb, prev_data_trans, node_id, parent_id, parent_rssi, send_count, prev_queue_size, prev_missed_bcasts, prev_crc_fails, prev_flags, prev_any_trans, prev_dropped_msgs, hc_downstream, hc_upstream):
+class Node_Msg:
+    def __init__(self, bcast_num, bcast_inst, wtb, prev_data_trans, original_node_id, assigned_node_id, parent_id, parent_rssi, send_count, prev_queue_size, prev_missed_bcasts, prev_crc_fails, prev_flags, prev_any_trans, prev_dropped_msgs, hc_downstream, hc_upstream):
         self.bcast_num = bcast_num
         self.bcast_inst = bcast_inst
         self.wtb = wtb
-        self.node_id = node_id
+        self.original_node_id = original_node_id
+        self.assigned_node_id = assigned_node_id
         self.parent_id = parent_id
         self.parent_rssi = parent_rssi
         self.send_count = send_count
@@ -216,7 +216,7 @@ class Data_Info:
         self.hc_upstream = hc_upstream
 
     def __str__(self):
-        return "Bcast num: " + str(self.bcast_num) + "\tBcast inst: " + str(self.bcast_inst) + "\tNode ID: " + str(self.node_id) + \
+        return "Bcast num: " + str(self.bcast_num) + "\tBcast inst: " + str(self.bcast_inst) + "\tNode ID: " + str(self.original_node_id) + \
         "\tParent ID: " + str(self.parent_id) + "\tParent RSSI: " + str(self.parent_rssi) + "\tSend Count: " + str(self.send_count) + \
         "\tDownstream HC: " + str(self.hc_downstream) + "\tUpstream HC: " + str(self.hc_upstream) + "\tWTB: " + str(self.wtb) + \
         "\tPrev Data Trans: " + str(self.prev_data_trans) + "\tPrev Any Trans: " + str(self.prev_any_trans) + "\tPrev Dropped Msgs: " + \
@@ -261,19 +261,17 @@ class Msg_Analysis: # Per node
         self.node_id = 0
         self.cycle_stats = {} # per bcast inst, per bcast cycle
 
-def node_entry(actual_id, assigned_id, bcast_join):
-    print("join id: " + str(actual_id) + "\tresponse: " + str(assigned_id) + "\tB. Join: " + str(bcast_join))
+def node_entry(original_id, assigned_id, bcast_join):
+    print("join id: " + str(original_id) + "\tresponse: " + str(assigned_id) + "\tB. Join: " + str(bcast_join))
     if assigned_id in node_mapping:
         print("WARNING: Assigned ID " + str(assigned_id) + " is assigned to multiple SNODEs")
-    node_mapping[assigned_id] = actual_id
-    if node_assignments.count(actual_id) == 0:
-        node_assignments.append(actual_id)
-        data_info.append([])
-        bcast_instances[actual_id] = bcast_join
+    node_mapping[assigned_id] = original_id
+    if not original_id in node_msgs:
+        node_msgs[original_id] = []
+        bcast_instances[original_id] = bcast_join
 
 def search_paths(b_ind, b_num, node_analysis, paths, search_stack, hcount):        
     search_val = search_stack[-1]
-        
     # DFS for path append
     for p in paths:
         if paths[p].id == search_val:
@@ -307,6 +305,9 @@ def plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, regression=True, a=1):
         plt.ylabel(y_label)
         plt.show()
 
+def read_as_int(list, index):
+    return int(list[index])
+
 def main():
     if len(sys.argv) <= 1:
         print("Unspecified data file")
@@ -325,7 +326,7 @@ def main():
     if len(parameters.HARDCODED_NODE_JOINS) > 0:
         print("Using HARDCODED Node Joins")
         for i in parameters.HARDCODED_NODE_JOINS:
-            node_entry(i[parameters.HC_NJ_ACTUAL_ID_IDX], i[parameters.HC_NJ_ASSIGNED_ID_IDX], i[parameters.HC_NJ_CYCLE_JOIN_IDX]);
+            node_entry(i[parameters.HC_NJ_ORIGINAL_ID_IDX], i[parameters.HC_NJ_ASSIGNED_ID_IDX], i[parameters.HC_NJ_CYCLE_JOIN_IDX]);
 
     if len(parameters.HARDCODED_NODE_LOCS) > 0:
         print("Using HARDCODED Node Locs")
@@ -353,49 +354,47 @@ def main():
             sys_time = 0
             awk_time = 0
             slp_time = 0
-            sys_time += line[parameters.INDEX_BD_SYS_TIME_0] << 24
-            sys_time += line[parameters.INDEX_BD_SYS_TIME_1] << 16
-            sys_time += line[parameters.INDEX_BD_SYS_TIME_2] << 8
-            sys_time += line[parameters.INDEX_BD_SYS_TIME_3]
-            awk_time += line[parameters.INDEX_BD_SNODE_AWAKE_TIME_0] << 24
-            awk_time += line[parameters.INDEX_BD_SNODE_AWAKE_TIME_1] << 16
-            awk_time += line[parameters.INDEX_BD_SNODE_AWAKE_TIME_2] << 8
-            awk_time += line[parameters.INDEX_BD_SNODE_AWAKE_TIME_3]
-            slp_time += line[parameters.INDEX_BD_SNODE_SLEEP_TIME_0] << 24
-            slp_time += line[parameters.INDEX_BD_SNODE_SLEEP_TIME_1] << 16
-            slp_time += line[parameters.INDEX_BD_SNODE_SLEEP_TIME_2] << 8
-            slp_time += line[parameters.INDEX_BD_SNODE_SLEEP_TIME_3]
-            if line[parameters.INDEX_BD_FIRST] > 0:
+            sys_time += read_as_int(line, parameters.INDEX_BD_SYS_TIME_0) << 24
+            sys_time += read_as_int(line, parameters.INDEX_BD_SYS_TIME_1) << 16
+            sys_time += read_as_int(line, parameters.INDEX_BD_SYS_TIME_2) << 8
+            sys_time += read_as_int(line, parameters.INDEX_BD_SYS_TIME_3)
+            awk_time += read_as_int(line, parameters.INDEX_BD_SNODE_AWAKE_TIME_0) << 24
+            awk_time += read_as_int(line, parameters.INDEX_BD_SNODE_AWAKE_TIME_1) << 16
+            awk_time += read_as_int(line, parameters.INDEX_BD_SNODE_AWAKE_TIME_2) << 8
+            awk_time += read_as_int(line, parameters.INDEX_BD_SNODE_AWAKE_TIME_3)
+            slp_time += read_as_int(line, parameters.INDEX_BD_SNODE_SLEEP_TIME_0) << 24
+            slp_time += read_as_int(line, parameters.INDEX_BD_SNODE_SLEEP_TIME_1) << 16
+            slp_time += read_as_int(line, parameters.INDEX_BD_SNODE_SLEEP_TIME_2) << 8
+            slp_time += read_as_int(line, parameters.INDEX_BD_SNODE_SLEEP_TIME_3)
+            if read_as_int(line, parameters.INDEX_BD_FIRST) > 0:
                 bcast_instance += 1
                 bcast_inst_count[bcast_instance] = bcast_count
             bcast_count += 1            
-            bcast_info.append(Bcast_Info(line[parameters.INDEX_BD_BCAST_COUNT], bcast_instance, sys_time, awk_time, slp_time))
-            
+            bcast_info.append(Bcast_Info(read_as_int(line, parameters.INDEX_BD_BCAST_COUNT), bcast_instance, sys_time, awk_time, slp_time))
             
             for i in range(math.floor((len(line) - parameters.INDEX_BD_SNODE_JOIN_ID) / 2)):
                 repeat_index = i * 2
-                join_id = line[parameters.INDEX_BD_SNODE_JOIN_ID + repeat_index]
+                join_id = read_as_int(line, parameters.INDEX_BD_SNODE_JOIN_ID + repeat_index)
                 if join_id != 0:
-                    response = line[parameters.INDEX_BD_SNODE_JOIN_RESPONSE + repeat_index]
+                    response = read_as_int(line, parameters.INDEX_BD_SNODE_JOIN_RESPONSE + repeat_index)
                     if response != 0: # Reponse of 0 means error
                         node_entry(join_id, response, len(bcast_times))
         else: # Node Data
             wtb = 0
             send_count = 0
-            wtb += line[parameters.INDEX_DATA_WTB_0] << 24
-            wtb += line[parameters.INDEX_DATA_WTB_1] << 16
-            wtb += line[parameters.INDEX_DATA_WTB_2] << 8
-            wtb += line[parameters.INDEX_DATA_WTB_3]
-            send_count += line[parameters.INDEX_DATA_SEND_COUNT_0] << 8
-            send_count += line[parameters.INDEX_DATA_SEND_COUNT_1]
-            if line[parameters.INDEX_DATA_ASSIGNED_ID] in node_mapping:
-                original_node_id = node_mapping[line[parameters.INDEX_DATA_ASSIGNED_ID]]
-                data_info[node_assignments.index(original_node_id)].append(Data_Info(line[parameters.INDEX_DATA_BCAST_COUNT], bcast_instance, wtb, line[parameters.INDEX_DATA_PREV_DATA_TRANS], original_node_id, line[parameters.INDEX_DATA_PARENT_ID], line[parameters.INDEX_DATA_PARENT_RSSI] - 256, send_count, line[parameters.INDEX_DATA_MAX_QUEUE_SIZE], line[parameters.INDEX_DATA_MISSED_BCASTS], line[parameters.INDEX_DATA_CRC_FAILS], line[parameters.INDEX_DATA_FLAGS], line[parameters.INDEX_DATA_ANY_TRANSMISSIONS], line[parameters.INDEX_DATA_DROPPED_MSGS], line[parameters.INDEX_DATA_HC_DOWNSTREAM], line[parameters.INDEX_DATA_HC_UPSTREAM]))
+            wtb += read_as_int(line, parameters.INDEX_DATA_WTB_0) << 24
+            wtb += read_as_int(line, parameters.INDEX_DATA_WTB_1) << 16
+            wtb += read_as_int(line, parameters.INDEX_DATA_WTB_2) << 8
+            wtb += read_as_int(line, parameters.INDEX_DATA_WTB_3)
+            send_count += read_as_int(line, parameters.INDEX_DATA_SEND_COUNT_0) << 8
+            send_count += read_as_int(line, parameters.INDEX_DATA_SEND_COUNT_1)
+            original_node_id = read_as_int(line, parameters.INDEX_DATA_ORIGINAL_ID)
+            if original_node_id in node_msgs:
+                node_msgs[original_node_id].append(Node_Msg(read_as_int(line, parameters.INDEX_DATA_BCAST_COUNT), bcast_instance, wtb, read_as_int(line, parameters.INDEX_DATA_PREV_DATA_TRANS), original_node_id, read_as_int(line, parameters.INDEX_DATA_ASSIGNED_ID), read_as_int(line, parameters.INDEX_DATA_PARENT_ID), read_as_int(line, parameters.INDEX_DATA_PARENT_RSSI) - 256, send_count, read_as_int(line, parameters.INDEX_DATA_MAX_QUEUE_SIZE), read_as_int(line, parameters.INDEX_DATA_MISSED_BCASTS), read_as_int(line, parameters.INDEX_DATA_CRC_FAILS), read_as_int(line, parameters.INDEX_DATA_FLAGS), read_as_int(line, parameters.INDEX_DATA_ANY_TRANSMISSIONS), read_as_int(line, parameters.INDEX_DATA_DROPPED_MSGS), read_as_int(line, parameters.INDEX_DATA_HC_DOWNSTREAM), read_as_int(line, parameters.INDEX_DATA_HC_UPSTREAM)))
         current_line += 1
 
     # Analysis vars
     total_bcasts = len(bcast_times)
-    node_assignments.append(0) # For gateway
     node_mapping[0] = 0
     message_paths = {}
     
@@ -409,12 +408,13 @@ def main():
 
     # GNODE 
     print("Total Bcasts: " + str(total_bcasts))
-
+    print("Initial Node mapping: " + str(node_mapping))
+    
     # SNODE
-    for i in range(len(data_info)):
-        node_data_msgs = data_info[i]
+    for node_msg_key in node_msgs:
         print("********************************************************")
-        print("Node " + str(node_assignments[i]))
+        print("Node " + str(node_msg_key))
+        node_data_msgs = node_msgs[node_msg_key]
         if not node_data_msgs: # Empty
             print("No messages received")
             continue
@@ -422,7 +422,7 @@ def main():
         wtb_general = []
         wtb_missed_bcast = []
         wtb_max_missed_bcast = []
-        node_id = node_data_msgs[0].node_id
+        node_id = node_data_msgs[0].original_node_id
         num_node_msgs = len(node_data_msgs)
         total_data_transmissions = 0
         total_parent_rssi = 0
@@ -514,13 +514,20 @@ def main():
                 #print("Debug: ignore")
 
             if not dup:
-                if not msg.parent_id in node_mapping:
-                    print("Invalid parent ID: " + str(msg.parent_id), flush=True)
-                    exit()
-                
                 # Unique bcast number across all bcast instances
                 node_unique_cycle_num = bcast_inst_count[msg.bcast_inst] + overflow_comp_bcast_num - (0 if first_bcast_num < 0 else first_bcast_num)
                 #print("Debug: node unique bcast" + str(node_unique_cycle_num))
+            
+                # Update node mappings with latest ID since they could change throughout deployment
+                # However, this should NOT occur since assigned IDs should be UNIQUE
+                # In previous deployments, there was a bug that caused assigned IDs to be non-unique which is why this code is needed
+                if node_mapping[msg.assigned_node_id] != msg.original_node_id:
+                    print("Updated node mapping of assigned ID " + str(msg.assigned_node_id) + " from " + str(node_mapping[msg.assigned_node_id]) + " to " + str(msg.original_node_id))
+                    node_mapping[msg.assigned_node_id] = msg.original_node_id
+            
+                if not msg.parent_id in node_mapping:
+                    print("Invalid parent ID: " + str(msg.parent_id), flush=True)
+                    exit()
                 parent_original_id = node_mapping[msg.parent_id]
                 
                 if not msg.bcast_inst in bcast_info_overflow:
@@ -580,7 +587,7 @@ def main():
                     message_paths[msg.bcast_inst] = {}
                 if not overflow_comp_bcast_num in message_paths[msg.bcast_inst]:
                     message_paths[msg.bcast_inst][overflow_comp_bcast_num] = {}
-                message_paths[msg.bcast_inst][overflow_comp_bcast_num][msg.node_id] = Parent(parent_original_id, msg.parent_rssi)
+                message_paths[msg.bcast_inst][overflow_comp_bcast_num][msg.original_node_id] = Parent(parent_original_id, msg.parent_rssi)
 
                 queue_size_counter += msg.prev_queue_size
                 if msg.prev_queue_size > max_queue_size:
