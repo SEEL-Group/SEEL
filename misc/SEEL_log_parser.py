@@ -389,8 +389,13 @@ def main():
             send_count += read_as_int(line, parameters.INDEX_DATA_SEND_COUNT_0) << 8
             send_count += read_as_int(line, parameters.INDEX_DATA_SEND_COUNT_1)
             original_node_id = read_as_int(line, parameters.INDEX_DATA_ORIGINAL_ID)
-            if original_node_id in node_msgs:
-                node_msgs[original_node_id].append(Node_Msg(read_as_int(line, parameters.INDEX_DATA_BCAST_COUNT), bcast_instance, wtb, read_as_int(line, parameters.INDEX_DATA_PREV_DATA_TRANS), original_node_id, read_as_int(line, parameters.INDEX_DATA_ASSIGNED_ID), read_as_int(line, parameters.INDEX_DATA_PARENT_ID), read_as_int(line, parameters.INDEX_DATA_PARENT_RSSI) - 256, send_count, read_as_int(line, parameters.INDEX_DATA_MAX_QUEUE_SIZE), read_as_int(line, parameters.INDEX_DATA_MISSED_BCASTS), read_as_int(line, parameters.INDEX_DATA_CRC_FAILS), read_as_int(line, parameters.INDEX_DATA_FLAGS), read_as_int(line, parameters.INDEX_DATA_ANY_TRANSMISSIONS), read_as_int(line, parameters.INDEX_DATA_DROPPED_MSGS), read_as_int(line, parameters.INDEX_DATA_HC_DOWNSTREAM), read_as_int(line, parameters.INDEX_DATA_HC_UPSTREAM)))
+            assigned_node_id = read_as_int(line, parameters.INDEX_DATA_ASSIGNED_ID)
+            if not original_node_id in node_msgs:
+                print("Picked up non-bcast ID: " + str(original_node_id))
+                node_mapping[assigned_node_id] = original_node_id
+                node_msgs[original_node_id] = []
+                bcast_instances[original_node_id] = len(bcast_times)
+            node_msgs[original_node_id].append(Node_Msg(read_as_int(line, parameters.INDEX_DATA_BCAST_COUNT), bcast_instance, wtb, read_as_int(line, parameters.INDEX_DATA_PREV_DATA_TRANS), original_node_id, assigned_node_id, read_as_int(line, parameters.INDEX_DATA_PARENT_ID), read_as_int(line, parameters.INDEX_DATA_PARENT_RSSI) - 256, send_count, read_as_int(line, parameters.INDEX_DATA_MAX_QUEUE_SIZE), read_as_int(line, parameters.INDEX_DATA_MISSED_BCASTS), read_as_int(line, parameters.INDEX_DATA_CRC_FAILS), read_as_int(line, parameters.INDEX_DATA_FLAGS), read_as_int(line, parameters.INDEX_DATA_ANY_TRANSMISSIONS), read_as_int(line, parameters.INDEX_DATA_DROPPED_MSGS), read_as_int(line, parameters.INDEX_DATA_HC_DOWNSTREAM), read_as_int(line, parameters.INDEX_DATA_HC_UPSTREAM)))
         current_line += 1
 
     # Analysis vars
@@ -655,13 +660,16 @@ def main():
         print("\t\tDropped Packets: " + str(connection_count_max - connection_count))
         print("\t\tPercentage over GNODE lifetime: " + str(connection_count / total_bcasts_for_node)) # Total number of GNODE Bcasts received
         node_analysis[node_id].PDR = (0 if connection_count_max == 0 else connection_count / connection_count_max) # Total given times connected and generated a msg (until disconnect or death). This metric is a better representation of PDR.
+        print("\t\tPDR_NO_MB (No MB Adjustment): " + str(node_analysis[node_id].PDR))
         connection_count_adjustment = 0
         for mb_key in total_missed_bcasts:
             connection_count_adjustment += mb_key * total_missed_bcasts[mb_key] # Warning: This will ignore bcasts in packets with more than the max missed bcast count
-        pdr_mb_adjustment = (0 if connection_count_max == 0 else connection_count / (connection_count_max - connection_count_adjustment)) # Adjusts missed bcasts, where a packet was NOT created so it should not affect PDR
-        print("\t\tPDR: " + str(node_analysis[node_id].PDR))
-        print("\t\tPDR (Missed Bcast Adjustment): " + str(pdr_mb_adjustment))
-        node_analysis[node_id].PDR = pdr_mb_adjustment
+        try:
+            pdr_mb_adjustment = (0 if connection_count_max == 0 else connection_count / (connection_count_max - connection_count_adjustment)) # Adjusts missed bcasts, where a packet was NOT created so it should not affect PDR
+            print("\t\tPDR (Missed Bcast Adjustment): " + str(pdr_mb_adjustment))
+            node_analysis[node_id].PDR = pdr_mb_adjustment
+        except:
+            print("\t\tPDR (Missed Bcast Adjustment): Not Available")
         print("\tWTB")
         if len(wtb_general) > 0:
             node_analysis[node_id].avg_wtb = statistics.mean(wtb_general)
