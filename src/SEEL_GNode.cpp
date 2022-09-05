@@ -18,6 +18,9 @@ void SEEL_GNode::init(  SEEL_Scheduler* ref_scheduler,
     SEEL_Node::init(SEEL_GNODE_ID, tdma_slot);
     rfm_param_init(cs_pin, reset_pin, int_pin, SEEL_RFM95_GNODE_TX, SEEL_RFM95_GNODE_CR);
 
+    SEEL_Print::print(F("SEEL Cycle Time: ")); SEEL_Print::println(cycle_period_secs);
+    SEEL_Print::print(F("SEEL Awake Time: ")); SEEL_Print::println(snode_awake_time_secs);
+
     // Initialize member variables
     _ref_scheduler = ref_scheduler;
     _user_cb_presend = NULL;

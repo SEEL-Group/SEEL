@@ -11,6 +11,12 @@ File purpose:   See SEEL_Node.h
 
 void SEEL_Node::init(uint32_t n_id, uint32_t ts)
 {
+    SEEL_Print::print(F("SEEL Node ID: ")); SEEL_Print::println(n_id);
+    if (SEEL_TDMA_USE_TDMA)
+    {
+        SEEL_Print::print(F("SEEL TDMA Slot: ")); SEEL_Print::println(ts);
+    }
+
     _node_id = n_id;
     _tdma_slot = ts;
     if (_tdma_slot >= SEEL_TDMA_SLOTS && SEEL_TDMA_USE_TDMA)
