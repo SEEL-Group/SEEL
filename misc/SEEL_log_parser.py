@@ -46,7 +46,7 @@ class Parameters:
     PLOT_LOCS_WEIGHT_SCALAR = 1000 # Smaller for thicker lines
     PLOT_LOCS_WEIGHT_SCALAR_SPECIFIC = 500 # Smaller for thicker lines
 
-    PARAM_COUNT_WRAP_SAFETY = 10 # Send count will not have wrapped within this many counts, keep it lower to account for node restarts too
+    PARAM_COUNT_WRAP_SAFETY = 15 # Send count will not have wrapped within this many counts, keep it lower to account for node restarts too
 
     ############################################################################
     # Hardcode Section
@@ -129,8 +129,8 @@ class Parameters:
 
     ############################################################################
     # SEEL Parameters    
-    SEEL_CYCLE_AWAKE_TIME_MILLIS = 6000
-    SEEL_CYCLE_SLEEP_TIME_MILLIS = 6000
+    SEEL_CYCLE_AWAKE_TIME_MILLIS = 60000
+    SEEL_CYCLE_SLEEP_TIME_MILLIS = 60000
     
     SEEL_FORCE_SLEEP_AWAKE_MULT = 1.0
     SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE = 1.5
