@@ -214,6 +214,14 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
         }
         _inst->_cb_info.bcast_count = bcast_count;
 
+        // Actions to do on the first bcast received
+        if (!_inst->_bcast_received)
+        {
+            // Reset missed bcasts once we've received a bcast, even if it's from a blacklisted node
+            _inst->_cb_info.missed_bcasts = _inst->_missed_bcasts;
+            _inst->_missed_bcasts = 0;
+        }
+
         // Check to make sure sender is not in the broadcast blacklist. A blacklist is needed because
         // node sends (typically GNODE to SNODE) is sometimes asymmetrical in transmission distance.
         // So the sender could reach this node, but this node may not reach the sender. Using a blacklist
@@ -280,9 +288,6 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
             // Only do the following tasks on the first parent connected
             if(!_inst->_parent_sync)
             {
-                _inst->_cb_info.missed_bcasts = _inst->_missed_bcasts;
-                _inst->_missed_bcasts = 0;
-
                 // Save the previous here since sleep time may get changed in bcast_setup
                 uint32_t prev_sleep_time_secs = _inst->_snode_sleep_time_secs;
                 
