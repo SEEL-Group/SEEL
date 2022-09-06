@@ -675,6 +675,9 @@ def main():
         print("\tJoined Network on Bcast: " + str(bcast_instances[node_id]))
         print("\tTotal Received Messages: " + str(num_node_msgs))
         print("\tDuplicate Messages: " + str(duplicate_msg))
+        if (num_node_msgs == duplicate_msg):
+            print("Not enough data")
+            continue
         print("\tPDR Calculations")
         print("\t\tDropped Packets: " + str(connection_count_max - connection_count))
         print("\t\tPercentage over GNODE lifetime: " + str(connection_count / total_bcasts_for_node)) # Total number of GNODE Bcasts received
