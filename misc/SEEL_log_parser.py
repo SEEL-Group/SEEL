@@ -677,6 +677,7 @@ def main():
         print("\tDuplicate Messages: " + str(duplicate_msg))
         if (num_node_msgs == duplicate_msg):
             print("Not enough data")
+            del node_analysis[node_id] # Prevent further analysis in plots
             continue
         print("\tPDR Calculations")
         print("\t\tDropped Packets: " + str(connection_count_max - connection_count))
