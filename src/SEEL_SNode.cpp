@@ -43,6 +43,7 @@ void SEEL_SNode::init(  SEEL_Scheduler* ref_scheduler,
     _sleep_time_estimate_millis = SEEL_ADJUSTED_SLEEP_INITAL_ESTIMATE_MILLIS;
     _sleep_time_offset_millis = 0;
     _missed_bcasts = 0;
+    _missed_msgs = 0;
     _last_parent = 0;
     _id_verified = false;
     _system_sync = false;
@@ -427,6 +428,9 @@ void SEEL_SNode::SEEL_Task_SNode_Enqueue::run()
 {
     if(_inst->_bcast_sent)
     {
+        _inst->_cb_info.missed_msgs = _inst->_missed_msgs;
+        _inst->_missed_msgs = 0;
+
         if(_inst->_id_verified)
         {
             // Enable scheduling user tasks
@@ -506,6 +510,7 @@ void SEEL_SNode::SEEL_Task_SNode_Force_Sleep::run()
 
     SEEL_Print::println(F("Force Sleep, clearing blacklist"));
     ++_inst->_missed_bcasts;
+    ++_inst->_missed_msgs;
     _inst->_bcast_blacklist.clear();
     // Force sleep is necessary, run regular sleep function
     _inst->_ref_scheduler->clear_tasks(); // Guarentee sleep to be next task

@@ -62,8 +62,9 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
     return false;
   }
 
-  // Pseudo check for if we're using the right message size to prevent out of bounds access
-  if (SEEL_MSG_DATA_SIZE >= 20)
+  // SEEL_MSG_DATA_SIZE = SEEL_MSG_MISC_SIZE + SEEL_MSG_USER_SIZE
+  // If more than SEEL_MSG_MISC_SIZE data bytes are needed, increase SEEL_MSG_USER_SIZE by the missing amount  
+  if (SEEL_MSG_DATA_SIZE >= 21) // Safety check to prevent out of bounds access
   {
     msg_data[0] = SEEL_SNODE_ID; // original ID
     msg_data[1] = seel_snode.get_node_id(); // assigned ID
@@ -77,7 +78,7 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
     msg_data[9] = (uint8_t)(send_count >> 8);
     msg_data[10] = (uint8_t)(send_count);
     msg_data[11] = info->prev_data_transmissions;
-    msg_data[12] = info->missed_bcasts;
+    msg_data[12] = info->missed_msgs;
     msg_data[13] = info->prev_max_data_queue_size;
     msg_data[14] = info->prev_CRC_fails;
     msg_data[15] = info->prev_flags;
@@ -85,9 +86,10 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
     msg_data[17] = info->prev_queue_dropped_msgs;
     msg_data[18] = info->hop_count; // tracks downstream node hop count
     msg_data[19] = 1; // tracks upstream msg hop count, initialized to 1 and incremented with every forward
+    msg_data[20] = info->missed_bcasts;
 
     // Fill rest with zeros
-    for (uint32_t i = 20; i < SEEL_MSG_DATA_SIZE; ++i)
+    for (uint32_t i = 21; i < SEEL_MSG_DATA_SIZE; ++i)
     {
       msg_data[i] = 0;
     }

@@ -40,6 +40,7 @@ public:
         uint8_t prev_CRC_fails;
         uint8_t hop_count;
         uint8_t missed_bcasts;
+        uint8_t missed_msgs;
         uint8_t prev_max_data_queue_size; // prev cycle max data queue size during a cycle 
         uint8_t prev_queue_dropped_msgs;
         uint8_t bcast_count;
@@ -48,7 +49,7 @@ public:
         bool first_callback; // Whether this callback call is the first one this cycle (allows for initialization)
 
         SEEL_CB_Info() : wtb_millis(0), prev_data_transmissions(0), prev_CRC_fails(0), hop_count(0), missed_bcasts(0), 
-        prev_max_data_queue_size(0), bcast_count(0), first_callback(false), prev_flags(0) {}
+        missed_msgs(0), prev_max_data_queue_size(0), bcast_count(0), first_callback(false), prev_flags(0) {}
     };
 
     // ***************************************************

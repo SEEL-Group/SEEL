@@ -118,7 +118,7 @@ class Parameters:
     INDEX_DATA_SEND_COUNT_0 = 9
     INDEX_DATA_SEND_COUNT_1 = 10
     INDEX_DATA_PREV_DATA_TRANS = 11
-    INDEX_DATA_MISSED_BCASTS = 12
+    INDEX_DATA_MISSED_MSGS = 12
     INDEX_DATA_MAX_QUEUE_SIZE = 13
     INDEX_DATA_CRC_FAILS = 14
     INDEX_DATA_FLAGS = 15
@@ -126,6 +126,7 @@ class Parameters:
     INDEX_DATA_DROPPED_MSGS = 17
     INDEX_DATA_HC_DOWNSTREAM = 18
     INDEX_DATA_HC_UPSTREAM = 19
+    INDEX_DATA_MISSED_BCASTS = 20
 
     ############################################################################
     # SEEL Parameters    
@@ -196,7 +197,7 @@ class Bcast_Info:
         return "Bcast num: " + str(self.bcast_num) + " Inst: " + str(self.bcast_inst) + " System time: " + str(self.sys_time) + " Awake time: " + str(self.awk_time) + " Sleep time: " + str(self.slp_time)
     
 class Node_Msg:
-    def __init__(self, bcast_num, bcast_inst, wtb, prev_data_trans, original_node_id, assigned_node_id, parent_id, parent_rssi, send_count, prev_queue_size, prev_missed_bcasts, prev_crc_fails, prev_flags, prev_any_trans, prev_dropped_msgs, hc_downstream, hc_upstream):
+    def __init__(self, bcast_num, bcast_inst, wtb, prev_data_trans, original_node_id, assigned_node_id, parent_id, parent_rssi, send_count, prev_queue_size, prev_missed_msgs, prev_missed_bcasts, prev_crc_fails, prev_flags, prev_any_trans, prev_dropped_msgs, hc_downstream, hc_upstream):
         self.bcast_num = bcast_num
         self.bcast_inst = bcast_inst
         self.wtb = wtb
@@ -207,6 +208,7 @@ class Node_Msg:
         self.send_count = send_count
         self.prev_data_trans = prev_data_trans
         self.prev_queue_size = prev_queue_size
+        self.prev_missed_msgs = prev_missed_msgs
         self.prev_missed_bcasts = prev_missed_bcasts
         self.prev_crc_fails = prev_crc_fails # Received CRC fails, not sent
         self.prev_flags = prev_flags
@@ -220,8 +222,9 @@ class Node_Msg:
         "\tParent ID: " + str(self.parent_id) + "\tParent RSSI: " + str(self.parent_rssi) + "\tSend Count: " + str(self.send_count) + \
         "\tDownstream HC: " + str(self.hc_downstream) + "\tUpstream HC: " + str(self.hc_upstream) + "\tWTB: " + str(self.wtb) + \
         "\tPrev Data Trans: " + str(self.prev_data_trans) + "\tPrev Any Trans: " + str(self.prev_any_trans) + "\tPrev Dropped Msgs: " + \
-        str(self.prev_dropped_msgs) + "\tPrev Max Q Size: " + str(self.prev_queue_size) + "\tMissed Bcasts: " + str(self.prev_missed_bcasts) + \
-        "\tPrev CRC Fails: " + str(self.prev_crc_fails) + "\tPrev Flags: " + str( "{:08b}".format(self.prev_flags))
+        str(self.prev_dropped_msgs) + "\tPrev Max Q Size: " + str(self.prev_queue_size) + "\tMissed Msgs: " + str(self.prev_missed_msgs) + \
+        "\tMissed Bcasts: " + str(self.prev_missed_bcasts) + "\tPrev CRC Fails: " + str(self.prev_crc_fails) + "\tPrev Flags: " + \
+        str( "{:08b}".format(self.prev_flags))
 
 class Node_Analysis: # Per node
     def __init__(self):
@@ -248,8 +251,8 @@ class Node_Analysis: # Per node
         self.avg_rssi = 0
         self.highest_parent_ratio = 0 # Highest connection parent ratio [0, 1]
         self.avg_wtb = 0
-        self.missed_bcasts = [] # Format [Unique cycle, num_missed_bcasts]
-        self.avg_missed_bcasts = 0
+        self.missed_msgs = [] # Format [Unique cycle, num_missed_msgs]
+        self.avg_missed_msgs = 0
         self.flags = {}
         self.any_transmissions = []
         self.dropped_msgs = []
@@ -306,7 +309,10 @@ def plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, regression=True, a=1):
         plt.show()
 
 def read_as_int(list, index):
-    return int(list[index])
+    if index < len(list):
+        return int(list[index])
+    else:
+        return -9999
 
 def main():
     if len(sys.argv) <= 1:
@@ -395,7 +401,14 @@ def main():
                 node_mapping[assigned_node_id] = original_node_id
                 node_msgs[original_node_id] = []
                 bcast_instances[original_node_id] = len(bcast_times)
-            node_msgs[original_node_id].append(Node_Msg(read_as_int(line, parameters.INDEX_DATA_BCAST_COUNT), bcast_instance, wtb, read_as_int(line, parameters.INDEX_DATA_PREV_DATA_TRANS), original_node_id, assigned_node_id, read_as_int(line, parameters.INDEX_DATA_PARENT_ID), read_as_int(line, parameters.INDEX_DATA_PARENT_RSSI) - 256, send_count, read_as_int(line, parameters.INDEX_DATA_MAX_QUEUE_SIZE), read_as_int(line, parameters.INDEX_DATA_MISSED_BCASTS), read_as_int(line, parameters.INDEX_DATA_CRC_FAILS), read_as_int(line, parameters.INDEX_DATA_FLAGS), read_as_int(line, parameters.INDEX_DATA_ANY_TRANSMISSIONS), read_as_int(line, parameters.INDEX_DATA_DROPPED_MSGS), read_as_int(line, parameters.INDEX_DATA_HC_DOWNSTREAM), read_as_int(line, parameters.INDEX_DATA_HC_UPSTREAM)))
+            node_msgs[original_node_id].append(Node_Msg(read_as_int(line, parameters.INDEX_DATA_BCAST_COUNT), \
+                bcast_instance, wtb, read_as_int(line, parameters.INDEX_DATA_PREV_DATA_TRANS), original_node_id, \
+                assigned_node_id, read_as_int(line, parameters.INDEX_DATA_PARENT_ID), read_as_int(line, \
+                parameters.INDEX_DATA_PARENT_RSSI) - 256, send_count, read_as_int(line, parameters.INDEX_DATA_MAX_QUEUE_SIZE), \
+                read_as_int(line, parameters.INDEX_DATA_MISSED_MSGS), read_as_int(line, parameters.INDEX_DATA_MISSED_BCASTS), \
+                read_as_int(line, parameters.INDEX_DATA_CRC_FAILS), read_as_int(line, parameters.INDEX_DATA_FLAGS), read_as_int(line, \
+                parameters.INDEX_DATA_ANY_TRANSMISSIONS), read_as_int(line, parameters.INDEX_DATA_DROPPED_MSGS), read_as_int(line, \
+                parameters.INDEX_DATA_HC_DOWNSTREAM), read_as_int(line, parameters.INDEX_DATA_HC_UPSTREAM)))
         current_line += 1
 
     # Analysis vars
@@ -446,6 +459,7 @@ def main():
         connections_rssi = {}
         queue_size_counter = 0
         max_queue_size = 0
+        total_missed_msgs = {}
         total_missed_bcasts = {}
         total_crc_fails = 0
         first_wtb = True
@@ -556,14 +570,14 @@ def main():
                     wtb_general.append(msg.wtb)
                     # After SEEL_FORCE_SLEEP_RESET_COUNT missed bcasts, WTB factors the entire missed cycle since the 
                     # device stays awake the entire cycle. Separately track these values to see how impactful they are.
-                    if msg.prev_missed_bcasts > 0: 
-                        if msg.prev_missed_bcasts < parameters.SEEL_FORCE_SLEEP_RESET_COUNT:
+                    if msg.prev_missed_msgs > 0: 
+                        if msg.prev_missed_msgs < parameters.SEEL_FORCE_SLEEP_RESET_COUNT:
                             # Scalar should be (AWAKE_MULT * DUR_SCALE ^ 1 - 1) + (AWAKE_MULT * DUR_SCALE ^ 2 - 1) + ... + (AWAKE_MULT * DUR_SCALE ^ MISSED_BCASTS - 1)
                             # Which reduces to the following form
-                            awake_time_scalar = np.sum(np.power(parameters.SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE, np.arange(1, msg.prev_missed_bcasts + 1))) * parameters.SEEL_FORCE_SLEEP_AWAKE_MULT - msg.prev_missed_bcasts
+                            awake_time_scalar = np.sum(np.power(parameters.SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE, np.arange(1, msg.prev_missed_msgs + 1))) * parameters.SEEL_FORCE_SLEEP_AWAKE_MULT - msg.prev_missed_msgs
                             extra_awake_time_millis = parameters.SEEL_CYCLE_AWAKE_TIME_MILLIS * awake_time_scalar
                             wtb_missed_bcast.append(extra_awake_time_millis)
-                        elif msg.prev_missed_bcasts == parameters.SEEL_FORCE_SLEEP_RESET_COUNT:
+                        elif msg.prev_missed_msgs == parameters.SEEL_FORCE_SLEEP_RESET_COUNT:
                             wtb_missed_bcast.append(msg.wtb)
                             wtb_max_missed_bcast.append(msg.wtb)
                 else:
@@ -598,6 +612,11 @@ def main():
                 if msg.prev_queue_size > max_queue_size:
                     max_queue_size = msg.prev_queue_size
 
+                if msg.prev_missed_msgs in total_missed_msgs:
+                    total_missed_msgs[msg.prev_missed_msgs] += 1
+                else:
+                    total_missed_msgs[msg.prev_missed_msgs] = 1
+
                 if msg.prev_missed_bcasts in total_missed_bcasts:
                     total_missed_bcasts[msg.prev_missed_bcasts] += 1
                 else:
@@ -607,7 +626,7 @@ def main():
                 node_analysis[node_id].crc_fails.append(msg.prev_crc_fails)
                 node_analysis[node_id].max_queue_sizes.append(msg.prev_queue_size)
                 node_analysis[node_id].rssi.append(msg.parent_rssi)
-                node_analysis[node_id].missed_bcasts.append([node_unique_cycle_num, msg.prev_missed_bcasts])
+                node_analysis[node_id].missed_msgs.append([node_unique_cycle_num, msg.prev_missed_msgs])
                 node_analysis[node_id].any_transmissions.append(msg.prev_any_trans)
                 node_analysis[node_id].dropped_msgs.append(msg.prev_dropped_msgs)
                 node_analysis[node_id].hc_downstream.append(msg.hc_downstream)
@@ -660,16 +679,16 @@ def main():
         print("\t\tDropped Packets: " + str(connection_count_max - connection_count))
         print("\t\tPercentage over GNODE lifetime: " + str(connection_count / total_bcasts_for_node)) # Total number of GNODE Bcasts received
         node_analysis[node_id].PDR = (0 if connection_count_max == 0 else connection_count / connection_count_max) # Total given times connected and generated a msg (until disconnect or death). This metric is a better representation of PDR.
-        print("\t\tPDR_NO_MB (No MB Adjustment): " + str(node_analysis[node_id].PDR))
+        print("\t\tPDR_NO_MM (No MM Adjustment): " + str(node_analysis[node_id].PDR))
         connection_count_adjustment = 0
-        for mb_key in total_missed_bcasts:
-            connection_count_adjustment += mb_key * total_missed_bcasts[mb_key] # Warning: This will ignore bcasts in packets with more than the max missed bcast count
+        for mm_key in total_missed_msgs:
+            connection_count_adjustment += mm_key * total_missed_msgs[mm_key] # Warning: This will ignore bcasts in packets with more than the max missed msgs count
         try:
-            pdr_mb_adjustment = (0 if connection_count_max == 0 else connection_count / (connection_count_max - connection_count_adjustment)) # Adjusts missed bcasts, where a packet was NOT created so it should not affect PDR
-            print("\t\tPDR (Missed Bcast Adjustment): " + str(pdr_mb_adjustment))
-            node_analysis[node_id].PDR = pdr_mb_adjustment
+            pdr_mm_adjustment = (0 if connection_count_max == 0 else connection_count / (connection_count_max - connection_count_adjustment)) # Adjusts missed msgs, where a packet was NOT created so it should not affect PDR
+            print("\t\tPDR (Missed Msg Adjustment): " + str(pdr_mm_adjustment))
+            node_analysis[node_id].PDR = pdr_mm_adjustment
         except:
-            print("\t\tPDR (Missed Bcast Adjustment): Not Available")
+            print("\t\tPDR (Missed Msg Adjustment): Not Available")
         print("\tWTB")
         if len(wtb_general) > 0:
             node_analysis[node_id].avg_wtb = statistics.mean(wtb_general)
@@ -710,6 +729,7 @@ def main():
         print("\tMax Data Queue Size: " + str(max_queue_size))
         node_analysis[node_id].avg_CRC_fails = statistics.mean(node_analysis[node_id].crc_fails)
         print("\tAvg CRC received fails: " + str(node_analysis[node_id].avg_CRC_fails))
+        print("\tMissed Msgs: " + str(total_missed_msgs))
         print("\tMissed Bcasts: " + str(total_missed_bcasts))
         print("\tFlags: " + str(node_analysis[node_id].flags))
         if len(parameters.HARDCODED_NODE_TDMA) > 0:
@@ -733,7 +753,7 @@ def main():
                     G.add_edge(node_id, p_key, weight=total_connections/parameters.PLOT_LOCS_WEIGHT_SCALAR)
                 node_analysis[node_id].connections[p_key] = total_connections
         node_analysis[node_id].avg_rssi = statistics.mean(node_analysis[node_id].rssi)
-        node_analysis[node_id].avg_missed_bcasts = statistics.mean([x[1] for x in node_analysis[node_id].missed_bcasts])
+        node_analysis[node_id].avg_missed_msgs = statistics.mean([x[1] for x in node_analysis[node_id].missed_msgs])
         print(flush=True)
         
         # Node specific plots
@@ -774,14 +794,14 @@ def main():
                             plot_snode_bcast_nums_padded.append(0)
                             #print("\tDebug: padding " + str(0))
                     
-                mb_x = [] # Bcast num
-                mb_y = [] # 0
-                for mb in node_analysis[node_id].missed_bcasts:
-                    mb_bcast = mb[0]
-                    mb_count = mb[1]
-                    for c in range(mb_count):
-                        mb_x.append(mb_bcast - c - 1)
-                        mb_y.append(0)
+                mm_x = [] # Bcast num
+                mm_y = [] # 0
+                for mm in node_analysis[node_id].missed_msgs:
+                    mm_bcast = mm[0]
+                    mm_count = mm[1]
+                    for c in range(mm_count):
+                        mm_x.append(mm_bcast - c - 1)
+                        mm_y.append(0)
                 figure, axis = plt.subplots(2, sharex=True)
                 plt.title("Bcast Num vs Cycle")
                 # GNODE
@@ -790,7 +810,7 @@ def main():
                 axis[0].set_ylabel("Bcast Num")
                 # SNODE
                 axis[1].plot(plot_snode_bcast_nums_padded)
-                axis[1].scatter(mb_x, mb_y, color="Red")
+                axis[1].scatter(mm_x, mm_y, color="Red")
                 axis[1].set_title("SNODE " + str(node_id))
                 axis[1].set_xlabel("Cycle Num (Red dots are missed bcasts)")
                 axis[1].set_ylabel("Bcast Num")
@@ -902,7 +922,7 @@ def main():
         node_avg_rssi = []
         node_highest_parent_ratio = []
         node_avg_WTB = []
-        node_avg_missed_bcasts = []
+        node_avg_missed_msgs = []
         for n_key in node_analysis:
             node = node_analysis[n_key]
             if n_key in parameters.HARDCODED_PLOT_EXCLUDE:
@@ -917,7 +937,7 @@ def main():
             node_highest_parent_ratio.append(node.highest_parent_ratio)
             node_avg_rssi.append(node.avg_rssi)
             node_avg_WTB.append(node.avg_wtb)
-            node_avg_missed_bcasts.append(node.avg_missed_bcasts)
+            node_avg_missed_msgs.append(node.avg_missed_msgs)
             total_parents = len(node.connections)
             total_parent_PDR = 0
             total_parent_connections = 0
@@ -1071,16 +1091,16 @@ def main():
     
         # Avg Missed Bcasts vs Avg RSSI
         x_ax = node_avg_rssi
-        y_ax = node_avg_missed_bcasts
-        title = "NODE: Avg Missed Bcasts vs Avg RSSI"
+        y_ax = node_avg_missed_msgs
+        title = "NODE: Avg Missed Msgs vs Avg RSSI"
         x_label = "Avg RSSI"
-        y_label = "Avg Missed Bcasts"
+        y_label = "Avg Missed Msgs"
         for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
             plt.annotate(node_id, (x_ax[i], y_ax[i]))
         plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
         
         # Avg PDR vs Avg Missed Bcasts
-        x_ax = node_avg_missed_bcasts
+        x_ax = node_avg_missed_msgs
         y_ax = node_self_PDR
         title = "NODE: Avg PDR vs Avg Missed Bcasts"
         x_label = "Avg Missed Bcasts"
