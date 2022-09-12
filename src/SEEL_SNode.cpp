@@ -477,6 +477,13 @@ void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
     _inst->_cb_info.prev_flags = _inst->_flags;
     _inst->_last_parent = _inst->_parent_id;
 
+    // If we are non-force sleeping and parent_sync is false, then we must have received a bcast from a blacklisted parent
+    // and not one from a non-blacklisted parent; thus, we did not generate data this cycle
+    if (!_inst->_parent_sync)
+    {
+        ++_inst->_missed_msgs;
+    }
+
     // A parent was selected and a (ack-needed) msg was sent to parent, but parent never responded back
     if(_inst->_parent_sync && !_inst->_acked && _inst->_data_msgs_sent > 0) 
     {
