@@ -252,6 +252,7 @@ class Node_Analysis: # Per node
         self.highest_parent_ratio = 0 # Highest connection parent ratio [0, 1]
         self.avg_wtb = 0
         self.missed_msgs = [] # Format [Unique cycle, num_missed_msgs]
+        self.missed_msgs_blacklist = [] # Format [Unique cycle, num_missed_msgs]
         self.avg_missed_msgs = 0
         self.flags = {}
         self.any_transmissions = []
@@ -622,11 +623,14 @@ def main():
                 else:
                     total_missed_bcasts[msg.prev_missed_bcasts] = 1
         
+                
+        
                 node_analysis[node_id].data_transmissions.append(msg.prev_data_trans)
                 node_analysis[node_id].crc_fails.append(msg.prev_crc_fails)
                 node_analysis[node_id].max_queue_sizes.append(msg.prev_queue_size)
                 node_analysis[node_id].rssi.append(msg.parent_rssi)
                 node_analysis[node_id].missed_msgs.append([node_unique_cycle_num, msg.prev_missed_msgs])
+                node_analysis[node_id].missed_msgs_blacklist.append([node_unique_cycle_num, 1 if msg.prev_any_trans == 0 else 0])
                 node_analysis[node_id].any_transmissions.append(msg.prev_any_trans)
                 node_analysis[node_id].dropped_msgs.append(msg.prev_dropped_msgs)
                 node_analysis[node_id].hc_downstream.append(msg.hc_downstream)
@@ -806,6 +810,14 @@ def main():
                     for c in range(mm_count):
                         mm_x.append(mm_bcast - c - 1)
                         mm_y.append(0)
+                mm_blacklist_x = []
+                mm_blacklist_y = []
+                for mm in node_analysis[node_id].missed_msgs_blacklist:
+                    mm_bcast = mm[0]
+                    mm_count = mm[1]
+                    for c in range(mm_count):
+                        mm_blacklist_x.append(mm_bcast - c - 1)
+                        mm_blacklist_y.append(0)
                 figure, axis = plt.subplots(2, sharex=True)
                 plt.title("Bcast Num vs Cycle")
                 # GNODE
@@ -814,9 +826,10 @@ def main():
                 axis[0].set_ylabel("Bcast Num")
                 # SNODE
                 axis[1].plot(plot_snode_bcast_nums_padded)
-                axis[1].scatter(mm_x, mm_y, color="Red")
+                axis[1].scatter(mm_blacklist_x, mm_blacklist_y, color="green")
+                axis[1].scatter(mm_x, mm_y, color="red")
                 axis[1].set_title("SNODE " + str(node_id))
-                axis[1].set_xlabel("Cycle Num (Red dots are missed bcasts)")
+                axis[1].set_xlabel("Cycle Num (Red&Green dots are missed bcasts)")
                 axis[1].set_ylabel("Bcast Num")
                 plt.show()
                 """ Bcasts Received End """
