@@ -613,24 +613,25 @@ def main():
                 if msg.prev_queue_size > max_queue_size:
                     max_queue_size = msg.prev_queue_size
 
-                if msg.prev_missed_msgs in total_missed_msgs:
-                    total_missed_msgs[msg.prev_missed_msgs] += 1
+                missed_msgs = msg.prev_missed_msgs
+                if msg.prev_missed_msgs == 0 and msg.prev_data_trans == 0:
+                    missed_msgs = 1 # Blacklisted bcast case
+                if missed_msgs in total_missed_msgs:
+                    total_missed_msgs[missed_msgs] += 1
                 else:
-                    total_missed_msgs[msg.prev_missed_msgs] = 1
+                    total_missed_msgs[missed_msgs] = 1
 
                 if msg.prev_missed_bcasts in total_missed_bcasts:
                     total_missed_bcasts[msg.prev_missed_bcasts] += 1
                 else:
                     total_missed_bcasts[msg.prev_missed_bcasts] = 1
         
-                
-        
                 node_analysis[node_id].data_transmissions.append(msg.prev_data_trans)
                 node_analysis[node_id].crc_fails.append(msg.prev_crc_fails)
                 node_analysis[node_id].max_queue_sizes.append(msg.prev_queue_size)
                 node_analysis[node_id].rssi.append(msg.parent_rssi)
                 node_analysis[node_id].missed_msgs.append([node_unique_cycle_num, msg.prev_missed_msgs])
-                node_analysis[node_id].missed_msgs_blacklist.append([node_unique_cycle_num, 1 if msg.prev_any_trans == 0 else 0])
+                node_analysis[node_id].missed_msgs_blacklist.append([node_unique_cycle_num, 1 if msg.prev_data_trans == 0 else 0])
                 node_analysis[node_id].any_transmissions.append(msg.prev_any_trans)
                 node_analysis[node_id].dropped_msgs.append(msg.prev_dropped_msgs)
                 node_analysis[node_id].hc_downstream.append(msg.hc_downstream)
