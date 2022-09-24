@@ -230,7 +230,9 @@ class Node_Analysis: # Per node
     def __init__(self):
         self.node_id = 0
         self.connections = {}
-        self.connection_total = 0  
+        self.connection_total = 0
+        self.PDR_No_MM = 0 # PDR not adjusted for missed messages
+        self.PDR = 0
         self.paths = []
         self.cycle_children = {} # per cycle, 0 padded if no data. Index by bcast_inst and then bcast_num
         self.cycle_hops = {} # per cycle, 0 padded if no data. Index by bcast_inst and then bcast_num
@@ -689,6 +691,7 @@ def main():
         print("\t\tPercentage over GNODE lifetime: " + str(connection_count / total_bcasts_for_node)) # Total number of GNODE Bcasts received
         node_analysis[node_id].PDR = (0 if connection_count_max == 0 else connection_count / connection_count_max) # Total given times connected and generated a msg (until disconnect or death). This metric is a better representation of PDR.
         print("\t\tPDR_NO_MM (No MM Adjustment): " + str(node_analysis[node_id].PDR))
+        node_analysis[node_id].PDR_No_MM = node_analysis[node_id].PDR
         connection_count_adjustment = 0
         for mm_key in total_missed_msgs:
             connection_count_adjustment += mm_key * total_missed_msgs[mm_key] # Warning: This will ignore bcasts in packets with more than the max missed msgs count
@@ -1013,6 +1016,30 @@ def main():
                     plt.ylim([min(-120, min(connection_RSSI)), max(-50, max(connection_RSSI))])
                     plt.show()
                     
+        # Plot PDR and PDR_No_MM
+        all_nodes_PDR_node_num = []
+        all_nodes_PDR_no_adjust = []
+        all_nodes_PDR_adjust = []
+        sorted_keys = sorted(node_analysis.keys())
+        for n_key in sorted_keys:
+            node = node_analysis[n_key]
+            all_nodes_PDR_node_num.append(n_key)
+            all_nodes_PDR_no_adjust.append(node.PDR_No_MM)
+            all_nodes_PDR_adjust.append(node.PDR)
+        ind = np.arange(len(node_analysis))
+        bar_width = 0.35
+        y_axis_min = min(all_nodes_PDR_no_adjust) - 0.05
+        figure, axis = plt.subplots()
+        rects1 = axis.bar(ind - bar_width/2, all_nodes_PDR_no_adjust, bar_width, label='No MM Adjust')
+        rects2 = axis.bar(ind + bar_width/2, all_nodes_PDR_adjust, bar_width, label='MM Adjust')
+        plt.ylim([y_axis_min, 1])
+        axis.set_xticks(ind)
+        axis.set_xticklabels(all_nodes_PDR_node_num)
+        axis.set_xlabel('Node ID')
+        axis.set_ylabel('PDR')
+        axis.set_title('Overall PDR')
+        axis.legend()
+        plt.show()
         
         # *********** NODE PLOTS ***********
         
