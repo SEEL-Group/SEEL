@@ -261,6 +261,9 @@ class Node_Analysis: # Per node
         self.dropped_msgs = []
         self.hc_downstream = []
         self.hc_upstream = []
+        self.PDR_connection_count = 0
+        self.PDR_connection_count_max = 0
+        self.PDR_connection_count_max_adjust = 0
 
 class Msg_Analysis: # Per node
     def __init__(self):
@@ -680,7 +683,7 @@ def main():
         
         # Store and Print Analysis
         print("\tJoined Network on Bcast: " + str(bcast_instances[node_id]))
-        print("\tTotal Received Messages: " + str(num_node_msgs))
+        print("\tTotal Received Messages (Including dups): " + str(num_node_msgs))
         print("\tDuplicate Messages: " + str(duplicate_msg))
         if (num_node_msgs == duplicate_msg):
             print("Not enough data")
@@ -701,6 +704,12 @@ def main():
             node_analysis[node_id].PDR = pdr_mm_adjustment
         except:
             print("\t\tPDR (Missed Msg Adjustment): Not Available")
+        print("\t\tConnection Count: " + str(connection_count))
+        node_analysis[node_id].PDR_connection_count = connection_count
+        print("\t\tConnection Count Max: " + str(connection_count_max))
+        node_analysis[node_id].PDR_connection_count_max = connection_count_max
+        print("\t\tConnection Count Max MM Adjusted: " + str(connection_count_max - connection_count_adjustment))
+        node_analysis[node_id].PDR_connection_count_max_adjust = connection_count_max - connection_count_adjustment
         print("\tWTB")
         if len(wtb_general) > 0:
             node_analysis[node_id].avg_wtb = statistics.mean(wtb_general)
@@ -871,6 +880,17 @@ def main():
     print("Holistic Analysis")
     print("********************************************************")
     print("********************************************************")
+    print("Total connection counts")
+    cc = []
+    cc_m = []
+    cc_m_a = []
+    for node in node_analysis.values():
+        cc.append(node.PDR_connection_count)
+        cc_m.append(node.PDR_connection_count_max)
+        cc_m_a.append(node.PDR_connection_count_max_adjust)
+    print("Connection count: " + str(cc))
+    print("Connection count max: " + str(cc_m))
+    print("Connection count max MM adjust: " + str(cc_m_a))
     for node in node_analysis.values():
         print("********************************************************")
         print("Node " + str(node.node_id))
@@ -1022,11 +1042,13 @@ def main():
         all_nodes_PDR_adjust = []
         sorted_keys = sorted(node_analysis.keys())
         for n_key in sorted_keys:
+            if n_key in parameters.HARDCODED_PLOT_EXCLUDE:
+                continue # Skip any nodes we mark as "exclude", such as outliers seen from previous runs
             node = node_analysis[n_key]
             all_nodes_PDR_node_num.append(n_key)
             all_nodes_PDR_no_adjust.append(node.PDR_No_MM)
             all_nodes_PDR_adjust.append(node.PDR)
-        ind = np.arange(len(node_analysis))
+        ind = np.arange(len(all_nodes_PDR_node_num))
         bar_width = 0.35
         y_axis_min = min(all_nodes_PDR_no_adjust) - 0.05
         figure, axis = plt.subplots()
@@ -1040,6 +1062,8 @@ def main():
         axis.set_title('Overall PDR')
         axis.legend()
         plt.show()
+        print("Mean PDR No Adjust: " + str(statistics.mean(all_nodes_PDR_no_adjust)))
+        print("Mean PDR Adjust: " + str(statistics.mean(all_nodes_PDR_adjust)))
         
         # *********** NODE PLOTS ***********
         
