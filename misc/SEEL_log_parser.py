@@ -295,23 +295,50 @@ def search_paths(b_ind, b_num, node_analysis, paths, search_stack, hcount):
             hcount -= 1
             search_stack.pop()
 
-def plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, regression=True, a=1):
-        plt.scatter(x_ax, y_ax, alpha=a)
+def plot_w_lin_reg(x_ax, p1_y_ax, title, x_ax_label, y_ax_label, regression=True, a=1, p2_y_ax=None, y1_label=None, y2_label=None, annotation_ids=None,     legend_loc='upper left'):
+        plt.scatter(x_ax, p1_y_ax, alpha=a, label=y1_label, color='blue')
+        p1_r2 = 0
         if regression:
             try:
-                lin_reg_model = np.polyfit(x_ax, y_ax, deg=1)
+                lin_reg_model = np.polyfit(x_ax, p1_y_ax, deg=1)
                 xseq = np.linspace(min(x_ax), max(x_ax), num=100)
                 plt.plot(xseq, lin_reg_model[1] + lin_reg_model[0] * xseq)
                 model_predict = np.poly1d(lin_reg_model)
-                r2 = r2_score(y_ax, model_predict(x_ax))
-                plt.title(title + ", R^2=" + str(r2))
+                p1_r2 = r2_score(p1_y_ax, model_predict(x_ax))
+                plt.title(title + "\nBlue R^2=" + str(p1_r2))
             except:
-                print("Linear Regression failed")
+                print("Linear Regression 1 failed")
                 plt.title(title)
         else:
             plt.title(title)
-        plt.xlabel(x_label)
-        plt.ylabel(y_label)
+            
+        if annotation_ids is not None:
+            for i, node_id in enumerate(annotation_ids):
+                plt.annotate(node_id, (x_ax[i], p1_y_ax[i]))
+        
+        # Superimpose plot
+        if p2_y_ax is not None and y1_label is not None and y2_label is not None:
+            plt.scatter(x_ax, p2_y_ax, alpha=a, label=y2_label, color='orange')
+            if regression:
+                try:
+                    lin_reg_model = np.polyfit(x_ax, p2_y_ax, deg=1)
+                    xseq = np.linspace(min(x_ax), max(x_ax), num=100)
+                    plt.plot(xseq, lin_reg_model[1] + lin_reg_model[0] * xseq)
+                    model_predict = np.poly1d(lin_reg_model)
+                    p2_r2 = r2_score(p2_y_ax, model_predict(x_ax))
+                    plt.title(title + "\nBlue R^2="  + str(p1_r2) + "\nOrange R^2=" + str(p2_r2))
+                except:
+                    print("Linear Regression 2 failed")
+            else:
+                plt.title(title)
+            
+            if annotation_ids is not None:
+                for i, node_id in enumerate(annotation_ids):
+                    plt.annotate(node_id, (x_ax[i], p2_y_ax[i]))
+        
+        plt.xlabel(x_ax_label)
+        plt.ylabel(y_ax_label)
+        plt.legend(loc=legend_loc);
         plt.show()
 
 def read_as_int(list, index):
@@ -952,10 +979,12 @@ def main():
             node_PDR[n_key] = node_analysis[n_key].PDR
     
         # Append node plot data
+        node_annotate_ids = [] # For annotating plots with node ID
         node_avg_HC = []
         node_avg_children = []
         node_lifetime_cycles = []
         node_self_PDR = []
+        node_self_PDR_No_MM = []
         node_weighted_parent_PDR = []
         node_avg_crc_receive_fails = []
         node_avg_data_transmissions = []
@@ -968,7 +997,9 @@ def main():
             node = node_analysis[n_key]
             if n_key in parameters.HARDCODED_PLOT_EXCLUDE:
                 continue # Skip any nodes we mark as "exclude", such as outliers seen from previous runs
+            node_annotate_ids.append(n_key)
             node_self_PDR.append(node.PDR)
+            node_self_PDR_No_MM.append(node.PDR_No_MM)
             node_avg_HC.append(node.hc_mean)
             node_avg_children.append(node.children_mean)
             node_lifetime_cycles.append(node.cycles)
@@ -1067,199 +1098,209 @@ def main():
         
         # *********** NODE PLOTS ***********
         
-        # Self PDR vs Weighted (Connections) Parent PDR
+        # PDR vs Weighted (Connections) Parent PDR
         x_ax = node_weighted_parent_PDR
-        y_ax = node_self_PDR
+        y1_ax = node_self_PDR
+        y2_ax = node_self_PDR_No_MM
         title = "NODE: Self PDR vs Weighted Parent PDR"
-        x_label = "Weighted Parent PDR"
-        y_label = "Self PDR"
-        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
-            plt.annotate(node_id, (x_ax[i], y_ax[i]))
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+        y1_label = "PDR MM Adjusted"
+        y2_label = "PDR Unadjusted"
+        x_ax_label = "Weighted Parent PDR"
+        y_ax_label = "PDR"
+        plot_w_lin_reg(x_ax, y1_ax, title, x_ax_label, y_ax_label, p2_y_ax=y2_ax, y1_label=y1_label, y2_label=y2_label, annotation_ids=node_annotate_ids)
     
         # PDR vs Avg HC
         x_ax = node_avg_HC
-        y_ax = node_self_PDR
+        y1_ax = node_self_PDR
+        y2_ax = node_self_PDR_No_MM
+        y1_label = "PDR MM Adjusted"
+        y2_label = "PDR Unadjusted"
         title = "NODE: PDR vs Avg HC"
-        x_label = "Avg HC"
-        y_label = "PDR"
-        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
-            plt.annotate(node_id, (x_ax[i], y_ax[i]))
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+        y1_label = "PDR MM Adjusted"
+        y2_label = "PDR Unadjusted"
+        x_ax_label = "Avg HC"
+        y_ax_label = "PDR"
+        plot_w_lin_reg(x_ax, y1_ax, title, x_ax_label, y_ax_label, p2_y_ax=y2_ax, y1_label=y1_label, y2_label=y2_label, annotation_ids=node_annotate_ids)
     
         # PDR vs Avg Children
         x_ax = node_avg_children
-        y_ax = node_self_PDR
+        y1_ax = node_self_PDR
+        y2_ax = node_self_PDR_No_MM
         title = "NODE: PDR vs Avg Children"
-        x_label = "Avg Children"
-        y_label = "PDR"
-        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
-            plt.annotate(node_id, (x_ax[i], y_ax[i]))
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+        y1_label = "PDR MM Adjusted"
+        y2_label = "PDR Unadjusted"
+        x_ax_label = "Avg Children"
+        y_ax_label = "PDR"
+        plot_w_lin_reg(x_ax, y1_ax, title, x_ax_label, y_ax_label, p2_y_ax=y2_ax, y1_label=y1_label, y2_label=y2_label, annotation_ids=node_annotate_ids)
     
         # PDR vs CRC Fails
         x_ax = node_avg_crc_receive_fails
-        y_ax = node_self_PDR
+        y1_ax = node_self_PDR
+        y2_ax = node_self_PDR_No_MM
         title = "NODE: PDR vs CRC Fails"
-        x_label = "CRC Fails"
-        y_label = "PDR"
-        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
-            plt.annotate(node_id, (x_ax[i], y_ax[i]))
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+        y1_label = "PDR MM Adjusted"
+        y2_label = "PDR Unadjusted"
+        x_ax_label = "CRC Fails"
+        y_ax_label = "PDR"
+        plot_w_lin_reg(x_ax, y1_ax, title, x_ax_label, y_ax_label, p2_y_ax=y2_ax, y1_label=y1_label, y2_label=y2_label, annotation_ids=node_annotate_ids)
         
         # PDR vs Avg Data Transmissions
         x_ax = node_avg_data_transmissions
-        y_ax = node_self_PDR
+        y1_ax = node_self_PDR
+        y2_ax = node_self_PDR_No_MM
         title = "NODE: PDR vs Avg Data Transmissions"
-        x_label = "Avg Data Transmissions"
-        y_label = "PDR"
-        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
-            plt.annotate(node_id, (x_ax[i], y_ax[i]))
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+        y1_label = "PDR MM Adjusted"
+        y2_label = "PDR Unadjusted"
+        x_ax_label = "Avg Data Transmissions"
+        y_ax_label = "PDR"
+        plot_w_lin_reg(x_ax, y1_ax, title, x_ax_label, y_ax_label, p2_y_ax=y2_ax, y1_label=y1_label, y2_label=y2_label, annotation_ids=node_annotate_ids)
         
         # PDR vs Avg Max Queue Sizes 
         # Naming here is difficult; since queue sizes are reported as the max during a cycle, we take the avg of max queue sizes across received msgs
         x_ax = node_avg_max_queue_sizes
-        y_ax = node_self_PDR
+        y1_ax = node_self_PDR
+        y2_ax = node_self_PDR_No_MM
         title = "NODE: PDR vs Avg Queue Size"
-        x_label = "Avg Queue Size"
-        y_label = "PDR"
-        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
-            plt.annotate(node_id, (x_ax[i], y_ax[i]))
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+        y1_label = "PDR MM Adjusted"
+        y2_label = "PDR Unadjusted"
+        x_ax_label = "Avg Queue Size"
+        y_ax_label = "PDR"
+        plot_w_lin_reg(x_ax, y1_ax, title, x_ax_label, y_ax_label, p2_y_ax=y2_ax, y1_label=y1_label, y2_label=y2_label, annotation_ids=node_annotate_ids)
     
         # PDR vs Highest parent ratio, highest parent ratio is the highest connection % a node had to one of its parents
         x_ax = node_highest_parent_ratio
-        y_ax = node_self_PDR
+        y1_ax = node_self_PDR
+        y2_ax = node_self_PDR_No_MM
         title = "NODE: PDR vs Highest Parent Ratio"
-        x_label = "Highest Parent Ratio"
-        y_label = "PDR"
-        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
-            plt.annotate(node_id, (x_ax[i], y_ax[i]))
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+        y1_label = "PDR MM Adjusted"
+        y2_label = "PDR Unadjusted"
+        x_ax_label = "Highest Parent Ratio"
+        y_ax_label = "PDR"
+        plot_w_lin_reg(x_ax, y1_ax, title, x_ax_label, y_ax_label, p2_y_ax=y2_ax, y1_label=y1_label, y2_label=y2_label, annotation_ids=node_annotate_ids)
+    
+        # PDR vs Avg Missed Bcasts
+        x_ax = node_avg_missed_msgs
+        y1_ax = node_self_PDR
+        y2_ax = node_self_PDR_No_MM
+        title = "NODE: Avg PDR vs Avg Missed Bcasts"
+        y1_label = "PDR MM Adjusted"
+        y2_label = "PDR Unadjusted"
+        x_ax_label = "Avg Missed Bcasts"
+        y_ax_label = "Avg PDR"
+        plot_w_lin_reg(x_ax, y1_ax, title, x_ax_label, y_ax_label, p2_y_ax=y2_ax, y1_label=y1_label, y2_label=y2_label, annotation_ids=node_annotate_ids)
     
         # Avg Max Queue Size vs Avg Data Transmissions
         x_ax = node_avg_data_transmissions
         y_ax = node_avg_max_queue_sizes
         title = "NODE: Avg Max Queue Size vs Avg Data Transmissions"
-        x_label = "Avg Data Transmissions"
-        y_label = "Avg Max Queue Size"
-        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
-            plt.annotate(node_id, (x_ax[i], y_ax[i]))
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+        y1_label = "PDR MM Adjusted"
+        y2_label = "PDR Unadjusted"
+        x_ax_label = "Avg Data Transmissions"
+        y_ax_label = "Avg Max Queue Size"
+        plot_w_lin_reg(x_ax, y_ax, title, x_ax_label, y_ax_label, annotation_ids=node_annotate_ids)
     
         # Avg Data Transmissions vs Avg RSSI
         x_ax = node_avg_rssi
         y_ax = node_avg_data_transmissions
         title = "NODE: Avg Data Transmissionsvs vs Avg RSSI"
-        x_label = "Avg RSSI"
-        y_label = "Avg Data Transmissions"
-        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
-            plt.annotate(node_id, (x_ax[i], y_ax[i]))
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+        x_ax_label = "Avg RSSI"
+        y_ax_label = "Avg Data Transmissions"
+        plot_w_lin_reg(x_ax, y_ax, title, x_ax_label, y_ax_label, annotation_ids=node_annotate_ids)
     
         # Avg Missed Bcasts vs Avg RSSI
         x_ax = node_avg_rssi
         y_ax = node_avg_missed_msgs
         title = "NODE: Avg Missed Msgs vs Avg RSSI"
-        x_label = "Avg RSSI"
-        y_label = "Avg Missed Msgs"
-        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
-            plt.annotate(node_id, (x_ax[i], y_ax[i]))
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
-        
-        # Avg PDR vs Avg Missed Bcasts
-        x_ax = node_avg_missed_msgs
-        y_ax = node_self_PDR
-        title = "NODE: Avg PDR vs Avg Missed Bcasts"
-        x_label = "Avg Missed Bcasts"
-        y_label = "Avg PDR"
-        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
-            plt.annotate(node_id, (x_ax[i], y_ax[i]))
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+        x_ax_label = "Avg RSSI"
+        y_ax_label = "Avg Missed Msgs"
+        plot_w_lin_reg(x_ax, y_ax, title, x_ax_label, y_ax_label, annotation_ids=node_annotate_ids)
     
         # Avg Data Transmissions vs Avg Children
         x_ax = node_avg_children
         y_ax = node_avg_data_transmissions
         title = "NODE: Avg Data Transmissions vs Avg Children"
-        x_label = "Avg Children"
-        y_label = "Avg Data Transmissions"
-        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
-            plt.annotate(node_id, (x_ax[i], y_ax[i]))
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+        x_ax_label = "Avg Children"
+        y_ax_label = "Avg Data Transmissions"
+        plot_w_lin_reg(x_ax, y_ax, title, x_ax_label, y_ax_label, annotation_ids=node_annotate_ids)
     
         # Avg Data Transmissions vs Avg CRC Fails
         x_ax = node_avg_crc_receive_fails
         y_ax = node_avg_data_transmissions
         title = "NODE: Avg Data Transmissions vs Avg CRC Fails"
-        x_label = "Avg CRC Fails"
-        y_label = "Avg Data Transmissions"
-        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
-            plt.annotate(node_id, (x_ax[i], y_ax[i]))
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+        x_ax_label = "Avg CRC Fails"
+        y_ax_label = "Avg Data Transmissions"
+        plot_w_lin_reg(x_ax, y_ax, title, x_ax_label, y_ax_label, annotation_ids=node_annotate_ids)
     
         # Lifetime (Cycles) vs Avg HC
         x_ax = node_avg_HC
         y_ax = node_lifetime_cycles
         title = "NODE: Lifetime vs Avg HC"
-        x_label = "Avg HC"
-        y_label = "Lifetime (Cycles)"
-        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
-            plt.annotate(node_id, (x_ax[i], y_ax[i]))
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+        x_ax_label = "Avg HC"
+        y_ax_label = "Lifetime (Cycles)"
+        plot_w_lin_reg(x_ax, y_ax, title, x_ax_label, y_ax_label, annotation_ids=node_annotate_ids)
         
         # Lifetime (Cycles) vs Avg Num Children
         x_ax = node_avg_children
         y_ax = node_lifetime_cycles
         title = "NODE: Lifetime vs Avg Children"
-        x_label = "Avg Children"
-        y_label = "Lifetime (Cycles)"
-        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
-            plt.annotate(node_id, (x_ax[i], y_ax[i]))
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+        x_ax_label = "Avg Children"
+        y_ax_label = "Lifetime (Cycles)"
+        plot_w_lin_reg(x_ax, y_ax, title, x_ax_label, y_ax_label, annotation_ids=node_annotate_ids)
         
         # Avg WTB vs Avg Num Children
         x_ax = node_avg_HC
         y_ax = node_avg_WTB
         title = "NODE: Avg WTB vs Avg HC"
-        x_label = "Avg HC"
-        y_label = "Avg WTB"
-        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
-            plt.annotate(node_id, (x_ax[i], y_ax[i]))
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+        x_ax_label = "Avg HC"
+        y_ax_label = "Avg WTB"
+        plot_w_lin_reg(x_ax, y_ax, title, x_ax_label, y_ax_label, annotation_ids=node_annotate_ids)
 
         # Avg Data Trans vs Avg HC
         x_ax = node_avg_HC
         y_ax = node_avg_data_transmissions
         title = "Avg Data Trans vs Avg HC"
-        x_label = "Avg HC"
-        y_label = "Avg Data Transmissions"
-        for i, node_id in enumerate([node_analysis[n_key].node_id for n_key in node_analysis if not n_key in parameters.HARDCODED_PLOT_EXCLUDE]):
-            plt.annotate(node_id, (x_ax[i], y_ax[i]))
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label)
+        x_ax_label = "Avg HC"
+        y_ax_label = "Avg Data Transmissions"
+        plot_w_lin_reg(x_ax, y_ax, title, x_ax_label, y_ax_label, annotation_ids=node_annotate_ids)
+
+        # Avg Num Children vs Avg HC
+        x_ax = node_avg_HC
+        y_ax = node_avg_children
+        title = "Avg Num Children vs Avg HC"
+        x_ax_label = "Avg HC"
+        y_ax_label = "Avg Num Children"
+        plot_w_lin_reg(x_ax, y_ax, title, x_ax_label, y_ax_label, annotation_ids=node_annotate_ids)
+
+        # Avg Data Trans vs Avg Num Children
+        x_ax = node_avg_children
+        y_ax = node_avg_data_transmissions
+        title = "Avg Data Trans vs Avg Num Children"
+        x_ax_label = "Avg HC"
+        y_ax_label = "Avg Num Children"
+        plot_w_lin_reg(x_ax, y_ax, title, x_ax_label, y_ax_label, annotation_ids=node_annotate_ids)
 
         # *********** MSG PLOTS ***********
 
         x_ax = msg_parent_rssi
         y_ax = msg_crc_fails
         title = "MSG: CRC Fails vs Parent RSSI"
-        x_label = "Parent RSSI"
-        y_label = "CRC Fails"
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, False, 0.1)
+        x_ax_label = "Parent RSSI"
+        y_ax_label = "CRC Fails"
+        plot_w_lin_reg(x_ax, y_ax, title, x_ax_label, y_ax_label, False, 0.1)
         
         x_ax = msg_parent_rssi
         y_ax = msg_data_transmissions
         title = "MSG: Data Transmissions vs Parent RSSI"
-        x_label = "Parent RSSI"
-        y_label = "Data Transmissions"
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, False, 0.1)
+        x_ax_label = "Parent RSSI"
+        y_ax_label = "Data Transmissions"
+        plot_w_lin_reg(x_ax, y_ax, title, x_ax_label, y_ax_label, False, 0.1)
         
         x_ax = msg_data_transmissions
         y_ax = msg_crc_fails
         title = "MSG: CRC Fails vs Data Transmissions"
-        x_label = "Data Transmissions"
-        y_label = "CRC Fails"
-        plot_w_lin_reg(x_ax, y_ax, title, x_label, y_label, False, 0.1)
+        x_ax_label = "Data Transmissions"
+        y_ax_label = "CRC Fails"
+        plot_w_lin_reg(x_ax, y_ax, title, x_ax_label, y_ax_label, False, 0.1)
 
         # Plot HC and number of children connections per cycle per node
         if parameters.PLOT_NODE_SPECIFIC_CONNECTIONS:
