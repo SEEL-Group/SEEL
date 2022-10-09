@@ -30,19 +30,39 @@ public:
     };
 
     // Extended Packet Structs
-    struct SEEL_Received_Broadcast
+    class SEEL_Received_Broadcast
     {
-        uint8_t sender_id;
-        int8_t sender_RSSI;
+    public:
+        uint8_t sender_id; // 1st bit (MSB) denotes if the bcast was USED during the cycle, remaining bit for node ID
+        int8_t sender_rssi;
+
+        SEEL_Received_Broadcast() : sender_id(0), sender_rssi(0) {}
+        SEEL_Received_Broadcast(uint8_t id, int8_t rssi) : sender_id(id), sender_rssi(rssi) {}
+
+        bool operator== (const SEEL_Received_Broadcast &rhs)
+        {
+            return sender_id == rhs.sender_id;
+        }
     };
-    struct SEEL_Received_Message // Non-broadcast
+    class SEEL_Received_Message // Non-broadcast
     {
+    public:
         uint8_t sender_id;
-        int8_t sender_avg_RSSI; // latest
-        uint8_t misc;  // 1st bit (MSB) denotes if sender was child, remaining bits is send count
+        int8_t sender_rssi; // latest sender
+        uint8_t sender_misc;  // 1st bit (MSB) denotes if sender was child, remaining bits is send count
+
+        SEEL_Received_Message() : sender_id(0), sender_rssi(0), sender_misc(0) {}
+        SEEL_Received_Message(uint8_t id, int8_t rssi, uint8_t misc) : sender_id(id), sender_rssi(rssi), sender_misc(misc) {}
+
+        bool operator== (const SEEL_Received_Message &rhs)
+        {
+            return sender_id == rhs.sender_id;
+        }
     };
-    struct SEEL_Transmissions
+    class SEEL_Transmissions
     {
+    public:
+        uint8_t bcast;
         uint8_t data;
         uint8_t id_check;
         uint8_t ack;
@@ -55,6 +75,7 @@ public:
         
         void clear()
         {
+            bcast = 0;
             data = 0;
             id_check = 0;
             ack = 0;
@@ -76,8 +97,6 @@ public:
         uint8_t prev_failed_transmissions;
         
         uint32_t wtb_millis; // Time between waking up and this NODE receiving the broadcast message
-        uint8_t prev_data_transmissions; // Number of data/id_check/fwd tranmissions in the PREVIOUS cycle
-        uint8_t prev_transmissions;
         uint8_t prev_CRC_fails;
         uint8_t hop_count;
         uint8_t missed_bcasts;
@@ -88,8 +107,8 @@ public:
         int8_t parent_rssi; // RSSI value of the bcast msg received from the parent, initialized to 0
         bool first_callback; // Whether this callback call is the first one this cycle (allows for initialization)
 
-        SEEL_CB_Info() : wtb_millis(0), prev_data_transmissions(0), prev_CRC_fails(0), hop_count(0), missed_bcasts(0), 
-        missed_msgs(0), prev_max_data_queue_size(0), bcast_count(0), first_callback(false), prev_flags(0) {}
+        SEEL_CB_Info() : wtb_millis(0), prev_CRC_fails(0), hop_count(0), missed_bcasts(0), 
+        missed_msgs(0), bcast_count(0), prev_flags(0), first_callback(false) {}
     };
 
     // ***************************************************

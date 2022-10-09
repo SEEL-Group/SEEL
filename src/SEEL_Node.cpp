@@ -321,7 +321,7 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
         {
             _inst->_bcast_avail = false;
             _inst->_bcast_sent = true;
-            ++(_inst->_any_msgs_sent);
+            ++(_inst->_cycle_transmissions.bcast);
         }
     }
     else if (!_inst->_ack_queue.empty())
@@ -336,7 +336,7 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
         _inst->create_msg(to_send_ptr, SEEL_GNODE_ID, SEEL_CMD_ACK);
 
         if (_inst->try_send(to_send_ptr, true)) {
-            ++(_inst->_any_msgs_sent);
+            ++(_inst->_cycle_transmissions.ack);
         }
     }
     else if (!_inst->_data_queue_ptr->empty())// DATA or ID_CHECK or FORWARDED message
@@ -361,6 +361,7 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
             return;
         }
 
+        uint32_t msg_original_send_id = to_send_ptr->send_id;
         // Any ID_CHECK or DATA msgs need to be sent to this node's parent at THIS cycle,
         // but queue'd messages might have different parents. So correct the parent at SEND time.
         // Same with self ID, node may take a suggested ID, so sender should also be corrected
@@ -370,8 +371,19 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
         if (_inst->try_send(to_send_ptr, true))
         {
             ++(_inst->_unack_msgs);
-            ++(_inst->_data_msgs_sent);
-            ++(_inst->_any_msgs_sent);
+            ++(_inst->_failed_transmissions);
+            if (msg_original_send_id != _inst->_node_id) // Fwd msg
+            {
+                ++(_inst->_cycle_transmissions.fwd);
+            }
+            else if (msg_cmd == SEEL_CMD_DATA)
+            {
+                ++(_inst->_cycle_transmissions.data);
+            }
+            else if (msg_cmd == SEEL_CMD_ID_CHECK)
+            {
+                ++(_inst->_cycle_transmissions.id_check);
+            }
         }
         // Do not pop msg from queue until msg is ack'd
     }

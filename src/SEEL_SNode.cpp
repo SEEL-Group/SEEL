@@ -69,17 +69,16 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
     _inst->_cb_info.wtb_millis = millis();
     _inst->_msg_send_delay = 0;
     _inst->_unack_msgs = 0;
-    _inst->_data_msgs_sent = 0;
-    _inst->_any_msgs_sent = 0;
     _inst->_CRC_fails = 0;
     _inst->_bcast_received = false;
     _inst->_parent_sync = false;
     _inst->_cb_info.first_callback = true; // Allows ability to only send 1 message per cycle
     _inst->_bcast_avail = false;
     _inst->_bcast_sent = false; // Set to true in SEEL_Node.cpp when bcast msg sent out
-    
-    received_msgs.clear();
-    cycle_transmissions.clear();
+
+    _inst->_cycle_transmissions.clear();
+    _inst->_cb_info.received_bcasts.clear();
+    _inst->_received_msgs.clear();
     _inst->_queue_dropped_msgs_self = 0;
     _inst->_queue_dropped_msgs_others = 0;
     _inst->_failed_transmissions = 0;
@@ -188,6 +187,43 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
         bool added = _inst->_ref_scheduler->add_task(&_inst->_task_receive);
         SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
         return;
+    }
+
+    // Extended Packet Packet logging: if we receive a packet, log it
+    if(msg.cmd == SEEL_CMD_BCAST)
+    {
+        // Create received broadcast (rb)
+        SEEL_Received_Broadcast rb(msg.send_id, msg_rssi);
+        rb.sender_id &= (_inst->_bcast_sent ? 0x7F : 0xFF); // MSB denotes if this bcast was considered this cycle (1) or not (0), remaining bits for sender id
+
+        // Search if rb already in queue
+        SEEL_Received_Broadcast* found_rb = _inst->_cb_info.received_bcasts.find(rb);
+        if (found_rb == NULL) // Add
+        {
+            _inst->_cb_info.received_bcasts.add(rb);
+        }
+        else // Update
+        {
+            found_rb->sender_rssi = msg_rssi;
+        }
+    }
+    else
+    {
+        // Create received message (rm)
+        uint8_t misc = (msg.targ_id == _inst->_node_id) ? 0x81 : 0x01;// MSB denotes if this msg was intended for this node (from a child node) (1) or not (0), remaining bits for count which starts at 1
+        SEEL_Received_Message rm(msg.send_id, msg_rssi, misc); 
+
+        // Search if rb already in queue
+        SEEL_Received_Message* found_rm = _inst->_received_msgs.find(rm);
+        if (found_rm == NULL) // Add
+        {
+            _inst->_received_msgs.add(rm);
+        }
+        else // Update
+        {
+            found_rm->sender_rssi = msg_rssi;
+            ++(found_rm->sender_misc);
+        }
     }
 
     // Message is available
@@ -396,6 +432,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
             _inst->_data_queue_ptr->pop_front();
             _inst->_msg_send_delay = 0;
             _inst->_unack_msgs = 0;
+            --(_inst->_failed_transmissions);
             _inst->_acked = true; // Gets set to true until cycle ends. This is to see if the parent ever ack'd messages. If not, add parent to blacklist.
 
             SEEL_Print::println(F("ACK received"));
@@ -482,7 +519,7 @@ void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
     _inst->_cb_info.prev_received_msgs.clear();
     while (!_inst->_received_msgs.empty())
     {
-        _inst->_cb_info.prev_received_msgs.add(_inst->_received_msgs.front());
+        _inst->_cb_info.prev_received_msgs.add(*(_inst->_received_msgs.front()));
         _inst->_received_msgs.pop_front();
     }
     _inst->_cb_info.prev_transmissions = _inst->_cycle_transmissions;
@@ -498,7 +535,7 @@ void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
     }
 
     // A parent was selected and a (ack-needed) msg was sent to parent, but parent never responded back
-    if(_inst->_parent_sync && !_inst->_acked && _inst->_data_msgs_sent > 0) 
+    if(_inst->_parent_sync && !_inst->_acked && _inst->_cycle_transmissions.data > 0) 
     {
         // Blacklist the parent
         SEEL_Print::print(F("Blacklisted NODE: ")); SEEL_Print::println(_inst->_parent_id); // Blacklist: parent ID
@@ -635,7 +672,7 @@ bool SEEL_SNode::enqueue_forwarding_msg(SEEL_Message* prev_msg)
     }
     else {
         SEEL_Print::println(F("Forwarding message not added"));
-        _queue_dropped_msgs += 1;
+        _queue_dropped_msgs_others += 1;
         SEEL_Node::set_flag(SEEL_Flags::FLAG_ADD_MAX_DATA_QUEUE);
     }
     return added;
@@ -667,7 +704,7 @@ bool SEEL_SNode::enqueue_node_id()
     }
     else {
         SEEL_Print::println(F("ID message not added"));
-        _queue_dropped_msgs += 1;
+        _queue_dropped_msgs_self += 1;
         SEEL_Node::set_flag(SEEL_Flags::FLAG_ADD_MAX_DATA_QUEUE);
     }
 
@@ -710,7 +747,7 @@ bool SEEL_SNode::enqueue_data()
             }
             else {
                 SEEL_Print::println(F("Data message not added"));
-                _queue_dropped_msgs += 1;
+                _queue_dropped_msgs_self += 1;
                 SEEL_Node::set_flag(SEEL_Flags::FLAG_ADD_MAX_DATA_QUEUE);
             }
             

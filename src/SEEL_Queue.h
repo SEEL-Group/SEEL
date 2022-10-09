@@ -121,7 +121,7 @@ class SEEL_Extended_Packet_Queue : public SEEL_Queue<T> {
 private:
     T content_ary[SEEL_EXTENDED_PACKET_MAX_NODES_EXPECTED];
 public:
-    SEEL_Sched_Queue() {
+    SEEL_Extended_Packet_Queue() {
         this->_content_ary_ptr = content_ary;
         this->Q_MAX_SIZE = SEEL_EXTENDED_PACKET_MAX_NODES_EXPECTED;
     }

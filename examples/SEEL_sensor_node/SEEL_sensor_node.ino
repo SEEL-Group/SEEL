@@ -45,7 +45,7 @@ void user_function()
 // Write Parameter: "msg_data", which is the data packet to send
 // Read-Only Parameter: "info" contains misc SEEL info, defined in SEEL_Node.h
 // Returns: true if the data message should be sent out
-bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::SEEL_CB_Info* info)
+bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], SEEL_Node::SEEL_CB_Info* info)
 {
   // The contents of this function are an example of what one can do with this CB function
 
@@ -64,7 +64,7 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
 
   // SEEL_MSG_DATA_SIZE = SEEL_MSG_MISC_SIZE + SEEL_MSG_USER_SIZE
   // If more than SEEL_MSG_MISC_SIZE data bytes are needed, increase SEEL_MSG_USER_SIZE by the missing amount  
-  if (SEEL_MSG_DATA_SIZE >= 75) // Safety check to prevent out of bounds access
+  if (SEEL_MSG_DATA_SIZE >= 76) // Safety check to prevent out of bounds access
   {
     msg_data[0] = SEEL_SNODE_ID; // original ID
     msg_data[1] = seel_snode.get_node_id(); // assigned ID
@@ -78,35 +78,36 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
     msg_data[9] = (uint8_t)(send_count >> 8);
     msg_data[10] = (uint8_t)(send_count);
     msg_data[11] = info->missed_msgs;
-    msg_data[12] = info->prev_max_data_queue_size;
-    msg_data[13] = info->prev_CRC_fails;
-    msg_data[14] = info->prev_flags;
-    msg_data[15] = info->hop_count; // tracks downstream node hop count
-    msg_data[16] = 1; // tracks upstream msg hop count, initialized to 1 and incremented with every forward
-    msg_data[17] = info->missed_bcasts;
+    msg_data[12] = info->missed_bcasts;
+    msg_data[13] = info->prev_max_data_queue_size;
+    msg_data[14] = info->prev_CRC_fails;
+    msg_data[15] = info->prev_flags;
+    msg_data[16] = info->hop_count; // tracks downstream node hop count
+    msg_data[17] = 1; // tracks upstream msg hop count, initialized to 1 and incremented with every forward
     msg_data[18] = info->prev_queue_dropped_msgs_self;
     msg_data[19] = info->prev_queue_dropped_msgs_others;
     msg_data[20] = info->prev_failed_transmissions;
-    msg_data[21] = info->prev_transmissions.data;
-    msg_data[22] = info->prev_transmissions.id_check;
-    msg_data[23] = info->prev_transmissions.ack;
-    msg_data[24] = info->prev_transmissions.fwd;
-    for (uint32_t i = 0; i < SEEL_EXTENDED_PACKET_MAX_NODES_EXPECTED && !info->received_bcasts.empty(); ++i) // Bcast, 2 byte each, 25 to 44
+    msg_data[21] = info->prev_transmissions.bcast;
+    msg_data[22] = info->prev_transmissions.data;
+    msg_data[23] = info->prev_transmissions.id_check;
+    msg_data[24] = info->prev_transmissions.ack;
+    msg_data[25] = info->prev_transmissions.fwd;
+    for (uint32_t i = 0; i < SEEL_EXTENDED_PACKET_MAX_NODES_EXPECTED && !info->received_bcasts.empty(); ++i) // Bcast, 2 byte each, 26 to 45
     {
-        msg_data[25 + i * 2] = info->received_bcasts.front().sender_id;
-        msg_data[25 + i * 2 + 1] = info->received_bcasts.front().sender_RSSI;
+        msg_data[26 + i * 2] = info->received_bcasts.front()->sender_id;
+        msg_data[26 + i * 2 + 1] = info->received_bcasts.front()->sender_rssi;
         info->received_bcasts.pop_front();
     }
-    for (uint32_t i = 0; i < SEEL_EXTENDED_PACKET_MAX_NODES_EXPECTED && !info->prev_received_msgs.empty(); ++i) // Received, 3 byte each, 45 to 74
+    for (uint32_t i = 0; i < SEEL_EXTENDED_PACKET_MAX_NODES_EXPECTED && !info->prev_received_msgs.empty(); ++i) // Received, 3 byte each, 46 to 75
     {
-        msg_data[45 + i * 3] = info->prev_received_msgs.front().sender_id;
-        msg_data[45 + i * 3 + 1] = info->prev_received_msgs.front().sender_avg_RSSI;
-        msg_data[45 + i * 3 + 2] = info->prev_received_msgs.front().misc;
+        msg_data[46 + i * 3] = info->prev_received_msgs.front()->sender_id;
+        msg_data[46 + i * 3 + 1] = info->prev_received_msgs.front()->sender_rssi;
+        msg_data[46 + i * 3 + 2] = info->prev_received_msgs.front()->sender_misc;
         info->prev_received_msgs.pop_front();
     }
 
     // Fill rest with zeros
-    for (uint32_t i = 75; i < SEEL_MSG_DATA_SIZE; ++i)
+    for (uint32_t i = 76; i < SEEL_MSG_DATA_SIZE; ++i)
     {
         msg_data[i] = 0;
     }
@@ -142,9 +143,9 @@ void user_callback_presend(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node
 // Return: Whether message should be forwarded
 bool user_callback_forwarding(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::SEEL_CB_Info* info)
 {
-  if (SEEL_MSG_DATA_SIZE >= 17)
+  if (SEEL_MSG_DATA_SIZE >= 18)
   {
-    msg_data[16] += 1; // tracks upstream msg hop count, initialized to 1 and incremented with every forward
+    msg_data[17] += 1; // tracks upstream msg hop count, initialized to 1 and incremented with every forward
   }
     
   return true;
