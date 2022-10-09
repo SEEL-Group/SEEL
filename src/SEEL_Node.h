@@ -29,11 +29,52 @@ public:
         FLAG_ASSERT_FIRED = 3
     };
 
+    // Extended Packet Structs
+    struct SEEL_Received_Broadcast
+    {
+        uint8_t sender_id;
+        int8_t sender_RSSI;
+    };
+    struct SEEL_Received_Message // Non-broadcast
+    {
+        uint8_t sender_id;
+        int8_t sender_avg_RSSI; // latest
+        uint8_t misc;  // 1st bit (MSB) denotes if sender was child, remaining bits is send count
+    };
+    struct SEEL_Transmissions
+    {
+        uint8_t data;
+        uint8_t id_check;
+        uint8_t ack;
+        uint8_t fwd;
+        
+        SEEL_Transmissions()
+        {
+            clear();
+        }
+        
+        void clear()
+        {
+            data = 0;
+            id_check = 0;
+            ack = 0;
+            fwd = 0;
+        }
+    };
+
     // Contains information that helps debugging the network after deployment.
     // Combining everything into struct allows for easy variable sizes to be passed
     // through functions.
     struct SEEL_CB_Info
     {
+        // Extended Packet Variables
+        SEEL_Extended_Packet_Queue<SEEL_Received_Broadcast> received_bcasts;
+        SEEL_Extended_Packet_Queue<SEEL_Received_Message> prev_received_msgs;
+        SEEL_Transmissions prev_transmissions;
+        uint8_t prev_queue_dropped_msgs_self;
+        uint8_t prev_queue_dropped_msgs_others;
+        uint8_t prev_failed_transmissions;
+        
         uint32_t wtb_millis; // Time between waking up and this NODE receiving the broadcast message
         uint8_t prev_data_transmissions; // Number of data/id_check/fwd tranmissions in the PREVIOUS cycle
         uint8_t prev_transmissions;
@@ -42,7 +83,6 @@ public:
         uint8_t missed_bcasts;
         uint8_t missed_msgs;
         uint8_t prev_max_data_queue_size; // prev cycle max data queue size during a cycle 
-        uint8_t prev_queue_dropped_msgs;
         uint8_t bcast_count;
         uint8_t prev_flags; // prev cycle logging flags; see above enum for more information
         int8_t parent_rssi; // RSSI value of the bcast msg received from the parent, initialized to 0
@@ -135,18 +175,20 @@ protected:
     uint8_t _parent_id;
     uint8_t _tdma_slot; // TDMA
     uint8_t _seq_num; // Note: Will overflow after 255, but overflow does not affect functionality since seq_num serves to differentiate msgs
-    uint8_t _data_msgs_sent; // includes ID_CHECK and FWD msgs, tracks how many data msgs we sent
-    uint8_t _any_msgs_sent;
     uint8_t _CRC_fails;
     uint8_t _max_data_queue_size;
-    uint8_t _queue_dropped_msgs;
+    uint8_t _queue_dropped_msgs_self;
+    uint8_t _queue_dropped_msgs_others;
+    uint8_t _failed_transmissions;
     uint8_t _flags;
     int8_t _path_rssi; // changes based on parent selection mode
     bool _id_verified;
     bool _bcast_avail; // bcast msg is ready to be sent out
     bool _bcast_sent; // bcast msg has been sent out this cycle
-
     
+    // Extended Packet Variables
+    SEEL_Extended_Packet_Queue<SEEL_Received_Message> _received_msgs;
+    SEEL_Transmissions _cycle_transmissions;
 
 private:
     // Structs & Classes

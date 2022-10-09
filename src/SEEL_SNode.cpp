@@ -78,7 +78,11 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
     _inst->_bcast_avail = false;
     _inst->_bcast_sent = false; // Set to true in SEEL_Node.cpp when bcast msg sent out
     
-    _inst->_queue_dropped_msgs = 0;
+    received_msgs.clear();
+    cycle_transmissions.clear();
+    _inst->_queue_dropped_msgs_self = 0;
+    _inst->_queue_dropped_msgs_others = 0;
+    _inst->_failed_transmissions = 0;
     _inst->_max_data_queue_size = 0;
     _inst->clear_flags();
     _inst->_cb_info.hop_count = UINT8_MAX;
@@ -466,16 +470,25 @@ void SEEL_SNode::SEEL_Task_SNode_User::run()
 void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
 {
     // Store any info messages
-    _inst->_cb_info.prev_data_transmissions = _inst->_data_msgs_sent;
-    _inst->_cb_info.prev_transmissions = _inst->_any_msgs_sent;
     _inst->_cb_info.prev_CRC_fails = _inst->_CRC_fails;
     _inst->_cb_info.prev_max_data_queue_size = _inst->_max_data_queue_size;
-    _inst->_cb_info.prev_queue_dropped_msgs = _inst->_queue_dropped_msgs;
     if (!SEEL_Assert::_assert_queue.empty()) {
         _inst->set_flag(SEEL_Flags::FLAG_ASSERT_FIRED);
     }
     _inst->_cb_info.prev_flags = _inst->_flags;
     _inst->_last_parent = _inst->_parent_id;
+
+    // Extended Packet store prev info
+    _inst->_cb_info.prev_received_msgs.clear();
+    while (!_inst->_received_msgs.empty())
+    {
+        _inst->_cb_info.prev_received_msgs.add(_inst->_received_msgs.front());
+        _inst->_received_msgs.pop_front();
+    }
+    _inst->_cb_info.prev_transmissions = _inst->_cycle_transmissions;
+    _inst->_cb_info.prev_queue_dropped_msgs_self = _inst->_queue_dropped_msgs_self;
+    _inst->_cb_info.prev_queue_dropped_msgs_others = _inst->_queue_dropped_msgs_others;
+    _inst->_cb_info.prev_failed_transmissions = _inst->_failed_transmissions;
 
     // If we are non-force sleeping and parent_sync is false, then we must have received a bcast from a blacklisted parent
     // and not one from a non-blacklisted parent; thus, we did not generate data this cycle

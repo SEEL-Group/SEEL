@@ -112,7 +112,6 @@ private:
     bool _system_sync; // Set to false on Snode start-up, set to true on first non-blacklist broadcast received
     bool _acked;
     bool _WD_adjusted; // Set to true after WD timer gets corrected (more accurate sleep times)
-
 };
 
 
