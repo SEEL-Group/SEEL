@@ -194,7 +194,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
     {
         // Create received broadcast (rb)
         SEEL_Received_Broadcast rb(msg.send_id, msg_rssi);
-        rb.sender_id &= (_inst->_bcast_sent ? 0x7F : 0xFF); // MSB denotes if this bcast was considered this cycle (1) or not (0), remaining bits for sender id
+        rb.sender_id |= (_inst->_bcast_sent ? 0x80 : 0x00); // MSB denotes if incoming. bcast was received after this node already sent a bcast (1) or not (0), remaining bits for sender id
 
         // Search if rb already in queue
         SEEL_Received_Broadcast* found_rb = _inst->_cb_info.received_bcasts.find(rb);
@@ -404,9 +404,9 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                 }
 
                 // If the Parent Selection mode is FIRST_BROADCAST then no broadcast collection delay is needed.
-                bool added = _inst->_ref_scheduler->add_task(&_inst->_task_enqueue_msg, (SEEL_PSEL_MODE == SEEL_PSEL_FIRST_BROADCAST) ? 0 : SEEL_PSEL_DURATION_MILLIS);
+                bool added = _inst->_ref_scheduler->add_task(&_inst->_task_enqueue_msg);
                 SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
-                added = _inst->_ref_scheduler->add_task(&_inst->_task_send); // Only start sending messages when broadcast is received and processed
+                added = _inst->_ref_scheduler->add_task(&_inst->_task_send, (SEEL_PSEL_MODE == SEEL_PSEL_FIRST_BROADCAST) ? 0 : SEEL_PSEL_DURATION_MILLIS); // Only start sending messages when broadcast is received and processed
                 SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
             }
         }

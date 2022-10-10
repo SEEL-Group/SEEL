@@ -19,7 +19,7 @@ constexpr uint8_t SEEL_LoRaPHY_INT_PIN = 2; // Don't change these if using Dragi
 constexpr uint8_t SEEL_RNG_SEED_PIN = 0; // Make sure this pin is NOT connected
 
 /* File Write Paramters */
-const char* LOG_FILE_PATH = ""; // Path on gateway node file system
+const char* LOG_FILE_PATH = "/mnt/seel_logs_2022_10_09_TEST.txt"; // Path on gateway node file system
 
 /* SEEL Variables */
 SEEL_Scheduler seel_scheduler;
@@ -110,17 +110,17 @@ void setup()
   // Enables file logging
   FileSystem.begin();
 
-  ///*
+  /*
   // Initialize Serial (Serial based comms)
   Serial.begin(9600);
   SEEL_Print::init(&Serial);
-  //*/
-  /*
+  */
+  ///*
   // Initialize Console (Console bridge based comms, Dragino)
   Bridge.begin(115200);
   Console.begin();
   SEEL_Print::init(&Console);
-  */
+  //*/
 
   // Initialize Assert NVM
   SEEL_Assert::init_nvm();

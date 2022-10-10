@@ -172,22 +172,22 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
 
     if (msg_len > 0) // Message is available
     { 
+        float snr = 0.0f;
         uint32_t receive_time = millis();
-        uint8_t buf[SEEL_MSG_TOTAL_SIZE];
-        String print_msg = "";
+        { // Release buf after use scope
+            uint8_t buf[SEEL_MSG_TOTAL_SIZE];
 
-        print_msg += (crc_valid) ? F(">>R: ") : F(">>CRC FAIL: ");
-        for (uint8_t i = 0; i < msg_len; ++i)
-        {
-            buf[i] = _LoRaPHY_ptr->read();
-            print_msg += buf[i];
-            print_msg += F(" ");
+            SEEL_Print::print((crc_valid) ? F(">>R: ") : F(">>CRC FAIL: "));
+            for (uint8_t i = 0; i < msg_len; ++i)
+            {
+                buf[i] = _LoRaPHY_ptr->read();
+            }
+            rssi = _LoRaPHY_ptr->packetRssi();
+            snr = _LoRaPHY_ptr->packetSnr();
+
+            // Converts raw msg buffer to SEEL_Message
+            buf_to_SEEL_msg(msg, buf);
         }
-        rssi = _LoRaPHY_ptr->packetRssi();
-        float snr = _LoRaPHY_ptr->packetSnr();
-
-        // Converts raw msg buffer to SEEL_Message
-        buf_to_SEEL_msg(msg, buf);
 
         // Check if the message has already been seen, to prevent a loop
 
@@ -203,13 +203,13 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
         }
 
         method_time = millis() - receive_time;
-        print_msg += F("SNR: ");
-        print_msg += snr;
-        print_msg += F(" RSSI: ");
-        print_msg += rssi;
-        print_msg += F(", Rec. Time: ");
-        print_msg += method_time;
-        SEEL_Print::println(print_msg);
+        print_msg(msg);
+        SEEL_Print::print(F("SNR: "));
+        SEEL_Print::print(snr);
+        SEEL_Print::print(F(" RSSI: "));
+        SEEL_Print::print(rssi);
+        SEEL_Print::print(F(", Rec. Time: "));
+        SEEL_Print::println(method_time);
         SEEL_Print::flush();
     }
     
@@ -279,7 +279,7 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
         uint32_t current_slot = (time_millis % SEEL_TDMA_CYCLE_TIME_MILLIS) / SEEL_TDMA_SLOT_WAIT_MILLIS;
 
         // Compare with buffer because NODE should not send message if the msg is expected to finish after the slot
-        can_send = (current_slot == _inst->_tdma_slot) && ((time_millis % SEEL_TDMA_SLOT_WAIT_MILLIS) < SEEL_TDMA_BUFFER_MILLIS);
+        can_send = (current_slot == _inst->_tdma_slot) && ((time_millis % SEEL_TDMA_SLOT_WAIT_MILLIS) < SEEL_TDMA_PRE_BUFFER_MILLIS);
     }
     else // Exponential Backoff
     {

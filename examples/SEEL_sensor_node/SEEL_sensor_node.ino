@@ -64,7 +64,7 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], SEEL_Node::SEEL_CB
 
   // SEEL_MSG_DATA_SIZE = SEEL_MSG_MISC_SIZE + SEEL_MSG_USER_SIZE
   // If more than SEEL_MSG_MISC_SIZE data bytes are needed, increase SEEL_MSG_USER_SIZE by the missing amount  
-  if (SEEL_MSG_DATA_SIZE >= 76) // Safety check to prevent out of bounds access
+  if (SEEL_MSG_DATA_SIZE >= 66) // Safety check to prevent out of bounds access
   {
     msg_data[0] = SEEL_SNODE_ID; // original ID
     msg_data[1] = seel_snode.get_node_id(); // assigned ID
@@ -92,22 +92,39 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], SEEL_Node::SEEL_CB
     msg_data[23] = info->prev_transmissions.id_check;
     msg_data[24] = info->prev_transmissions.ack;
     msg_data[25] = info->prev_transmissions.fwd;
-    for (uint32_t i = 0; i < SEEL_EXTENDED_PACKET_MAX_NODES_EXPECTED && !info->received_bcasts.empty(); ++i) // Bcast, 2 byte each, 26 to 45
+    for (uint32_t i = 0; i < SEEL_EXTENDED_PACKET_MAX_NODES_EXPECTED; ++i) // Bcast, 2 byte each
     {
+      if (!info->received_bcasts.empty())
+      {
         msg_data[26 + i * 2] = info->received_bcasts.front()->sender_id;
         msg_data[26 + i * 2 + 1] = info->received_bcasts.front()->sender_rssi;
         info->received_bcasts.pop_front();
+      }
+      else
+      {
+        msg_data[26 + i * 2] = 0;
+        msg_data[26 + i * 2 + 1] = 0;
+      }
     }
-    for (uint32_t i = 0; i < SEEL_EXTENDED_PACKET_MAX_NODES_EXPECTED && !info->prev_received_msgs.empty(); ++i) // Received, 3 byte each, 46 to 75
+    for (uint32_t i = 0; i < SEEL_EXTENDED_PACKET_MAX_NODES_EXPECTED; ++i) // Received, 3 byte each
     {
-        msg_data[46 + i * 3] = info->prev_received_msgs.front()->sender_id;
-        msg_data[46 + i * 3 + 1] = info->prev_received_msgs.front()->sender_rssi;
-        msg_data[46 + i * 3 + 2] = info->prev_received_msgs.front()->sender_misc;
+      if (!info->prev_received_msgs.empty())
+      {
+        msg_data[26 + SEEL_EXTENDED_PACKET_MAX_NODES_EXPECTED * 2 + i * 3] = info->prev_received_msgs.front()->sender_id;
+        msg_data[26 + SEEL_EXTENDED_PACKET_MAX_NODES_EXPECTED * 2 + i * 3 + 1] = info->prev_received_msgs.front()->sender_rssi;
+        msg_data[26 + SEEL_EXTENDED_PACKET_MAX_NODES_EXPECTED * 2 + i * 3 + 2] = info->prev_received_msgs.front()->sender_misc;
         info->prev_received_msgs.pop_front();
+      }
+      else
+      {
+        msg_data[26 + SEEL_EXTENDED_PACKET_MAX_NODES_EXPECTED * 2 + i * 3] = 0;
+        msg_data[26 + SEEL_EXTENDED_PACKET_MAX_NODES_EXPECTED * 2 + i * 3 + 1] = 0;
+        msg_data[26 + SEEL_EXTENDED_PACKET_MAX_NODES_EXPECTED * 2 + i * 3 + 2] = 0;
+      }
     }
 
     // Fill rest with zeros
-    for (uint32_t i = 76; i < SEEL_MSG_DATA_SIZE; ++i)
+    for (uint32_t i = 26 + SEEL_EXTENDED_PACKET_MAX_NODES_EXPECTED * 5; i < SEEL_MSG_DATA_SIZE; ++i)
     {
         msg_data[i] = 0;
     }

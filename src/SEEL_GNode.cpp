@@ -278,9 +278,6 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
     to_send.data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 2] = (uint8_t) (system_time >> 8);
     to_send.data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 3] = (uint8_t) (system_time);
 
-    // Send out gateway msg
-    _inst->create_msg(&to_send, SEEL_GNODE_ID, SEEL_CMD_BCAST);
-    _inst->try_send(&to_send, true);
     if (_inst->_user_cb_broadcast != NULL)
     {
         _inst->_user_cb_broadcast(to_send.data);
@@ -292,4 +289,8 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
     // Re-add bcast task, with cycle delay
     bool added = _inst->_ref_scheduler->add_task(&_inst->_task_bcast, _inst->_cycle_period_secs * SEEL_SECS_TO_MILLIS);
     SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_GNODE, __LINE__);
+
+    // Send out gateway msg; send out msg at the end of catch immediately transition to receiving msgs
+    _inst->create_msg(&to_send, SEEL_GNODE_ID, SEEL_CMD_BCAST);
+    _inst->try_send(&to_send, true);
 }

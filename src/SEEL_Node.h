@@ -33,7 +33,7 @@ public:
     class SEEL_Received_Broadcast
     {
     public:
-        uint8_t sender_id; // 1st bit (MSB) denotes if the bcast was USED during the cycle, remaining bit for node ID
+        uint8_t sender_id; // 1st bit (MSB) denotes if the incoming bcast was received after this node already sent a bcast, remaining bit for node ID
         int8_t sender_rssi;
 
         SEEL_Received_Broadcast() : sender_id(0), sender_rssi(0) {}
