@@ -287,7 +287,7 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
     }
 
     // If cannot send or nothing to send, return
-    if (!can_send || (!_inst->_bcast_avail && _inst->_ack_queue.empty() && _inst->_data_queue_ptr->empty()))
+    if (!can_send || (!_inst->_bcast_avail && _inst->_ack_queue.empty() && _inst->_data_queue_ptr != NULL && _inst->_data_queue_ptr->empty()))
     {
         bool added = _inst->_ref_scheduler->add_task(&_inst->_task_send);
         SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_NODE, __LINE__);
@@ -339,7 +339,7 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
             ++(_inst->_cycle_transmissions.ack);
         }
     }
-    else if (!_inst->_data_queue_ptr->empty())// DATA or ID_CHECK or FORWARDED message
+    else if (_inst->_data_queue_ptr != NULL && !_inst->_data_queue_ptr->empty())// DATA or ID_CHECK or FORWARDED message
     {
         to_send_ptr = _inst->_data_queue_ptr->front();
         uint32_t msg_cmd = to_send_ptr->cmd;

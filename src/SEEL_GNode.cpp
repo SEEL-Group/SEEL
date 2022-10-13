@@ -33,7 +33,7 @@ void SEEL_GNode::init(  SEEL_Scheduler* ref_scheduler,
     _cb_info.hop_count = 0;
     _path_rssi = 0;
     _first_bcast = true;
-    _data_queue_ptr = &_gnode_data_queue;
+    _data_queue_ptr = NULL;
 
     // Initialize tasks with this inst
     _task_bcast.set_inst(this);
