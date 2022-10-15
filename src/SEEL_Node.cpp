@@ -19,6 +19,7 @@ void SEEL_Node::init(uint32_t n_id, uint32_t ts)
 
     _node_id = n_id;
     _tdma_slot = ts;
+    _prev_tdma_slot = 0;
     if (_tdma_slot >= SEEL_TDMA_SLOTS && SEEL_TDMA_USE_TDMA)
     {
         SEEL_Print::println(F("Error - TDMA Slot Overflow")); // Error - TDMA SLOTS Overflow
@@ -174,23 +175,20 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
     { 
         float snr = 0.0f;
         uint32_t receive_time = millis();
-        { // Release buf after use scope
-            uint8_t buf[SEEL_MSG_TOTAL_SIZE];
+        uint8_t buf[SEEL_MSG_TOTAL_SIZE];
 
-            SEEL_Print::print((crc_valid) ? F(">>R: ") : F(">>CRC FAIL: "));
-            for (uint8_t i = 0; i < msg_len; ++i)
-            {
-                buf[i] = _LoRaPHY_ptr->read();
-            }
-            rssi = _LoRaPHY_ptr->packetRssi();
-            snr = _LoRaPHY_ptr->packetSnr();
-
-            // Converts raw msg buffer to SEEL_Message
-            buf_to_SEEL_msg(msg, buf);
+        SEEL_Print::print((crc_valid) ? F(">>R: ") : F(">>CRC FAIL: "));
+        for (uint8_t i = 0; i < min(msg_len, SEEL_MSG_TOTAL_SIZE); ++i)
+        {
+            buf[i] = _LoRaPHY_ptr->read();
         }
+        rssi = _LoRaPHY_ptr->packetRssi();
+        snr = _LoRaPHY_ptr->packetSnr();
+
+        // Converts raw msg buffer to SEEL_Message
+        buf_to_SEEL_msg(msg, buf);
 
         // Check if the message has already been seen, to prevent a loop
-
         if (!crc_valid) {
             ++_CRC_fails; // Number of packets RECEIVED with invalid CRC
         }
@@ -204,9 +202,11 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
 
         method_time = millis() - receive_time;
         print_msg(msg);
-        SEEL_Print::print(F("SNR: "));
+        SEEL_Print::print(F("Len: "));
+        SEEL_Print::print(msg_len);
+        SEEL_Print::print(F(", SNR: "));
         SEEL_Print::print(snr);
-        SEEL_Print::print(F(" RSSI: "));
+        SEEL_Print::print(F(", RSSI: "));
         SEEL_Print::print(rssi);
         SEEL_Print::print(F(", Rec. Time: "));
         SEEL_Print::println(method_time);
@@ -269,17 +269,24 @@ bool SEEL_Node::try_send(SEEL_Message* to_send_ptr, bool seq_inc)
 }
 
 void SEEL_Node::SEEL_Task_Node_Send::run()
-{	
+{
     bool can_send = true;
     uint32_t time_millis = millis();
 
     // Select which collision avoidance strategy to use
     if (SEEL_TDMA_USE_TDMA)
     {
-        uint32_t current_slot = (time_millis % SEEL_TDMA_CYCLE_TIME_MILLIS) / SEEL_TDMA_SLOT_WAIT_MILLIS;
+        uint8_t current_slot = (time_millis % SEEL_TDMA_CYCLE_TIME_MILLIS) / SEEL_TDMA_SLOT_WAIT_MILLIS;
 
         // Compare with buffer because NODE should not send message if the msg is expected to finish after the slot
-        can_send = (current_slot == _inst->_tdma_slot) && ((time_millis % SEEL_TDMA_SLOT_WAIT_MILLIS) < SEEL_TDMA_PRE_BUFFER_MILLIS);
+        can_send = (current_slot == _inst->_tdma_slot) && ((time_millis % SEEL_TDMA_SLOT_WAIT_MILLIS) < SEEL_TDMA_BUFFER_MILLIS);
+        if (SEEL_TDMA_SINGLE_SEND && can_send)
+        {
+            // Only send on first instance of slot change
+            can_send = (_inst->_prev_tdma_slot != current_slot);
+        }
+
+        _inst->_prev_tdma_slot = current_slot;
     }
     else // Exponential Backoff
     {

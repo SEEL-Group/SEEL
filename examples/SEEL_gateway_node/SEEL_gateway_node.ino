@@ -9,8 +9,8 @@ constexpr uint8_t SEEL_TDMA_SLOT_ASSIGNMENT = 0; // TDMA transmission slot, igno
 // Dictates how long SNODEs will be awake/asleep for. Sleep time is calculated by cycle time - awake time, both are converted to millis during calculation
 // Make sure awake/sleep times can be converted to millis without overflow
  // Units are in seconds to reduce field sizes in msg packet
-constexpr uint32_t SEEL_CYCLE_PERIOD_SECS = 120;
-constexpr uint32_t SEEL_SNODE_AWAKE_TIME_SECS = 60;
+constexpr uint32_t SEEL_CYCLE_PERIOD_SECS = 240;
+constexpr uint32_t SEEL_SNODE_AWAKE_TIME_SECS = 180;
 
 /* LoRaPHY Tranceiver Pin Assignments */
 constexpr uint8_t SEEL_LoRaPHY_CS_PIN = 10; // Don't change these if using Dragino LG01
@@ -19,7 +19,7 @@ constexpr uint8_t SEEL_LoRaPHY_INT_PIN = 2; // Don't change these if using Dragi
 constexpr uint8_t SEEL_RNG_SEED_PIN = 0; // Make sure this pin is NOT connected
 
 /* File Write Paramters */
-const char* LOG_FILE_PATH = "/mnt/seel_logs_2022_10_09_TEST.txt"; // Path on gateway node file system
+const char* LOG_FILE_PATH = "/mnt/seel_logs_2022_10_15_TEST_A.txt"; // Path on gateway node file system
 
 /* SEEL Variables */
 SEEL_Scheduler seel_scheduler;

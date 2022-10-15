@@ -192,7 +192,8 @@ protected:
     uint32_t _tranmission_ToA; // estimate on ToA based on last measured transmission. Should be consistent since transmission parameters are consistent
     uint8_t _node_id;
     uint8_t _parent_id;
-    uint8_t _tdma_slot; // TDMA
+    uint8_t _tdma_slot; // TDMA transmission slot
+    uint8_t _prev_tdma_slot;
     uint8_t _seq_num; // Note: Will overflow after 255, but overflow does not affect functionality since seq_num serves to differentiate msgs
     uint8_t _CRC_fails;
     uint8_t _max_data_queue_size;
