@@ -193,7 +193,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
     if(msg.cmd == SEEL_CMD_BCAST)
     {
         // Create received broadcast (rb)
-        SEEL_Received_Broadcast rb(msg.send_id, msg_rssi);
+        SEEL_Received_Broadcast rb(msg.orig_send_id, msg_rssi);
         rb.sender_id |= (_inst->_bcast_sent ? 0x80 : 0x00); // MSB denotes if incoming. bcast was received after this node already sent a bcast (1) or not (0), remaining bits for sender id
 
         // Search if rb already in queue
@@ -211,7 +211,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
     {
         // Create received message (rm)
         uint8_t misc = (msg.targ_id == _inst->_node_id) ? 0x81 : 0x01;// MSB denotes if this msg was intended for this node (from a child node) (1) or not (0), remaining bits for count which starts at 1
-        SEEL_Received_Message rm(msg.send_id, msg_rssi, misc); 
+        SEEL_Received_Message rm(msg.orig_send_id, msg_rssi, misc);
 
         // Search if rb already in queue
         SEEL_Received_Message* found_rm = _inst->_received_msgs.find(rm);
