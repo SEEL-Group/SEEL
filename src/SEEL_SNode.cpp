@@ -54,6 +54,7 @@ void SEEL_SNode::init(  SEEL_Scheduler* ref_scheduler,
     // Set task instances
     _task_wake.set_inst(this);
     _task_receive.set_inst(this);
+    _task_parent_lock.set_inst(this);
     _task_enqueue_msg.set_inst(this);
     _task_user.set_inst(this);
     _task_sleep.set_inst(this);
@@ -75,6 +76,7 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
     _inst->_cb_info.first_callback = true; // Allows ability to only send 1 message per cycle
     _inst->_bcast_avail = false;
     _inst->_bcast_sent = false; // Set to true in SEEL_Node.cpp when bcast msg sent out
+    _inst->_parent_lock = false;
 
     _inst->_cycle_transmissions.clear();
     _inst->_cb_info.received_bcasts.clear();
@@ -194,7 +196,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
     {
         // Create received broadcast (rb)
         SEEL_Received_Broadcast rb(msg.orig_send_id, msg_rssi);
-        rb.sender_id |= (_inst->_bcast_sent ? 0x80 : 0x00); // MSB denotes if incoming. bcast was received after this node already sent a bcast (1) or not (0), remaining bits for sender id
+        rb.sender_id |= (_inst->_parent_lock ? 0x80 : 0x00); // MSB denotes if incoming. bcast was received after this node already sent a bcast (1) or not (0), remaining bits for sender id
 
         // Search if rb already in queue
         SEEL_Received_Broadcast* found_rb = _inst->_cb_info.received_bcasts.find(rb);
@@ -236,8 +238,8 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
 
     // Prioritize bcast check over everything else
     // Possible to receive bcast msgs from multiple nodes; action depends on parent selection mode
-    // Only respond to bcast msgs while own bcast msg has not been sent yet
-    if(msg.cmd == SEEL_CMD_BCAST && !_inst->_bcast_sent)
+    // Only respond to bcast msgs while parent selection not locked
+    if(msg.cmd == SEEL_CMD_BCAST && !_inst->_parent_lock)
     {
         // "_acked" is only false here if the node never slept last cycle. Used to check if we never slept and received another bcast (missed a cycle)
         // acked may get set to false when node receives multiple bcasts in the same cycle (from diff nodes due to the blacklist system),
@@ -403,11 +405,21 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                     _inst->_id_verified = (prev_system_sync && _inst->bcast_id_check(&msg));
                 }
 
-                // If the Parent Selection mode is FIRST_BROADCAST then no broadcast collection delay is needed.
-                bool added = _inst->_ref_scheduler->add_task(&_inst->_task_enqueue_msg);
+                bool added = _inst->_ref_scheduler->add_task(&_inst->_task_send); // Only start sending messages when broadcast is received and processed
                 SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
-                added = _inst->_ref_scheduler->add_task(&_inst->_task_send, (SEEL_PSEL_MODE == SEEL_PSEL_FIRST_BROADCAST) ? 0 : SEEL_PSEL_DURATION_MILLIS); // Only start sending messages when broadcast is received and processed
-                SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
+
+                if (SEEL_PSEL_MODE == SEEL_PSEL_FIRST_BROADCAST)
+                {
+                    // If the Parent Selection mode is FIRST_BROADCAST then no broadcast collection delay is needed
+                    _inst->_parent_lock = true;
+                    added = _inst->_ref_scheduler->add_task(&_inst->_task_enqueue_msg);
+                    SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
+                }
+                else
+                {
+                    added = _inst->_ref_scheduler->add_task(&_inst->_task_parent_lock, SEEL_PSEL_DURATION_MILLIS);
+                    SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
+                }
             }
         }
         else if(!_inst->_bcast_received) // Received bcast from blacklist node, but can still take time sync and sleep info
@@ -462,6 +474,13 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
     }
 
     bool added = _inst->_ref_scheduler->add_task(&_inst->_task_receive);
+    SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
+}
+
+void SEEL_SNode::SEEL_Task_SNode_Parent_Lock::run()
+{
+    _inst->_parent_lock = true;
+    bool added = _inst->_ref_scheduler->add_task(&_inst->_task_enqueue_msg);
     SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
 }
 

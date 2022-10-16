@@ -205,6 +205,7 @@ protected:
     bool _id_verified;
     bool _bcast_avail; // bcast msg is ready to be sent out
     bool _bcast_sent; // bcast msg has been sent out this cycle
+    bool _parent_lock;
     
     // Extended Packet Variables
     SEEL_Extended_Packet_Queue<SEEL_Received_Message> _received_msgs;

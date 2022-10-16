@@ -34,6 +34,7 @@ void SEEL_GNode::init(  SEEL_Scheduler* ref_scheduler,
     _path_rssi = 0;
     _first_bcast = true;
     _data_queue_ptr = NULL;
+    _parent_lock = true;
 
     // Initialize tasks with this inst
     _task_bcast.set_inst(this);
@@ -156,9 +157,10 @@ void SEEL_GNode::SEEL_Task_GNode_Receive::run()
     uint32_t receive_offset;
 
     // Check if there is a message available
-    if (!_inst->rfm_receive_msg(&msg, msg_rssi, receive_offset))
+    // Since GNode receive function can take a while, don't receive until ACK queue is emptied
+    // to prevent missing TDMA sent slots
+    if (!_inst->_ack_queue.empty() || !_inst->rfm_receive_msg(&msg, msg_rssi, receive_offset))
     {
-        // No message is available
         bool added = _inst->_ref_scheduler->add_task(&_inst->_task_receive);
         SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_GNODE, __LINE__);
         return;

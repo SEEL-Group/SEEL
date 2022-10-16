@@ -346,7 +346,7 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
             ++(_inst->_cycle_transmissions.ack);
         }
     }
-    else if (_inst->_data_queue_ptr != NULL && !_inst->_data_queue_ptr->empty())// DATA or ID_CHECK or FORWARDED message
+    else if (_inst->_parent_lock && _inst->_data_queue_ptr != NULL && !_inst->_data_queue_ptr->empty())// DATA or ID_CHECK or FORWARDED message
     {
         to_send_ptr = _inst->_data_queue_ptr->front();
         uint32_t msg_cmd = to_send_ptr->cmd;

@@ -146,9 +146,8 @@ enum SEEL_PARENT_SELECTION_MODE
     SEEL_PSEL_IMMEDIATE_RSSI,  // Selects parent based off of the immediate sender with the largest RSSI among received broadcast messages
     SEEL_PSEL_PATH_RSSI // Selects parent with the best path RSSI, where path RSSI is determined by the worst RSSI along the path
 };
-// If enabled, collects broadcasts for a duration of SEEL_SMART_PARENT_DURATION_MILLIS and chooses node with highest RSSI to be parent. 
-// If SEEL_SMART_PARENT_DURATION_MILLIS=0 then SNode will collect broadcasts until it's time to send broadcast.
+// If enabled, collects broadcasts for a duration of SEEL_SMART_PARENT_DURATION_MILLIS after receiving a bcast and update parent if better
 constexpr SEEL_PARENT_SELECTION_MODE SEEL_PSEL_MODE = SEEL_PSEL_PATH_RSSI;
-constexpr uint32_t SEEL_PSEL_DURATION_MILLIS = SEEL_TDMA_CYCLE_TIME_MILLIS; // Should be much less than awake time of SNODE, Special Case if zero (refer to above).
+constexpr uint32_t SEEL_PSEL_DURATION_MILLIS = SEEL_TDMA_CYCLE_TIME_MILLIS;
 
 #endif // SEEL_Params
