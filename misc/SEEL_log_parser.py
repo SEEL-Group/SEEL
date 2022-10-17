@@ -4,7 +4,7 @@
 # the script will state that NODE missed BCASTS during the duration of the pause. Quick power cycles are okay. 
 # If node join entries are not captured in the logs (logging created on an established network), node IDs can be added in the "Hardcoded Section"
 
-# Tested with Python 3.5.2
+# Tested with Python 3.6.0
 
 # Requires installation of sklearn: "pip3 install sklearn"
 
@@ -29,6 +29,8 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import statistics
 
+import SEEL_topology_sim as sim
+
 class Parameters:
     ############################################################################
     # General Parameters
@@ -36,6 +38,8 @@ class Parameters:
     PRINT_ALL_MSGS_EXTENDED = False
 
     PLOT_DISPLAY = False
+    
+    SIM_RUN = True
     
     # Per node plots
     PLOT_NODE_SPECIFIC_BCASTS = False
@@ -127,7 +131,7 @@ class Parameters:
     INDEX_DATA_HC_UPSTREAM = 17
     INDEX_DATA_DROPPED_MSGS_SELF = 18
     INDEX_DATA_DROPPED_MSGS_OTHERS = 19
-    INDEX_DATA_FAILED_TRANS = 20
+    INDEX_DATA_PREV_FAILED_TRANS = 20
     INDEX_DATA_PREV_TRANS_BCAST = 21
     INDEX_DATA_PREV_TRANS_DATA = 22
     INDEX_DATA_PREV_TRANS_ID_CHECK = 23
@@ -141,10 +145,10 @@ class Parameters:
     # V1: ID, 1st bit (MSB) denotes if the incoming bcast was received after this node already sent a bcast, remaining bit for node ID
     # V2: RSSI
     ###
-    # VEC RECEIVED MSGS
-    INDEX_DATA_VEC_RECEIVED_MSGS_IND = 42
-    INDEX_DATA_VEC_RECEIVED_MSGS_SIZE = 8
-    INDEX_DATA_VEC_RECEIVED_MSGS_NUM_V = 3
+    # VEC RECEIVED MSGS, does not include bcast msgs
+    INDEX_DATA_VEC_PREV_RECEIVED_MSGS_IND = 42
+    INDEX_DATA_VEC_PREV_RECEIVED_MSGS_SIZE = 8
+    INDEX_DATA_VEC_PREV_RECEIVED_MSGS_NUM_V = 3
     # V1 = 0 # ID
     # V2 = 0 # RSSI, latest sender
     # V3 = 0 # Misc, 1st bit (MSB) denotes if sender was child, remaining bits is send count
@@ -238,7 +242,7 @@ class Node_Msg_General_Msg:
         return "Id: " + str(self.id) + ", RSSI: " + str(self.rssi) + ", Count: " + str(self.count) + ", Child: " + str(self.is_child)
         
 class Node_Msg:
-    def __init__(self, bcast_num, bcast_inst, wtb, original_node_id, assigned_node_id, parent_id, parent_rssi, send_count, prev_queue_size, prev_missed_msgs, prev_missed_bcasts, prev_crc_fails, prev_flags, hc_downstream, hc_upstream, prev_dropped_msgs_self, prev_dropped_msgs_others, failed_trans):
+    def __init__(self, bcast_num, bcast_inst, wtb, original_node_id, assigned_node_id, parent_id, parent_rssi, send_count, prev_queue_size, prev_missed_msgs, prev_missed_bcasts, prev_crc_fails, prev_flags, hc_downstream, hc_upstream, prev_dropped_msgs_self, prev_dropped_msgs_others, prev_failed_trans):
         self.bcast_num = bcast_num
         self.bcast_inst = bcast_inst
         self.wtb = wtb
@@ -258,12 +262,12 @@ class Node_Msg:
         self.prev_dropped_msgs_self = prev_dropped_msgs_self
         self.prev_dropped_msgs_others = prev_dropped_msgs_others
         self.prev_dropped_msgs = prev_dropped_msgs_self + prev_dropped_msgs_others
-        self.failed_trans = failed_trans
+        self.prev_failed_trans = prev_failed_trans
         self.prev_data_trans = -1
         self.prev_any_trans = -1
         self.prev_trans = {}
         self.received_bcasts = []
-        self.received_msgs = []
+        self.prev_received_msgs = []
 
     def __str__(self):
         msg = "Bcast num: " + str(self.bcast_num) + "\tBcast inst: " + str(self.bcast_inst) + "\tNode ID: " + str(self.original_node_id) + \
@@ -274,7 +278,7 @@ class Node_Msg:
         if parameters.PRINT_ALL_MSGS_EXTENDED:
             msg += "\n\tPrev Transmissions: " + str(self.prev_trans) + \
             "\n\tRec. Bcasts(" + str(len(self.received_bcasts)) + "): " + str(self.received_bcasts) + \
-            "\n\tPrev Rec. Messages(" + str(len(self.received_msgs)) + "): " + str(self.received_msgs)
+            "\n\tPrev Rec. Messages(" + str(len(self.prev_received_msgs)) + "): " + str(self.received_msgs)
         return msg
 
 class Node_Analysis: # Per node
@@ -507,7 +511,7 @@ def main():
                 read_as_int(line, parameters.INDEX_DATA_HC_UPSTREAM), \
                 read_as_int(line, parameters.INDEX_DATA_DROPPED_MSGS_SELF), \
                 read_as_int(line, parameters.INDEX_DATA_DROPPED_MSGS_OTHERS), \
-                read_as_int(line, parameters.INDEX_DATA_FAILED_TRANS)))
+                read_as_int(line, parameters.INDEX_DATA_PREV_FAILED_TRANS)))
             msg = node_msgs[original_node_id][-1] # Recently appended msg
             msg.prev_trans["bcast"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_BCAST)
             msg.prev_trans["data"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_DATA)
@@ -524,15 +528,15 @@ def main():
                 id = read_as_int(line, ind_adj) & 0x7F
                 unconsidered_bcast = read_as_int(line, ind_adj) >> 7
                 msg.received_bcasts.append(Node_Msg_Bcast_Msg(id, rssi, unconsidered_bcast))
-            for ind in range(0, parameters.INDEX_DATA_VEC_RECEIVED_MSGS_SIZE):
-                ind_adj = parameters.INDEX_DATA_VEC_RECEIVED_MSGS_IND + parameters.INDEX_DATA_VEC_RECEIVED_MSGS_NUM_V * ind
+            for ind in range(0, parameters.INDEX_DATA_VEC_PREV_RECEIVED_MSGS_SIZE):
+                ind_adj = parameters.INDEX_DATA_VEC_PREV_RECEIVED_MSGS_IND + parameters.INDEX_DATA_VEC_PREV_RECEIVED_MSGS_NUM_V * ind
                 rssi = read_as_int(line, ind_adj + 1) - 256
                 if rssi == -256:
                     continue
                 id = read_as_int(line, ind_adj)
                 count = read_as_int(line, ind_adj + 2) & 0x7F
                 is_child = read_as_int(line, ind_adj + 2) >> 7
-                msg.received_msgs.append(Node_Msg_General_Msg(id, rssi, count, is_child))
+                msg.prev_received_msgs.append(Node_Msg_General_Msg(id, rssi, count, is_child))
             
         current_line += 1
 
@@ -548,6 +552,10 @@ def main():
         if parameters.PLOT_RSSI_ANALYSIS:
             analysis_rssi = []
             analysis_transmissions = []
+
+    # Sim vars
+    if parameters.SIM_RUN:
+        sim_data = sim.Sim_Data()
 
     # GNODE 
     print("Total Bcasts: " + str(total_bcasts))
@@ -761,7 +769,7 @@ def main():
                 node_analysis[node_id].hc_downstream.append(msg.hc_downstream)
                 node_analysis[node_id].hc_upstream.append(msg.hc_upstream)
                 node_analysis[node_id].received_bcast_count.append(len(msg.received_bcasts))
-                node_analysis[node_id].received_msg_count.append(len(msg.received_msgs))
+                node_analysis[node_id].received_msg_count.append(len(msg.prev_received_msgs))
         
                 if not msg.prev_flags in node_analysis[node_id].flags:
                     node_analysis[node_id].flags[msg.prev_flags] = 0
@@ -791,6 +799,35 @@ def main():
 
                         analysis_prev_data = [msg.bcast_num, msg.parent_rssi, msg.prev_queue_size]
                         analysis_reset = False
+                        
+                if parameters.SIM_RUN:
+                    # Fill out this cycle data
+                    if not node_unique_cycle_num in sim_data.cycles:
+                        sim_data.add_cycle(node_unique_cycle_num, sim.Sim_Cycle())
+                    sim_node = sim.Sim_Node(parent = msg.parent_id,
+                                            parent_rssi = msg.parent_rssi, 
+                                            failed_data_trans = -1, 
+                                            total_data_trans = -1, 
+                                            total_any_trans = -1, 
+                                            received_bcast_msg = [sim.Sim_Node_Bcast_Msg(   id = b_msg.id, \
+                                                                                            rssi = b_msg.rssi, \
+                                                                                            unconsidered_bcast = b_msg.unconsidered_bcast) \
+                                                                                            for b_msg in msg.received_bcasts], 
+                                            received_other_msg = None)
+                    sim_data.cycles[node_unique_cycle_num].add_node(node_id, sim_node)
+                    # Fill out previous cycle data
+                    prev_cycle_unique_num = (node_unique_cycle_num - 1)
+                    if prev_cycle_unique_num in sim_data.cycles and node_id in sim_data.cycles[prev_cycle_unique_num].nodes:
+                        sim_node = sim_data.cycles[prev_cycle_unique_num].nodes[node_id]
+                        sim_node.failed_data_trans = msg.prev_failed_trans
+                        sim_node.total_data_trans = msg.prev_data_trans
+                        sim_node.total_any_trans = msg.prev_any_trans
+                        sim_node.received_other_msg = [sim.Sim_Node_Other_Msg(  id = o_msg.id, \
+                                                                                rssi = o_msg.rssi, \
+                                                                                count = o_msg.count, \
+                                                                                is_child = o_msg.count) \
+                                                                                for o_msg in msg.prev_received_msgs]
+                    
             else: # if dup
                 duplicate_msg += 1
         connection_inst_max -= (0 if first_bcast_num < 0 else (first_bcast_num - 1)) 
@@ -1480,6 +1517,10 @@ def main():
                     plt.xlabel("GPS X")
                     plt.ylabel("GPS Y")
                     plt.show()       
+    
+    # Topology Simulation
+    if parameters.SIM_RUN:
+        sim.run_sim(sim_data)
 
 if __name__ == "__main__":
     main()
