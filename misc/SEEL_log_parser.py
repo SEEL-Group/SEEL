@@ -33,6 +33,7 @@ class Parameters:
     ############################################################################
     # General Parameters
     PRINT_ALL_MSGS = False
+    PRINT_ALL_MSGS_EXTENDED = False
 
     PLOT_DISPLAY = False
     
@@ -117,16 +118,37 @@ class Parameters:
     INDEX_DATA_WTB_3 = 8
     INDEX_DATA_SEND_COUNT_0 = 9
     INDEX_DATA_SEND_COUNT_1 = 10
-    INDEX_DATA_PREV_DATA_TRANS = 11
-    INDEX_DATA_MISSED_MSGS = 12
+    INDEX_DATA_MISSED_MSGS = 11
+    INDEX_DATA_MISSED_BCASTS = 12
     INDEX_DATA_MAX_QUEUE_SIZE = 13
     INDEX_DATA_CRC_FAILS = 14
     INDEX_DATA_FLAGS = 15
-    INDEX_DATA_ANY_TRANSMISSIONS = 16
-    INDEX_DATA_DROPPED_MSGS = 17
-    INDEX_DATA_HC_DOWNSTREAM = 18
-    INDEX_DATA_HC_UPSTREAM = 19
-    INDEX_DATA_MISSED_BCASTS = 20
+    INDEX_DATA_HC_DOWNSTREAM = 16
+    INDEX_DATA_HC_UPSTREAM = 17
+    INDEX_DATA_DROPPED_MSGS_SELF = 18
+    INDEX_DATA_DROPPED_MSGS_OTHERS = 19
+    INDEX_DATA_FAILED_TRANS = 20
+    INDEX_DATA_PREV_TRANS_BCAST = 21
+    INDEX_DATA_PREV_TRANS_DATA = 22
+    INDEX_DATA_PREV_TRANS_ID_CHECK = 23
+    INDEX_DATA_PREV_TRANS_ACK = 24
+    INDEX_DATA_PREV_TRANS_FWD = 25
+    ###
+    # VEC RECEIVED_BCASTS
+    INDEX_DATA_VEC_RECEIVED_BCASTS_IND = 26
+    INDEX_DATA_VEC_RECEIVED_BCASTS_SIZE = 8
+    INDEX_DATA_VEC_RECEIVED_BCASTS_NUM_V = 2
+    # V1: ID, 1st bit (MSB) denotes if the incoming bcast was received after this node already sent a bcast, remaining bit for node ID
+    # V2: RSSI
+    ###
+    # VEC RECEIVED MSGS
+    INDEX_DATA_VEC_RECEIVED_MSGS_IND = 42
+    INDEX_DATA_VEC_RECEIVED_MSGS_SIZE = 8
+    INDEX_DATA_VEC_RECEIVED_MSGS_NUM_V = 3
+    # V1 = 0 # ID
+    # V2 = 0 # RSSI, latest sender
+    # V3 = 0 # Misc, 1st bit (MSB) denotes if sender was child, remaining bits is send count
+    ###
 
     ############################################################################
     # SEEL Parameters    
@@ -196,8 +218,27 @@ class Bcast_Info:
     def __str__(self):
         return "Bcast num: " + str(self.bcast_num) + " Inst: " + str(self.bcast_inst) + " System time: " + str(self.sys_time) + " Awake time: " + str(self.awk_time) + " Sleep time: " + str(self.slp_time)
     
+class Node_Msg_Bcast_Msg:
+    def __init__(self, id, rssi, unconsidered_bcast):
+        self.id = id
+        self.rssi = rssi
+        self.unconsidered_bcast = unconsidered_bcast
+
+    def __repr__(self):
+        return "Id: " + str(self.id) + ", RSSI: " + str(self.rssi) + ", UB: " + str(self.unconsidered_bcast)
+
+class Node_Msg_General_Msg:
+    def __init__(self, id, rssi, count, is_child):
+        self.id = id
+        self.rssi = rssi
+        self.count = count
+        self.is_child = is_child
+
+    def __repr__(self):
+        return "Id: " + str(self.id) + ", RSSI: " + str(self.rssi) + ", Count: " + str(self.count) + ", Child: " + str(self.is_child)
+        
 class Node_Msg:
-    def __init__(self, bcast_num, bcast_inst, wtb, prev_data_trans, original_node_id, assigned_node_id, parent_id, parent_rssi, send_count, prev_queue_size, prev_missed_msgs, prev_missed_bcasts, prev_crc_fails, prev_flags, prev_any_trans, prev_dropped_msgs, hc_downstream, hc_upstream):
+    def __init__(self, bcast_num, bcast_inst, wtb, original_node_id, assigned_node_id, parent_id, parent_rssi, send_count, prev_queue_size, prev_missed_msgs, prev_missed_bcasts, prev_crc_fails, prev_flags, hc_downstream, hc_upstream, prev_dropped_msgs_self, prev_dropped_msgs_others, failed_trans):
         self.bcast_num = bcast_num
         self.bcast_inst = bcast_inst
         self.wtb = wtb
@@ -206,25 +247,35 @@ class Node_Msg:
         self.parent_id = parent_id
         self.parent_rssi = parent_rssi
         self.send_count = send_count
-        self.prev_data_trans = prev_data_trans
         self.prev_queue_size = prev_queue_size
         self.prev_missed_msgs = prev_missed_msgs
         self.prev_missed_bcasts = prev_missed_bcasts
         self.prev_crc_fails = prev_crc_fails # Received CRC fails, not sent
         self.prev_flags = prev_flags
-        self.prev_any_trans = prev_any_trans
-        self.prev_dropped_msgs = prev_dropped_msgs
         self.hc_downstream = hc_downstream
         self.hc_upstream = hc_upstream
+        # Large packet
+        self.prev_dropped_msgs_self = prev_dropped_msgs_self
+        self.prev_dropped_msgs_others = prev_dropped_msgs_others
+        self.prev_dropped_msgs = prev_dropped_msgs_self + prev_dropped_msgs_others
+        self.failed_trans = failed_trans
+        self.prev_data_trans = -1
+        self.prev_any_trans = -1
+        self.prev_trans = {}
+        self.received_bcasts = []
+        self.received_msgs = []
 
     def __str__(self):
-        return "Bcast num: " + str(self.bcast_num) + "\tBcast inst: " + str(self.bcast_inst) + "\tNode ID: " + str(self.original_node_id) + \
+        msg = "Bcast num: " + str(self.bcast_num) + "\tBcast inst: " + str(self.bcast_inst) + "\tNode ID: " + str(self.original_node_id) + \
         "\tParent ID: " + str(self.parent_id) + "\tParent RSSI: " + str(self.parent_rssi) + "\tSend Count: " + str(self.send_count) + \
         "\tDownstream HC: " + str(self.hc_downstream) + "\tUpstream HC: " + str(self.hc_upstream) + "\tWTB: " + str(self.wtb) + \
-        "\tPrev Data Trans: " + str(self.prev_data_trans) + "\tPrev Any Trans: " + str(self.prev_any_trans) + "\tPrev Dropped Msgs: " + \
-        str(self.prev_dropped_msgs) + "\tPrev Max Q Size: " + str(self.prev_queue_size) + "\tMissed Msgs: " + str(self.prev_missed_msgs) + \
-        "\tMissed Bcasts: " + str(self.prev_missed_bcasts) + "\tPrev CRC Fails: " + str(self.prev_crc_fails) + "\tPrev Flags: " + \
-        str( "{:08b}".format(self.prev_flags))
+        "\tPrev Q Size: " + str(self.prev_queue_size) + "\tMissed Msgs: " + str(self.prev_missed_msgs) + "\tMissed Bcasts: " + str(self.prev_missed_bcasts) + \
+        "\tPrev CRC Fails: " + str(self.prev_crc_fails) + "\tPrev Flags: " + str( "{:08b}".format(self.prev_flags))
+        if parameters.PRINT_ALL_MSGS_EXTENDED:
+            msg += "\n\tPrev Transmissions: " + str(self.prev_trans) + \
+            "\n\tRec. Bcasts(" + str(len(self.received_bcasts)) + "): " + str(self.received_bcasts) + \
+            "\n\tPrev Rec. Messages(" + str(len(self.received_msgs)) + "): " + str(self.received_msgs)
+        return msg
 
 class Node_Analysis: # Per node
     def __init__(self):
@@ -264,6 +315,9 @@ class Node_Analysis: # Per node
         self.PDR_connection_count = 0
         self.PDR_connection_count_max = 0
         self.PDR_connection_count_max_adjust = 0
+        # Large packet
+        self.received_bcast_count = []
+        self.received_msg_count = []
 
 class Msg_Analysis: # Per node
     def __init__(self):
@@ -434,14 +488,52 @@ def main():
                 node_mapping[assigned_node_id] = original_node_id
                 node_msgs[original_node_id] = []
                 bcast_instances[original_node_id] = len(bcast_times)
-            node_msgs[original_node_id].append(Node_Msg(read_as_int(line, parameters.INDEX_DATA_BCAST_COUNT), \
-                bcast_instance, wtb, read_as_int(line, parameters.INDEX_DATA_PREV_DATA_TRANS), original_node_id, \
-                assigned_node_id, read_as_int(line, parameters.INDEX_DATA_PARENT_ID), read_as_int(line, \
-                parameters.INDEX_DATA_PARENT_RSSI) - 256, send_count, read_as_int(line, parameters.INDEX_DATA_MAX_QUEUE_SIZE), \
-                read_as_int(line, parameters.INDEX_DATA_MISSED_MSGS), read_as_int(line, parameters.INDEX_DATA_MISSED_BCASTS), \
-                read_as_int(line, parameters.INDEX_DATA_CRC_FAILS), read_as_int(line, parameters.INDEX_DATA_FLAGS), read_as_int(line, \
-                parameters.INDEX_DATA_ANY_TRANSMISSIONS), read_as_int(line, parameters.INDEX_DATA_DROPPED_MSGS), read_as_int(line, \
-                parameters.INDEX_DATA_HC_DOWNSTREAM), read_as_int(line, parameters.INDEX_DATA_HC_UPSTREAM)))
+            # TODO: Clean up this section
+            node_msgs[original_node_id].append(Node_Msg( \
+                read_as_int(line, parameters.INDEX_DATA_BCAST_COUNT), \
+                bcast_instance, \
+                wtb, \
+                original_node_id, \
+                assigned_node_id, \
+                read_as_int(line, parameters.INDEX_DATA_PARENT_ID), \
+                read_as_int(line, parameters.INDEX_DATA_PARENT_RSSI) - 256, \
+                send_count, \
+                read_as_int(line, parameters.INDEX_DATA_MAX_QUEUE_SIZE), \
+                read_as_int(line, parameters.INDEX_DATA_MISSED_MSGS), 
+                read_as_int(line, parameters.INDEX_DATA_MISSED_BCASTS), \
+                read_as_int(line, parameters.INDEX_DATA_CRC_FAILS), \
+                read_as_int(line, parameters.INDEX_DATA_FLAGS), \
+                read_as_int(line, parameters.INDEX_DATA_HC_DOWNSTREAM), \
+                read_as_int(line, parameters.INDEX_DATA_HC_UPSTREAM), \
+                read_as_int(line, parameters.INDEX_DATA_DROPPED_MSGS_SELF), \
+                read_as_int(line, parameters.INDEX_DATA_DROPPED_MSGS_OTHERS), \
+                read_as_int(line, parameters.INDEX_DATA_FAILED_TRANS)))
+            msg = node_msgs[original_node_id][-1] # Recently appended msg
+            msg.prev_trans["bcast"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_BCAST)
+            msg.prev_trans["data"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_DATA)
+            msg.prev_trans["id_check"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_ID_CHECK)
+            msg.prev_trans["ack"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_ACK)
+            msg.prev_trans["fwd"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_FWD)
+            msg.prev_data_trans = msg.prev_trans["data"] + msg.prev_trans["id_check"] + msg.prev_trans["fwd"]
+            msg.prev_any_trans = msg.prev_data_trans + msg.prev_trans["bcast"] + msg.prev_trans["ack"]
+            for ind in range(0, parameters.INDEX_DATA_VEC_RECEIVED_BCASTS_SIZE):
+                ind_adj = parameters.INDEX_DATA_VEC_RECEIVED_BCASTS_IND + parameters.INDEX_DATA_VEC_RECEIVED_BCASTS_NUM_V * ind
+                rssi = read_as_int(line, ind_adj + 1) - 256
+                if rssi == -256:
+                    continue
+                id = read_as_int(line, ind_adj) & 0x7F
+                unconsidered_bcast = read_as_int(line, ind_adj) >> 7
+                msg.received_bcasts.append(Node_Msg_Bcast_Msg(id, rssi, unconsidered_bcast))
+            for ind in range(0, parameters.INDEX_DATA_VEC_RECEIVED_MSGS_SIZE):
+                ind_adj = parameters.INDEX_DATA_VEC_RECEIVED_MSGS_IND + parameters.INDEX_DATA_VEC_RECEIVED_MSGS_NUM_V * ind
+                rssi = read_as_int(line, ind_adj + 1) - 256
+                if rssi == -256:
+                    continue
+                id = read_as_int(line, ind_adj)
+                count = read_as_int(line, ind_adj + 2) & 0x7F
+                is_child = read_as_int(line, ind_adj + 2) >> 7
+                msg.received_msgs.append(Node_Msg_General_Msg(id, rssi, count, is_child))
+            
         current_line += 1
 
     # Analysis vars
@@ -668,6 +760,8 @@ def main():
                 node_analysis[node_id].dropped_msgs.append(msg.prev_dropped_msgs)
                 node_analysis[node_id].hc_downstream.append(msg.hc_downstream)
                 node_analysis[node_id].hc_upstream.append(msg.hc_upstream)
+                node_analysis[node_id].received_bcast_count.append(len(msg.received_bcasts))
+                node_analysis[node_id].received_msg_count.append(len(msg.received_msgs))
         
                 if not msg.prev_flags in node_analysis[node_id].flags:
                     node_analysis[node_id].flags[msg.prev_flags] = 0
@@ -780,6 +874,9 @@ def main():
         print("\tMissed Msgs: " + str(total_missed_msgs))
         print("\tMissed Bcasts: " + str(total_missed_bcasts))
         print("\tFlags: " + str(node_analysis[node_id].flags))
+        print("\tLarge Packet Info")
+        print("\t\tAvg received bcast count: " + str(statistics.mean(node_analysis[node_id].received_bcast_count)))
+        print("\t\tAvg received msg count: " + str(statistics.mean(node_analysis[node_id].received_msg_count)))
         if len(parameters.HARDCODED_NODE_TDMA) > 0:
             print("\tParent Connections (TDMA): ")
         else:

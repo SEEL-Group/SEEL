@@ -2,6 +2,7 @@ class Parameters:
     ############################################################################
     # General Parameters
     PRINT_ALL_MSGS = True
+    PRINT_ALL_MSGS_EXTENDED = True
 
     PLOT_DISPLAY = True
     PLOT_NODE_SPECIFIC_BCASTS = True
@@ -90,11 +91,32 @@ class Parameters:
     INDEX_DATA_MAX_QUEUE_SIZE = 13
     INDEX_DATA_CRC_FAILS = 14
     INDEX_DATA_FLAGS = 15
-    INDEX_DATA_ANY_TRANSMISSIONS = 16
-    INDEX_DATA_DROPPED_MSGS = 17
-    INDEX_DATA_HC_DOWNSTREAM = 18
-    INDEX_DATA_HC_UPSTREAM = 19
-    INDEX_DATA_MISSED_BCASTS = 20
+    INDEX_DATA_HC_DOWNSTREAM = 16
+    INDEX_DATA_HC_UPSTREAM = 17
+    INDEX_DATA_DROPPED_MSGS_SELF = 18
+    INDEX_DATA_DROPPED_MSGS_OTHERS = 19
+    INDEX_DATA_FAILED_TRANS = 20
+    INDEX_DATA_PREV_TRANS_BCAST = 21
+    INDEX_DATA_PREV_TRANS_DATA = 22
+    INDEX_DATA_PREV_TRANS_ID_CHECK = 23
+    INDEX_DATA_PREV_TRANS_ACK = 24
+    INDEX_DATA_PREV_TRANS_FWD = 25
+    ###
+    # VEC RECEIVED_BCASTS
+    INDEX_DATA_VEC_RECEIVED_BCASTS_IND = 26
+    INDEX_DATA_VEC_RECEIVED_BCASTS_SIZE = 8
+    INDEX_DATA_VEC_RECEIVED_BCASTS_NUM_V = 2
+    # V1: ID, 1st bit (MSB) denotes if the incoming bcast was received after this node already sent a bcast, remaining bit for node ID
+    # V2: RSSI
+    ###
+    # VEC RECEIVED MSGS
+    INDEX_DATA_VEC_RECEIVED_MSGS_IND = 42
+    INDEX_DATA_VEC_RECEIVED_MSGS_SIZE = 8
+    INDEX_DATA_VEC_RECEIVED_MSGS_NUM_V = 3
+    # V1 = 0 # ID
+    # V2 = 0 # RSSI, latest sender
+    # V3 = 0 # Misc, 1st bit (MSB) denotes if sender was child, remaining bits is send count
+    ###
 
     ############################################################################
     # SEEL Parameters

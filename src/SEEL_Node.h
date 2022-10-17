@@ -44,7 +44,7 @@ public:
             return sender_id == rhs.sender_id;
         }
     };
-    class SEEL_Received_Message // Non-broadcast
+    class SEEL_Received_Message
     {
     public:
         uint8_t sender_id;
