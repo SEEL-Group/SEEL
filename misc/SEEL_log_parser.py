@@ -668,7 +668,7 @@ def main():
             if not dup:
                 # Unique bcast number across all bcast instances
                 node_unique_cycle_num = bcast_inst_count[msg.bcast_inst] + overflow_comp_bcast_num - (0 if first_bcast_num < 0 else first_bcast_num)
-                #print("Debug: node unique bcast" + str(node_unique_cycle_num))
+                #print("Debug: node unique bcast " + str(node_unique_cycle_num))
             
                 # Update node mappings with latest ID since they could change throughout deployment
                 # However, this should NOT occur since assigned IDs should be UNIQUE
@@ -800,34 +800,34 @@ def main():
                         analysis_prev_data = [msg.bcast_num, msg.parent_rssi, msg.prev_queue_size]
                         analysis_reset = False
                         
-                if parameters.SIM_RUN:
+                if parameters.SIM_RUN and node_unique_cycle_num > 0:
                     # Fill out this cycle data
                     if not node_unique_cycle_num in sim_data.cycles:
                         sim_data.add_cycle(node_unique_cycle_num, sim.Sim_Cycle())
-                    sim_node = sim.Sim_Node(parent = msg.parent_id,
-                                            parent_rssi = msg.parent_rssi, 
-                                            failed_data_trans = -1, 
-                                            total_data_trans = -1, 
-                                            total_any_trans = -1, 
-                                            received_bcast_msg = [sim.Sim_Node_Bcast_Msg(   id = b_msg.id, \
-                                                                                            rssi = b_msg.rssi, \
-                                                                                            unconsidered_bcast = b_msg.unconsidered_bcast) \
-                                                                                            for b_msg in msg.received_bcasts], 
-                                            received_other_msg = None)
+                    received_bcast_msg_converted = [sim.Sim_Node_Bcast_Msg( \
+                                                    id = b_msg.id, \
+                                                    rssi = b_msg.rssi, \
+                                                    unconsidered_bcast = b_msg.unconsidered_bcast) \
+                                                    for b_msg in msg.received_bcasts]
+                    sim_node = sim.Sim_Node(node_id = node_id, \
+                                            parent = msg.parent_id,\
+                                            parent_rssi = msg.parent_rssi, \
+                                            received_bcast_msg = received_bcast_msg_converted)
                     sim_data.cycles[node_unique_cycle_num].add_node(node_id, sim_node)
                     # Fill out previous cycle data
                     prev_cycle_unique_num = (node_unique_cycle_num - 1)
                     if prev_cycle_unique_num in sim_data.cycles and node_id in sim_data.cycles[prev_cycle_unique_num].nodes:
                         sim_node = sim_data.cycles[prev_cycle_unique_num].nodes[node_id]
-                        sim_node.failed_data_trans = msg.prev_failed_trans
-                        sim_node.total_data_trans = msg.prev_data_trans
-                        sim_node.total_any_trans = msg.prev_any_trans
-                        sim_node.received_other_msg = [sim.Sim_Node_Other_Msg(  id = o_msg.id, \
-                                                                                rssi = o_msg.rssi, \
-                                                                                count = o_msg.count, \
-                                                                                is_child = o_msg.count) \
-                                                                                for o_msg in msg.prev_received_msgs]
-                    
+                        received_other_msg_converted = [sim.Sim_Node_Other_Msg( \
+                                                        id = o_msg.id, \
+                                                        rssi = o_msg.rssi, \
+                                                        count = o_msg.count, \
+                                                        is_child = o_msg.is_child) \
+                                                        for o_msg in msg.prev_received_msgs]
+                        sim_node.set_prev_data( failed_data_trans = msg.prev_failed_trans, \
+                                                total_data_trans = msg.prev_data_trans, \
+                                                total_any_trans = msg.prev_any_trans, \
+                                                received_other_msg = received_other_msg_converted)
             else: # if dup
                 duplicate_msg += 1
         connection_inst_max -= (0 if first_bcast_num < 0 else (first_bcast_num - 1)) 
@@ -1520,6 +1520,8 @@ def main():
     
     # Topology Simulation
     if parameters.SIM_RUN:
+        print("***************************************** TOPOLOGY SIM *****************************************")
+    
         sim.run_sim(sim_data)
 
 if __name__ == "__main__":
