@@ -810,7 +810,7 @@ def main():
                                                     unconsidered_bcast = b_msg.unconsidered_bcast) \
                                                     for b_msg in msg.received_bcasts]
                     sim_node = sim.Sim_Node(node_id = node_id, \
-                                            parent = msg.parent_id,\
+                                            parent_id = msg.parent_id,\
                                             parent_rssi = msg.parent_rssi, \
                                             received_bcast_msg = received_bcast_msg_converted)
                     sim_data.cycles[node_unique_cycle_num].add_node(node_id, sim_node)
