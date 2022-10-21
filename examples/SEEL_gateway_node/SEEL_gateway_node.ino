@@ -19,7 +19,7 @@ constexpr uint8_t SEEL_LoRaPHY_INT_PIN = 2; // Don't change these if using Dragi
 constexpr uint8_t SEEL_RNG_SEED_PIN = 0; // Make sure this pin is NOT connected
 
 /* File Write Paramters */
-const char* LOG_FILE_PATH = "/mnt/seel_logs_2022_10_15_TEST_A.txt"; // Path on gateway node file system
+const char* LOG_FILE_PATH = ""; // Path on gateway node file system
 
 /* SEEL Variables */
 SEEL_Scheduler seel_scheduler;
@@ -53,7 +53,7 @@ void write_to_file(const String& to_write)
 
 // This callback function is called right after the GNODE sends out its broadcast message
 // Read/Write Parameter: "msg_data" which is the data packet of the broadcast message
-void user_callback_broadcast(uint8_t msg_data[SEEL_MSG_DATA_SIZE])
+void user_callback_broadcast(uint8_t msg_data[SEEL_MSG_DATA_SIZE], uint16_t prev_any_trans)
 {
   // The contents of this function are an example of what one can do with this CB function
   
@@ -61,6 +61,9 @@ void user_callback_broadcast(uint8_t msg_data[SEEL_MSG_DATA_SIZE])
 
   msg_string = F("BT: "); // Broadcast Time
   msg_string += String(millis(), DEC) + F("\n");
+  
+  msg_string += F("PT: "); // Previous Transmissions (any type) sent
+  msg_string += String(prev_any_trans, DEC) + F("\n");
 
   msg_string += F("BD: "); // Broadcast Data
   for (uint32_t i = 0; i < SEEL_MSG_DATA_SIZE; ++i)

@@ -17,7 +17,7 @@ class SEEL_GNode : public SEEL_Node
 {
 public:
     // Typedefs
-    typedef void (*user_callback_broadcast_t) (uint8_t msg_data[SEEL_MSG_DATA_SIZE]);
+    typedef void (*user_callback_broadcast_t) (uint8_t msg_data[SEEL_MSG_DATA_SIZE], uint16_t prev_any_trans);
     typedef void (*user_callback_data_t) (const uint8_t msg_data[SEEL_MSG_DATA_SIZE], const int8_t msg_rssi);
 
     // ***************************************************
@@ -119,7 +119,6 @@ private:
     uint32_t _snode_sleep_time_secs;
     uint8_t _bcast_count;
     bool _first_bcast;
-
 };
 
 #endif // SEEL_GNode_h

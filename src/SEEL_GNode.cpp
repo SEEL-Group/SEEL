@@ -35,6 +35,9 @@ void SEEL_GNode::init(  SEEL_Scheduler* ref_scheduler,
     _first_bcast = true;
     _data_queue_ptr = NULL;
     _parent_lock = true;
+    
+    // Large packet info
+    _cycle_transmissions.clear();
 
     // Initialize tasks with this inst
     _task_bcast.set_inst(this);
@@ -220,6 +223,10 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
     // Clear ack queue
     _inst->_ack_queue.clear();
 
+    // Large packet info
+    uint16_t prev_any_trans = _inst->_cycle_transmissions.get_total_trans();
+    _inst->_cycle_transmissions.clear();
+
     // Check if there are any new ID's that need to be added to gateway signal
     for (uint32_t i = 0; i < SEEL_MSG_DATA_ID_FEEDBACK_TOTAL_SIZE; i += 2)
     {
@@ -282,7 +289,7 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
 
     if (_inst->_user_cb_broadcast != NULL)
     {
-        _inst->_user_cb_broadcast(to_send.data);
+        _inst->_user_cb_broadcast(to_send.data, prev_any_trans);
     }
 
     ++_inst->_bcast_count;
@@ -294,5 +301,8 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
 
     // Send out gateway msg; send out msg at the end of catch immediately transition to receiving msgs
     _inst->create_msg(&to_send, SEEL_GNODE_ID, SEEL_CMD_BCAST);
-    _inst->try_send(&to_send, true);
+    if (_inst->try_send(&to_send, true))
+    {
+        ++(_inst->_cycle_transmissions.bcast);
+    }
 }

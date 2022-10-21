@@ -29,7 +29,7 @@ public:
         FLAG_ASSERT_FIRED = 3
     };
 
-    // Extended Packet Structs
+    // Large Packet Structs
     class SEEL_Received_Broadcast
     {
     public:
@@ -80,6 +80,11 @@ public:
             id_check = 0;
             ack = 0;
             fwd = 0;
+        }
+        
+        uint16_t get_total_trans()
+        {
+            return (uint16_t)bcast + (uint16_t)data + (uint16_t)id_check + (uint16_t)ack + (uint16_t)fwd;
         }
     };
 
