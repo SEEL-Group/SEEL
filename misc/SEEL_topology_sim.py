@@ -7,7 +7,7 @@
 # Parameters
 PRINT_INCOMING_DATA = False
 PRINT_ALL_TOPOLOGIES = False
-PRINT_ALL_REPLAY_CYCLES = False
+PRINT_ALL_REPLAY_CYCLES = True
 
 PARENT_USE_PATH_RSSI = True # Otherwise use immediate RSSI
 
@@ -137,7 +137,7 @@ def search_msgs_received_count(bcast_msgs, other_msgs, id):
             
     for msg in other_msgs:
         if msg.id == id:
-            return msg.count
+            count += msg.count
             
     return count   
     
@@ -295,6 +295,7 @@ def run_sim(sim_data):
                     if real_data_parent_node.total_any_trans >= 0: # Less than zero means no data was recorded
                         packets_received = search_msgs_received_count(node.received_bcast_msg.values(), node.received_other_msg.values(), node.parent_id)
                         pp = (packets_received / packets_sent) if packets_received > 0 else 0
+                        #print("\tDEBUG -> PR: " + str(packets_received) + ", PS: " + str(packets_sent))
                     elif PRINT_ALL_REPLAY_CYCLES:
                         print("\tParent PREV data missing")
                 elif PRINT_ALL_REPLAY_CYCLES:
@@ -339,6 +340,7 @@ def run_sim(sim_data):
                         if static_parent_node.total_any_trans >= 0:
                             packets_received = search_msgs_received_count(node.received_bcast_msg.values(), node.received_other_msg.values(), node.parent_id)
                             pp = (packets_received / packets_sent) if packets_received > 0 else 0
+                            #print("\tDEBUG -> PR: " + str(packets_received) + ", PS: " + str(packets_sent))
                         elif PRINT_ALL_REPLAY_CYCLES:
                             print("\tParent PREV data missing")
                     elif PRINT_ALL_REPLAY_CYCLES:

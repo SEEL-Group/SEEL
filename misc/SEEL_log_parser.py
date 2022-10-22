@@ -35,7 +35,7 @@ class Parameters:
     ############################################################################
     # General Parameters
     PRINT_ALL_MSGS = False
-    PRINT_ALL_MSGS_EXTENDED = False
+    PRINT_ALL_MSGS_EXTENDED = False # Large packet info
 
     PLOT_DISPLAY = False
     
@@ -281,7 +281,7 @@ class Node_Msg:
         if parameters.PRINT_ALL_MSGS_EXTENDED:
             msg += "\n\tPrev Transmissions: " + str(self.prev_trans) + \
             "\n\tRec. Bcasts(" + str(len(self.received_bcasts)) + "): " + str(self.received_bcasts) + \
-            "\n\tPrev Rec. Messages(" + str(len(self.prev_received_msgs)) + "): " + str(self.received_msgs)
+            "\n\tPrev Rec. Messages(" + str(len(self.prev_received_msgs)) + "): " + str(self.prev_received_msgs)
         return msg
 
 class Node_Analysis: # Per node
@@ -542,7 +542,6 @@ def main():
                 count = read_as_int(line, ind_adj + 2) & 0x7F
                 is_child = read_as_int(line, ind_adj + 2) >> 7
                 msg.prev_received_msgs.append(Node_Msg_General_Msg(id, rssi, count, is_child))
-            
         current_line += 1
 
     # Analysis vars
@@ -672,7 +671,7 @@ def main():
 
             if not dup:
                 # Unique bcast number across all bcast instances
-                node_unique_cycle_num = bcast_inst_count[msg.bcast_inst] + overflow_comp_bcast_num - (0 if first_bcast_num < 0 else first_bcast_num)
+                node_unique_cycle_num = bcast_inst_count[msg.bcast_inst] + overflow_comp_bcast_num # - (0 if first_bcast_num < 0 else first_bcast_num)
                 #print("Debug: node unique bcast " + str(node_unique_cycle_num))
             
                 # Update node mappings with latest ID since they could change throughout deployment
