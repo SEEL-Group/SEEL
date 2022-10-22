@@ -195,36 +195,40 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
     if(msg.cmd == SEEL_CMD_BCAST)
     {
         // Create received broadcast (rb)
-        SEEL_Received_Broadcast rb(msg.orig_send_id, msg_rssi);
+        SEEL_Received_Broadcast rb(msg.send_id, msg_rssi);
         rb.sender_id |= (_inst->_parent_lock ? 0x80 : 0x00); // MSB denotes if incoming. bcast was received after this node already sent a bcast (1) or not (0), remaining bits for sender id
 
         // Search if rb already in queue
         SEEL_Received_Broadcast* found_rb = _inst->_cb_info.received_bcasts.find(rb);
         if (found_rb == NULL) // Add
         {
-            _inst->_cb_info.received_bcasts.add(rb);
+            SEEL_Assert::assert(_inst->_cb_info.received_bcasts.add(rb), SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
+            SEEL_Print::print(F("EP LOG: Added: ")); SEEL_Print::println(rb.sender_id);
         }
         else // Update
         {
             found_rb->sender_rssi = msg_rssi;
+            SEEL_Print::print(F("EP LOG: Updated: ")); SEEL_Print::println(found_rb->sender_id);
         }
     }
     else
     {
         // Create received message (rm)
         uint8_t misc = (msg.targ_id == _inst->_node_id) ? 0x81 : 0x01;// MSB denotes if this msg was intended for this node (from a child node) (1) or not (0), remaining bits for count which starts at 1
-        SEEL_Received_Message rm(msg.orig_send_id, msg_rssi, misc);
+        SEEL_Received_Message rm(msg.send_id, msg_rssi, misc);
 
         // Search if rb already in queue
         SEEL_Received_Message* found_rm = _inst->_received_msgs.find(rm);
         if (found_rm == NULL) // Add
         {
-            _inst->_received_msgs.add(rm);
+            SEEL_Assert::assert(_inst->_received_msgs.add(rm), SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
+            SEEL_Print::print(F("EP LOG: Added: ")); SEEL_Print::print(rm.sender_id); SEEL_Print::print(F(", misc: ")); SEEL_Print::println(rm.sender_misc);
         }
         else // Update
         {
             found_rm->sender_rssi = msg_rssi;
             ++(found_rm->sender_misc);
+            SEEL_Print::print(F("EP LOG: Updated: ")); SEEL_Print::print(found_rm->sender_id); SEEL_Print::print(F(", misc: ")); SEEL_Print::println(found_rm->sender_misc);
         }
     }
 
@@ -301,11 +305,10 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                     rssi_mode_value = min(msg_rssi, incoming_rssi);
                 }
 
-                // A new parent is considered better if it has a higher RSSI metric than the
-                // previous parent, with ties broken by hop count
-                if(!_inst->_parent_sync ||
-                    (rssi_mode_value > _inst->_path_rssi) || 
-                    (rssi_mode_value == _inst->_path_rssi && incoming_hop_count < _inst->_cb_info.hop_count))
+                // A new parent is considered better if:
+                if(!_inst->_parent_sync || // Snode has no current
+                    (incoming_hop_count >= _inst->_cb_info.hop_count && // Or (incoming parent has a LOWER OR EQUAL hop count (prevents cycles from forming)
+                    rssi_mode_value > _inst->_path_rssi)) // AND it has a higher (stronger) RSSI heuristic)
                 {
                     _inst->_parent_id = msg.send_id;
                     _inst->_cb_info.hop_count = incoming_hop_count;
@@ -784,14 +787,16 @@ void SEEL_SNode::sleep()
     // period the watchdog time can sleep for
     uint32_t sleep_counts = 0;
     uint32_t snode_sleep_time_millis = _snode_sleep_time_secs * SEEL_SECS_TO_MILLIS;
-    if(snode_sleep_time_millis > (SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _sleep_time_offset_millis))
+    uint32_t early_wakeup_time = SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _sleep_time_offset_millis;
+    // TODO: Make similar case for EB algorithm
+    if (SEEL_TDMA_USE_TDMA)
     {
-        SEEL_Assert::assert(snode_sleep_time_millis >= (SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _sleep_time_offset_millis), SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
-        sleep_counts = (snode_sleep_time_millis
-            - SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS
-            - _sleep_time_offset_millis) / _sleep_time_estimate_millis;
+        // Need to wake up earlier if we received bcast later
+        // To be safe, need to wake up parent hop count times TDMA cycle time millis earlier
+        // Imagine worst case when parent takes entire TDMA cycle to broadcast
+        // Since (updated) parent must have smaller hop count than current node, this logic works for parent updates too
+        early_wakeup_time = max(early_wakeup_time, SEEL_TDMA_CYCLE_TIME_MILLIS * (_cb_info.hop_count - 1)); // Parent hop count is ours minus 1
     }
-
     if(_missed_bcasts > 0)
     {
         // Make signed int since awake duration could be smaller than specified, then sleep longer
@@ -801,20 +806,15 @@ void SEEL_SNode::sleep()
         int32_t extra_awake_time_millis = (SEEL_FORCE_SLEEP_AWAKE_MULT * 
             pow(SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE, _missed_bcasts) - 1) * 
             _snode_awake_time_secs * SEEL_SECS_TO_MILLIS;
-        // Sleep needs to be calculated a different way since SNODE stayed awake longer than specified
-        if(snode_sleep_time_millis > (extra_awake_time_millis +
-            SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _sleep_time_offset_millis))
-        {
-            SEEL_Assert::assert(snode_sleep_time_millis >= (extra_awake_time_millis + SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _sleep_time_offset_millis), SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
-            sleep_counts = (snode_sleep_time_millis - (extra_awake_time_millis + 
-                SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _sleep_time_offset_millis)) / 
-                _sleep_time_estimate_millis;
-        }
-        else
-        {
-            sleep_counts = 0;
-        }
+        early_wakeup_time += extra_awake_time_millis;
     }
+    SEEL_Print::print(F("Extra wakeup time (millis): ")); SEEL_Print::println(early_wakeup_time);
+    SEEL_Assert::assert(snode_sleep_time_millis >= early_wakeup_time, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
+    if(snode_sleep_time_millis > early_wakeup_time)
+    {
+        sleep_counts = (snode_sleep_time_millis - early_wakeup_time) / _sleep_time_estimate_millis;
+    }
+    // Else, sleep counts stay at 0
 
     SEEL_Print::print(F("Sleeping for ")); SEEL_Print::print(sleep_counts); SEEL_Print::println(F(" counts"));
     SEEL_Print::flush();

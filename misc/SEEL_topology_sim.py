@@ -91,8 +91,8 @@ class Sim_Tree_Node:
     # Checks if "incoming_parent" is a better parent and sets as parent if it is
     # Returns previous parent id if taken new parent, -1 otherwise
     def parent_compare(self, incoming_parent, incoming_parent_rssi):
-        # Only take parents with equal or higher hop counts otherwise a loop could form
-        if incoming_parent.hop_count >= self.hop_count and incoming_parent_rssi > self.parent_rssi:
+        # Only take parents with equal or smaller hop counts otherwise a loop could form
+        if incoming_parent.hop_count <= self.hop_count and incoming_parent_rssi > self.parent_rssi:
             # Take new parent
             previous_parent_id = self.parent_id
             self.parent_id = incoming_parent.node_id

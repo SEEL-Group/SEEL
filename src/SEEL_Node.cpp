@@ -196,6 +196,9 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
             SEEL_Print::println(F("Duplicate message")); 
             SEEL_Node::set_flag(SEEL_Flags::FLAG_DUP_MSG);
         }
+        else if (msg_len != SEEL_MSG_TOTAL_SIZE) {
+            SEEL_Print::println(F("Wrong length message")); // Could be from external LoRa transmission
+        }
         else {
             valid_msg = true;
         }
