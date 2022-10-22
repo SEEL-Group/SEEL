@@ -7,7 +7,7 @@
 # Parameters
 PRINT_INCOMING_DATA = False
 PRINT_ALL_TOPOLOGIES = False
-PRINT_ALL_REPLAY_CYCLES = True
+PRINT_ALL_REPLAY_CYCLES = False
 
 PARENT_USE_PATH_RSSI = True # Otherwise use immediate RSSI
 
@@ -144,7 +144,7 @@ def search_msgs_received_count(bcast_msgs, other_msgs, id):
 def run_sim(sim_data):
     # Determine unique nodes
     unique_nodes = set()
-    for cycle_num in sim_data.cycles:
+    for cycle_num in sorted(sim_data.cycles.keys()):
         if PRINT_INCOMING_DATA:
             print("Cycle " + str(cycle_num) + "***************************************")
         cycle_data = sim_data.cycles[cycle_num]
@@ -157,9 +157,10 @@ def run_sim(sim_data):
     print("Unique nodes: " + str(unique_nodes))
     
     # Form a static topology, note the current algorithm will not find the best static topology, just a working one
-    static_topology = {}
+    best_static_topology = {}
     suitable_topology_cycle = -1
-    for cycle_num in sim_data.cycles:
+    best_added_nodes = 0
+    for cycle_num in sorted(sim_data.cycles.keys()):
         cycle_data = sim_data.cycles[cycle_num]
         static_topology = {}
         node_id_queue = [0]
@@ -194,42 +195,55 @@ def run_sim(sim_data):
                         if previous_parent_id >= 0:
                             static_topology[previous_parent_id].children_id.remove(node_id)
                             node_id_queue.append(node_id)
+        
         # Check if the generated static topology has as many nodes as unique nodes, so no nodes are left out
         if PRINT_ALL_TOPOLOGIES:
-            if added_nodes == len(unique_nodes):
-                print("Found suitable topology on Cycle " + str(cycle_num) + ":")
+            if added_nodes > 0:
+                if added_nodes == len(unique_nodes):
+                    print("Found full topology on Cycle " + str(cycle_num) + ":")
+                else:
+                    print("Found partial topology on Cycle " + str(cycle_num) + ":")
+                    
                 for node_id in static_topology:
                     node = static_topology[node_id]
                     print("Node " + str(node_id) + ", Parent " + str(node.parent_id))
             else:
-                print("Unable to find suitable topology on Cycle " + str(cycle_num) + ", added nodes = " + str(added_nodes))
-        else:
+                print("Unable to find suitable any topology on Cycle " + str(cycle_num) + ", added nodes = " + str(added_nodes))
+
+        if added_nodes > best_added_nodes:
             suitable_topology_cycle = cycle_num
-            break
-    if not PRINT_ALL_TOPOLOGIES:
-        if suitable_topology_cycle < 0:
-            print("Unable to find suitable topology on Cycle " + str(cycle_num) + ", added nodes = " + str(added_nodes))
+            best_static_topology = static_topology
+            best_added_nodes = added_nodes
+            if added_nodes == len(unique_nodes):
+                break
+
+    if suitable_topology_cycle >= 0:
+        if best_added_nodes == len(unique_nodes):
+            print("Found full topology on Cycle " + str(suitable_topology_cycle) + ":")
         else:
-            print("Found suitable topology on Cycle " + str(suitable_topology_cycle) + ":")
-            for node_id in static_topology:
+            print("Found partial topology on Cycle " + str(suitable_topology_cycle) + ":")
+        
+        for node_id in static_topology:
                 node = static_topology[node_id]
                 print("Node " + str(node_id) + ", Parent " + str(node.parent_id))
-            '''
-            print("DEBUG: Cycle " + str(suitable_topology_cycle) + "***************************************")
-            cycle_data = sim_data.cycles[suitable_topology_cycle]
-            for node_id in cycle_data.nodes:
-                unique_nodes.add(node_id)
-                node = cycle_data.nodes[node_id]
-                print("DEBUG: Node " + str(node_id))
-                node.print_node()              
-            '''
+    else:
+        print("ERROR: Unable to find any suitable topology")
+    '''
+    print("DEBUG: Cycle " + str(suitable_topology_cycle) + "***************************************")
+    cycle_data = sim_data.cycles[suitable_topology_cycle]
+    for node_id in cycle_data.nodes:
+        unique_nodes.add(node_id)
+        node = cycle_data.nodes[node_id]
+        print("DEBUG: Node " + str(node_id))
+        node.print_node()              
+    '''
             
     # Evaluate topology compared to existing data, currently only has Downstream metrics
     # TODO: Add in Upstream metrics
     cycle_link_condition_static = {}
     cycle_link_condition_data = {} # From actual data
     cycle_detected_cycles = set()
-    for cycle_num in sim_data.cycles:
+    for cycle_num in sorted(sim_data.cycles.keys()):
         if PRINT_ALL_REPLAY_CYCLES:
             print("Cycle " + str(cycle_num) + "***************************************", flush=True)
         cycle_data = sim_data.cycles[cycle_num]
@@ -291,47 +305,51 @@ def run_sim(sim_data):
             if PRINT_ALL_REPLAY_CYCLES:
                 print("\t" + str(link_condition_real_data[node_id]))
             
-            # Static Calculation
-            static_parent_id = static_topology[node_id].parent_id
-            if PRINT_ALL_REPLAY_CYCLES:
-                print("Static: Node " + str(node_id) + " Parent " + str(static_parent_id))
-            # Search if node received any messages from parent
-            ir = search_msgs_rssi(node.received_bcast_msg.values(), node.received_other_msg.values(), static_parent_id)
-            rh = ir
-            if PARENT_USE_PATH_RSSI:
-                rh = 0 # Set high at first
-                current_id = node_id
-                while current_id != 0:
-                    current_node = cycle_data.nodes[current_id]
-                    current_parent_id = static_topology[current_id].parent_id
-                    current_parent_rssi = search_msgs_rssi(current_node.received_bcast_msg.values(), current_node.received_other_msg.values(), current_parent_id)
-                    if current_parent_rssi != 0:
-                        rh = min(rh, current_parent_rssi)
-                        current_id = current_parent_id
-                    else:
-                        if PRINT_ALL_REPLAY_CYCLES:
-                            print("\tIncomplete path")
-                        rh = 0
-                        break
-            pp = -1 # Unavailable data
-            if static_parent_id != 0: # TODO: Add in GNode send counts
-                if static_parent_id in cycle_data.nodes:
-                    static_parent_node = cycle_data.nodes[static_parent_id]
-                    packets_sent = static_parent_node.total_any_trans
-                    if static_parent_node.total_any_trans >= 0:
-                        packets_received = search_msgs_received_count(node.received_bcast_msg.values(), node.received_other_msg.values(), node.parent_id)
-                        pp = (packets_received / packets_sent) if packets_received > 0 else 0
+            if suitable_topology_cycle < 0:
+                if PRINT_ALL_REPLAY_CYCLES:
+                    print("Static: No data available")
+            else:
+                # Static Calculation
+                static_parent_id = static_topology[node_id].parent_id
+                if PRINT_ALL_REPLAY_CYCLES:
+                    print("Static: Node " + str(node_id) + " Parent " + str(static_parent_id))
+                # Search if node received any messages from parent
+                ir = search_msgs_rssi(node.received_bcast_msg.values(), node.received_other_msg.values(), static_parent_id)
+                rh = ir
+                if PARENT_USE_PATH_RSSI:
+                    rh = 0 # Set high at first
+                    current_id = node_id
+                    while current_id != 0:
+                        current_node = cycle_data.nodes[current_id]
+                        current_parent_id = static_topology[current_id].parent_id
+                        current_parent_rssi = search_msgs_rssi(current_node.received_bcast_msg.values(), current_node.received_other_msg.values(), current_parent_id)
+                        if current_parent_rssi != 0:
+                            rh = min(rh, current_parent_rssi)
+                            current_id = current_parent_id
+                        else:
+                            if PRINT_ALL_REPLAY_CYCLES:
+                                print("\tIncomplete path")
+                            rh = 0
+                            break
+                pp = -1 # Unavailable data
+                if static_parent_id != 0: # TODO: Add in GNode send counts
+                    if static_parent_id in cycle_data.nodes:
+                        static_parent_node = cycle_data.nodes[static_parent_id]
+                        packets_sent = static_parent_node.total_any_trans
+                        if static_parent_node.total_any_trans >= 0:
+                            packets_received = search_msgs_received_count(node.received_bcast_msg.values(), node.received_other_msg.values(), node.parent_id)
+                            pp = (packets_received / packets_sent) if packets_received > 0 else 0
+                        elif PRINT_ALL_REPLAY_CYCLES:
+                            print("\tParent PREV data missing")
                     elif PRINT_ALL_REPLAY_CYCLES:
-                        print("\tParent PREV data missing")
+                        print("\tParent missing")
                 elif PRINT_ALL_REPLAY_CYCLES:
-                    print("\tParent missing")
-            elif PRINT_ALL_REPLAY_CYCLES:
-                print("\tGNode send data not available yet")
-            link_condition_static[node_id] = Sim_Link_Condition(immediate_rssi = ir, rssi_heuristic = rh, packet_percentage = pp)
-            if PRINT_ALL_REPLAY_CYCLES:
-                print("\t" + str(link_condition_static[node_id]))
+                    print("\tGNode send data not available yet")
+                link_condition_static[node_id] = Sim_Link_Condition(immediate_rssi = ir, rssi_heuristic = rh, packet_percentage = pp)
+                if PRINT_ALL_REPLAY_CYCLES:
+                    print("\t" + str(link_condition_static[node_id]))
     if len(cycle_detected_cycles) > 0:
-        print("Found cycles: " + str(cycle_detected_cycles))
+        print("Found " + str(len(cycle_detected_cycles)) + " cycles: " + str(cycle_detected_cycles))
             
             
             

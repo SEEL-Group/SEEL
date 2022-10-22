@@ -91,6 +91,8 @@ class Parameters:
     INDEX_HEADER = 0
     # INDEX_BT 0 used for the text "BT:"
     INDEX_BT_TIME = 1
+    # INDEX_PT 0 used for the text "PT:"
+    INDEX_PT_NUM = 1
     # INDEX_BD 0 used for the text "BD:"
     INDEX_BD_FIRST = 1
     INDEX_BD_BCAST_COUNT = 2
@@ -187,6 +189,7 @@ if len(sys.argv) > 2:
 # Global Variables
 
 bcast_times = []
+bcast_prev_trans = []
 bcast_info = []
 bcast_inst_count = {} # Tracks number of previous bcasts at the start of a new bcast instance
 bcast_info_overflow = {}
@@ -447,6 +450,8 @@ def main():
         line[1:len(line)] = list(map(int, line[1:len(line)]))
         if line[parameters.INDEX_HEADER] == "BT:": # Bcast time
             bcast_times.append(line[parameters.INDEX_BT_TIME])
+        elif line[parameters.INDEX_HEADER] == "PT:": # Previous GNODE transmissions
+            bcast_prev_trans.append(line[parameters.INDEX_PT_NUM])
         elif line[parameters.INDEX_HEADER] == "BD:": # Bcast data
             sys_time = 0
             awk_time = 0
@@ -882,8 +887,11 @@ def main():
                 mean_wtb_missed_bcast = statistics.mean(wtb_missed_bcast)
                 print("\t\t\tMean ANY MISS WTB Millis: " + str(mean_wtb_missed_bcast))
                 print("\t\t\tANY MISS WTB Instances: " + str(len(wtb_missed_bcast)))
-                MM_adjusted_WTB = (total_wtb_general - (mean_wtb_missed_bcast * len(wtb_missed_bcast))) / (len(wtb_general) - len(wtb_missed_bcast))
-                print("\t\t\tMean Drift WTB (General WTB - ANY MISS WTB) MILLIS: " + str(MM_adjusted_WTB))
+                if len(wtb_general) - len(wtb_missed_bcast) != 0:
+                    MM_adjusted_WTB = (total_wtb_general - (mean_wtb_missed_bcast * len(wtb_missed_bcast))) / (len(wtb_general) - len(wtb_missed_bcast))
+                    print("\t\t\tMean Drift WTB (General WTB - ANY MISS WTB) MILLIS: " + str(MM_adjusted_WTB))
+                else:
+                    print("\t\t\tInsufficient Mean Drift WTB data")
             else:
                 print("\t\t\tNo MISSES")
             print("\t\tComparing General WTB to MAX MISS WTB (a node missing SEEL_FORCE_SLEEP_RESET_COUNT number of bcasts)")
