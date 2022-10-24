@@ -36,6 +36,7 @@ class Parameters:
     # General Parameters
     PRINT_ALL_MSGS = False
     PRINT_ALL_MSGS_EXTENDED = False # Large packet info
+    PRINT_BCAST_INFO = False
 
     PLOT_DISPLAY = False
     
@@ -189,11 +190,11 @@ if len(sys.argv) > 2:
 # Global Variables
 
 bcast_times = []
-bcast_prev_trans = []
 bcast_info = []
 bcast_inst_count = {} # Tracks number of previous bcasts at the start of a new bcast instance
 bcast_info_overflow = {}
 bcast_instances = {} # per node, since nodes may join at different times
+bcast_prev_trans = {}
 
 node_mapping = {}
 node_msgs = {}
@@ -215,15 +216,16 @@ class Cycle_Stats:
         self.data_transmissions = -1
 
 class Bcast_Info:
-    def __init__(self, bcast_num, bcast_inst, sys_time, awk_time, slp_time):
+    def __init__(self, bcast_num, bcast_inst, sys_time, awk_time, slp_time, prev_trans):
         self.bcast_num = bcast_num
         self.bcast_inst = bcast_inst
         self.sys_time = sys_time
         self.awk_time = awk_time
         self.slp_time = slp_time
+        self.prev_trans = prev_trans
 
     def __str__(self):
-        return "Bcast num: " + str(self.bcast_num) + " Inst: " + str(self.bcast_inst) + " System time: " + str(self.sys_time) + " Awake time: " + str(self.awk_time) + " Sleep time: " + str(self.slp_time)
+        return "Bcast num: " + str(self.bcast_num) + "\tInst: " + str(self.bcast_inst) + "\tSystem time: " + str(self.sys_time) + "\tAwake time: " + str(self.awk_time) + "\tSleep time: " + str(self.slp_time) + "\tPrev Trans: " + str(self.prev_trans)
     
 class Node_Msg_Bcast_Msg:
     def __init__(self, id, rssi, unconsidered_bcast):
@@ -440,8 +442,8 @@ def main():
     # Parse Logs
     current_line = 0
     bcast_instance = -1
-    bcast_count = 0
     bcast_inst_count[0] = 0
+    prev_trans = 0
     while current_line < df_length:
         line = df_read[current_line].split()
         if len(line) == 0:
@@ -451,7 +453,7 @@ def main():
         if line[parameters.INDEX_HEADER] == "BT:": # Bcast time
             bcast_times.append(line[parameters.INDEX_BT_TIME])
         elif line[parameters.INDEX_HEADER] == "PT:": # Previous GNODE transmissions
-            bcast_prev_trans.append(line[parameters.INDEX_PT_NUM])
+            prev_trans = read_as_int(line, parameters.INDEX_PT_NUM)
         elif line[parameters.INDEX_HEADER] == "BD:": # Bcast data
             sys_time = 0
             awk_time = 0
@@ -468,12 +470,17 @@ def main():
             slp_time += read_as_int(line, parameters.INDEX_BD_SNODE_SLEEP_TIME_1) << 16
             slp_time += read_as_int(line, parameters.INDEX_BD_SNODE_SLEEP_TIME_2) << 8
             slp_time += read_as_int(line, parameters.INDEX_BD_SNODE_SLEEP_TIME_3)
+            bcast_count = read_as_int(line, parameters.INDEX_BD_BCAST_COUNT)       
             if read_as_int(line, parameters.INDEX_BD_FIRST) > 0:
                 bcast_instance += 1
                 bcast_inst_count[bcast_instance] = bcast_count
-            bcast_count += 1            
-            bcast_info.append(Bcast_Info(read_as_int(line, parameters.INDEX_BD_BCAST_COUNT), bcast_instance, sys_time, awk_time, slp_time))
-            
+            bcast_info.append(Bcast_Info(bcast_count, bcast_instance, sys_time, awk_time, slp_time, prev_trans))
+            if (parameters.PRINT_BCAST_INFO):
+                print(bcast_info[-1])
+            if bcast_instance not in bcast_prev_trans:
+                bcast_prev_trans[bcast_instance] = {}
+            bcast_prev_trans[bcast_instance][bcast_count] = prev_trans
+            prev_trans = 0
             for i in range(math.floor((len(line) - parameters.INDEX_BD_SNODE_JOIN_ID) / 2)):
                 repeat_index = i * 2
                 join_id = read_as_int(line, parameters.INDEX_BD_SNODE_JOIN_ID + repeat_index)
@@ -805,25 +812,28 @@ def main():
                         analysis_reset = False
                         
                 if parameters.SIM_RUN and node_unique_cycle_num > 0:
-                    # Fill out this cycle data
                     if not node_unique_cycle_num in sim_data.cycles:
                         sim_data.add_cycle(node_unique_cycle_num, sim.Sim_Cycle())
+                    # Fill out this cycle data
                     received_bcast_msg_converted = [sim.Sim_Node_Bcast_Msg( \
-                                                    id = b_msg.id, \
+                                                    id = node_mapping[b_msg.id], \
                                                     rssi = b_msg.rssi, \
                                                     unconsidered_bcast = b_msg.unconsidered_bcast) \
                                                     for b_msg in msg.received_bcasts]
                     sim_node = sim.Sim_Node(node_id = node_id, \
-                                            parent_id = msg.parent_id,\
+                                            parent_id = parent_original_id,\
                                             parent_rssi = msg.parent_rssi, \
                                             received_bcast_msg = received_bcast_msg_converted)
                     sim_data.cycles[node_unique_cycle_num].add_node(node_id, sim_node)
+                    # Fill out GNode cycle transmissions
+                    if msg.bcast_inst in bcast_prev_trans and (msg.bcast_num + 1) in bcast_prev_trans[msg.bcast_inst]:
+                        sim_data.cycles[node_unique_cycle_num].set_gnode_trans(bcast_prev_trans[msg.bcast_inst][(msg.bcast_num + 1)])
                     # Fill out previous cycle data
                     prev_cycle_unique_num = (node_unique_cycle_num - 1)
                     if prev_cycle_unique_num in sim_data.cycles and node_id in sim_data.cycles[prev_cycle_unique_num].nodes:
                         sim_node = sim_data.cycles[prev_cycle_unique_num].nodes[node_id]
                         received_other_msg_converted = [sim.Sim_Node_Other_Msg( \
-                                                        id = o_msg.id, \
+                                                        id = node_mapping[o_msg.id], \
                                                         rssi = o_msg.rssi, \
                                                         count = o_msg.count, \
                                                         is_child = o_msg.is_child) \
