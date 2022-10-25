@@ -443,6 +443,8 @@ def main():
     current_line = 0
     bcast_instance = -1
     bcast_inst_count[0] = 0
+    bcast_count_wrap_adjust = 0
+    bcast_count = 0
     prev_trans = 0
     while current_line < df_length:
         line = df_read[current_line].split()
@@ -469,11 +471,15 @@ def main():
             slp_time += read_as_int(line, parameters.INDEX_BD_SNODE_SLEEP_TIME_0) << 24
             slp_time += read_as_int(line, parameters.INDEX_BD_SNODE_SLEEP_TIME_1) << 16
             slp_time += read_as_int(line, parameters.INDEX_BD_SNODE_SLEEP_TIME_2) << 8
-            slp_time += read_as_int(line, parameters.INDEX_BD_SNODE_SLEEP_TIME_3)
-            bcast_count = read_as_int(line, parameters.INDEX_BD_BCAST_COUNT)       
+            slp_time += read_as_int(line, parameters.INDEX_BD_SNODE_SLEEP_TIME_3)    
             if read_as_int(line, parameters.INDEX_BD_FIRST) > 0:
                 bcast_instance += 1
                 bcast_inst_count[bcast_instance] = bcast_count
+                bcast_count_wrap_adjust = 0
+            elif bcast_count_unadjusted == 255: # Previous almost wrapped and this reset to 0 isn't due to a GNODE reset (BD_FIRST)
+                bcast_count_wrap_adjust += 256
+            bcast_count_unadjusted = read_as_int(line, parameters.INDEX_BD_BCAST_COUNT)
+            bcast_count = bcast_count_unadjusted + bcast_count_wrap_adjust
             bcast_info.append(Bcast_Info(bcast_count, bcast_instance, sys_time, awk_time, slp_time, prev_trans))
             if (parameters.PRINT_BCAST_INFO):
                 print(bcast_info[-1])
@@ -504,9 +510,10 @@ def main():
                 node_mapping[assigned_node_id] = original_node_id
                 node_msgs[original_node_id] = []
                 bcast_instances[original_node_id] = len(bcast_times)
+            bcast_num = read_as_int(line, parameters.INDEX_DATA_BCAST_COUNT)
             # TODO: Clean up this section
             node_msgs[original_node_id].append(Node_Msg( \
-                read_as_int(line, parameters.INDEX_DATA_BCAST_COUNT), \
+                bcast_num, \
                 bcast_instance, \
                 wtb, \
                 original_node_id, \
@@ -539,7 +546,10 @@ def main():
                     continue
                 id = read_as_int(line, ind_adj) & 0x7F
                 unconsidered_bcast = read_as_int(line, ind_adj) >> 7
-                msg.received_bcasts.append(Node_Msg_Bcast_Msg(id, rssi, unconsidered_bcast))
+                if id == 0 or id in node_mapping:
+                    msg.received_bcasts.append(Node_Msg_Bcast_Msg(id, rssi, unconsidered_bcast))
+                else:
+                    print("Foreign Node ID \"" + str(id) + "\" detected in Bcast Inst " + str(bcast_instance) + ", Bcast Num " + str(bcast_count))
             for ind in range(0, parameters.INDEX_DATA_VEC_PREV_RECEIVED_MSGS_SIZE):
                 ind_adj = parameters.INDEX_DATA_VEC_PREV_RECEIVED_MSGS_IND + parameters.INDEX_DATA_VEC_PREV_RECEIVED_MSGS_NUM_V * ind
                 rssi = read_as_int(line, ind_adj + 1) - 256
@@ -548,7 +558,10 @@ def main():
                 id = read_as_int(line, ind_adj)
                 count = read_as_int(line, ind_adj + 2) & 0x7F
                 is_child = read_as_int(line, ind_adj + 2) >> 7
-                msg.prev_received_msgs.append(Node_Msg_General_Msg(id, rssi, count, is_child))
+                if id == 0 or id in node_mapping:
+                    msg.prev_received_msgs.append(Node_Msg_General_Msg(id, rssi, count, is_child))
+                else:
+                    print("Foreign Node ID \"" + str(id) + "\" detected in Bcast Inst " + str(bcast_instance) + ", Bcast Num " + str(bcast_count))
         current_line += 1
 
     # Analysis vars
@@ -826,8 +839,9 @@ def main():
                                             received_bcast_msg = received_bcast_msg_converted)
                     sim_data.cycles[node_unique_cycle_num].add_node(node_id, sim_node)
                     # Fill out GNode cycle transmissions
-                    if msg.bcast_inst in bcast_prev_trans and (msg.bcast_num + 1) in bcast_prev_trans[msg.bcast_inst]:
-                        sim_data.cycles[node_unique_cycle_num].set_gnode_trans(bcast_prev_trans[msg.bcast_inst][(msg.bcast_num + 1)])
+                    if msg.bcast_inst in bcast_prev_trans and (overflow_comp_bcast_num + 1) in bcast_prev_trans[msg.bcast_inst]:
+                        #print("DEBUG -> Set Cycle " + str(node_unique_cycle_num) + " GNODE Trans to: " + str(bcast_prev_trans[msg.bcast_inst][(overflow_comp_bcast_num + 1)]))
+                        sim_data.cycles[node_unique_cycle_num].set_gnode_trans(bcast_prev_trans[msg.bcast_inst][(overflow_comp_bcast_num + 1)])
                     # Fill out previous cycle data
                     prev_cycle_unique_num = (node_unique_cycle_num - 1)
                     if prev_cycle_unique_num in sim_data.cycles and node_id in sim_data.cycles[prev_cycle_unique_num].nodes:

@@ -297,8 +297,12 @@ def run_sim(sim_data):
                     packets_sent = cycle_data.nodes[real_data_parent_id].total_any_trans
                 if packets_sent >= 0: # Less than zero means no data was recorded
                     packets_received = search_msgs_received_count(node.received_bcast_msg.values(), node.received_other_msg.values(), node.parent_id)
-                    pp = (packets_received / packets_sent) if packets_received > 0 else 0
-                    #print("\tDEBUG ->Parent: " + str(static_parent_id) + ", PR: " + str(packets_received) + ", PS: " + str(packets_sent))
+                    pp = (packets_received / packets_sent) if packets_sent > 0 else 0
+                    if pp > 1:
+                        print("ERROR: More packets received than packets sent")
+                        print("\tCycle: " + str(cycle_num) + ", Node ID: " + str(node_id) + ", Parent ID: " + str(real_data_parent_id) + ", PR: " + str(packets_received) + ", PS: " + str(packets_sent))
+                    if PRINT_ALL_REPLAY_CYCLES:
+                        print("\tDEBUG -> Parent: " + str(real_data_parent_id) + ", PR: " + str(packets_received) + ", PS: " + str(packets_sent))
                 elif PRINT_ALL_REPLAY_CYCLES:
                     print("\tParent PREV data missing")
             elif PRINT_ALL_REPLAY_CYCLES:
@@ -341,8 +345,12 @@ def run_sim(sim_data):
                         packets_sent = cycle_data.nodes[static_parent_id].total_any_trans
                     if packets_sent >= 0: # Less than zero means no data was recorded
                         packets_received = search_msgs_received_count(node.received_bcast_msg.values(), node.received_other_msg.values(), static_parent_id)
-                        pp = (packets_received / packets_sent) if packets_received > 0 else 0
-                        #print("\tDEBUG ->Parent: " + str(static_parent_id) + ", PR: " + str(packets_received) + ", PS: " + str(packets_sent))
+                        pp = (packets_received / packets_sent) if packets_sent > 0 else 0
+                        if pp > 1:
+                            print("ERROR: More packets received than packets sent")
+                            print("\tCycle: " + str(cycle_num) + ", Node ID: " + str(node_id) + ", Parent ID: " + str(static_parent_id) + ", PR: " + str(packets_received) + ", PS: " + str(packets_sent))
+                        if PRINT_ALL_REPLAY_CYCLES:
+                            print("\tDEBUG -> Parent: " + str(static_parent_id) + ", PR: " + str(packets_received) + ", PS: " + str(packets_sent))
                     elif PRINT_ALL_REPLAY_CYCLES:
                         print("\tParent PREV data missing")
                 elif PRINT_ALL_REPLAY_CYCLES:
