@@ -2,9 +2,14 @@ class Parameters:
     ############################################################################
     # General Parameters
     PRINT_ALL_MSGS = True
-    PRINT_ALL_MSGS_EXTENDED = True
+    PRINT_ALL_MSGS_EXTENDED = True # Large packet info
+    PRINT_BCAST_INFO = True
 
     PLOT_DISPLAY = True
+    
+    SIM_RUN = True
+    
+    # Per node plots
     PLOT_NODE_SPECIFIC_BCASTS = True
     PLOT_NODE_SPECIFIC_CONNECTIONS = True
     PLOT_NODE_SPECIFIC_MAPS = True
@@ -14,7 +19,7 @@ class Parameters:
     PLOT_LOCS_WEIGHT_SCALAR = 1000 # Smaller for thicker lines
     PLOT_LOCS_WEIGHT_SCALAR_SPECIFIC = 500 # Smaller for thicker lines
 
-    PARAM_COUNT_WRAP_SAFETY = 10 # Send count will not have wrapped within this many counts, keep it lower to account for node restarts too
+    PARAM_COUNT_WRAP_SAFETY = 15 # Send count will not have wrapped within this many counts, keep it lower to account for node restarts too
 
     ############################################################################
     # Hardcode Section
@@ -22,12 +27,11 @@ class Parameters:
     HC_NJ_ASSIGNED_ID_IDX = 1
     HC_NJ_CYCLE_JOIN_IDX = 2
     HARDCODED_NODE_JOINS = [
-        # Format: [actual ID, assigned ID, cycle join]
+        # Format -> [actual ID, assigned ID, cycle join]
     ]
 
-
     HARDCODED_NODE_LOCS = {
-        # Format: actual ID: (loc_x, loc_y)
+        # Format -> node ID: (loc_x, loc_y)
     }
     
     # Node TDMA slots
@@ -40,7 +44,7 @@ class Parameters:
     HARDCODED_PLOT_EXCLUDE = {
         # Format -> node_id
     }
-
+    
     NETWORK_DRAW_OPTIONS = {
         "node_font_size": 10,
         "node_size": 250,
@@ -55,6 +59,8 @@ class Parameters:
     INDEX_HEADER = 0
     # INDEX_BT 0 used for the text "BT:"
     INDEX_BT_TIME = 1
+    # INDEX_PT 0 used for the text "PT:"
+    INDEX_PT_NUM = 1
     # INDEX_BD 0 used for the text "BD:"
     INDEX_BD_FIRST = 1
     INDEX_BD_BCAST_COUNT = 2
@@ -86,8 +92,8 @@ class Parameters:
     INDEX_DATA_WTB_3 = 8
     INDEX_DATA_SEND_COUNT_0 = 9
     INDEX_DATA_SEND_COUNT_1 = 10
-    INDEX_DATA_PREV_DATA_TRANS = 11
-    INDEX_DATA_MISSED_MSGS = 12
+    INDEX_DATA_MISSED_MSGS = 11
+    INDEX_DATA_MISSED_BCASTS = 12
     INDEX_DATA_MAX_QUEUE_SIZE = 13
     INDEX_DATA_CRC_FAILS = 14
     INDEX_DATA_FLAGS = 15
@@ -95,7 +101,7 @@ class Parameters:
     INDEX_DATA_HC_UPSTREAM = 17
     INDEX_DATA_DROPPED_MSGS_SELF = 18
     INDEX_DATA_DROPPED_MSGS_OTHERS = 19
-    INDEX_DATA_FAILED_TRANS = 20
+    INDEX_DATA_PREV_FAILED_TRANS = 20
     INDEX_DATA_PREV_TRANS_BCAST = 21
     INDEX_DATA_PREV_TRANS_DATA = 22
     INDEX_DATA_PREV_TRANS_ID_CHECK = 23
@@ -109,19 +115,19 @@ class Parameters:
     # V1: ID, 1st bit (MSB) denotes if the incoming bcast was received after this node already sent a bcast, remaining bit for node ID
     # V2: RSSI
     ###
-    # VEC RECEIVED MSGS
-    INDEX_DATA_VEC_RECEIVED_MSGS_IND = 42
-    INDEX_DATA_VEC_RECEIVED_MSGS_SIZE = 8
-    INDEX_DATA_VEC_RECEIVED_MSGS_NUM_V = 3
+    # VEC RECEIVED MSGS, does not include bcast msgs
+    INDEX_DATA_VEC_PREV_RECEIVED_MSGS_IND = 42
+    INDEX_DATA_VEC_PREV_RECEIVED_MSGS_SIZE = 8
+    INDEX_DATA_VEC_PREV_RECEIVED_MSGS_NUM_V = 3
     # V1 = 0 # ID
     # V2 = 0 # RSSI, latest sender
     # V3 = 0 # Misc, 1st bit (MSB) denotes if sender was child, remaining bits is send count
     ###
 
     ############################################################################
-    # SEEL Parameters
-    SEEL_CYCLE_AWAKE_TIME_MILLIS = 6000
-    SEEL_CYCLE_SLEEP_TIME_MILLIS = 6000
+    # SEEL Parameters    
+    SEEL_CYCLE_AWAKE_TIME_MILLIS = 60000
+    SEEL_CYCLE_SLEEP_TIME_MILLIS = 60000
     
     SEEL_FORCE_SLEEP_AWAKE_MULT = 1.0
     SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE = 1.5
