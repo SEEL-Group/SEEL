@@ -510,10 +510,9 @@ def main():
                 node_mapping[assigned_node_id] = original_node_id
                 node_msgs[original_node_id] = []
                 bcast_instances[original_node_id] = len(bcast_times)
-            bcast_num = read_as_int(line, parameters.INDEX_DATA_BCAST_COUNT)
             # TODO: Clean up this section
             node_msgs[original_node_id].append(Node_Msg( \
-                bcast_num, \
+                bcast_count, \
                 bcast_instance, \
                 wtb, \
                 original_node_id, \
