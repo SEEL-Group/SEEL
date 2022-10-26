@@ -69,15 +69,20 @@ class Sim_Node:
             print("\t\tNone")
     
 class Sim_Cycle:
-    def __init__(self):
+    def __init__(self, cycle_num):
+        self.cycle_num = cycle_num
         self.nodes = {}
         self.gnode_any_trans = -1
+        self.gnode_receives = {} # key: node_id, value: receive_count
         
     def add_node(self, node_id, sim_node):
         self.nodes[node_id] = sim_node
         
     def set_gnode_trans(self, any_trans):
         self.gnode_any_trans = any_trans
+        
+    def set_gnode_receive(self, gnode_receives):
+        self.gnode_receives = gnode_receives
         
 class Sim_Data:        
     def __init__(self):        
@@ -109,16 +114,17 @@ class Sim_Tree_Node:
         return -1
     
 class Sim_Link_Condition:
-    def __init__(self, immediate_rssi, rssi_heuristic, packet_percentage):
+    def __init__(self, immediate_rssi, rssi_heuristic, downstream_packet_percentage, upstream_packet_percentage):
         self.immediate_rssi = immediate_rssi
         self.rssi_heuristic = rssi_heuristic
-        self.packet_percentage = packet_percentage
+        self.downstream_packet_percentage = downstream_packet_percentage
+        self.upstream_packet_percentage = upstream_packet_percentage
         
     def __repr__(self):
         if PARENT_USE_PATH_RSSI:
-            return "Immediate RSSI: " + str(self.immediate_rssi) + "\tPath RSSI: " + str(self.rssi_heuristic) + "\tPacket Percentage: " + str(self.packet_percentage)
+            return "Immediate RSSI: " + str(self.immediate_rssi) + "\tPath RSSI: " + str(self.rssi_heuristic) + "\tDownstream PP: " + str(self.downstream_packet_percentage) + "\tUpstream PP: " + str(self.upstream_packet_percentage)
         else:
-            return "Immediate RSSI: " + str(self.immediate_rssi) + "\tPacket Percentage: " + str(self.packet_percentage)
+            return "Immediate RSSI: " + str(self.immediate_rssi) + "\tDownstream PP: " + str(self.downstream_packet_percentage) + "\tUpstream PP: " + str(self.upstream_packet_percentage)
     
 # Search msgs for "id"
 # Returns RSSI if found, 0 otherwise
@@ -142,6 +148,37 @@ def search_msgs_received_count(bcast_msgs, other_msgs, id):
         if msg.id == id:
             count += msg.count
     return count   
+    
+def calculate_packet_percentage(cycle_data, receiver_id, sender_id):
+    pp = -1
+    if sender_id == 0 or sender_id in cycle_data.nodes:
+        if sender_id == 0:
+            packets_sent = cycle_data.gnode_any_trans
+        else:
+            packets_sent = cycle_data.nodes[sender_id].total_any_trans
+        if packets_sent >= 0: # Less than zero means no data was recorded
+            packets_received = -1
+            if receiver_id == 0:
+                if sender_id in cycle_data.gnode_receives:
+                    packets_received = cycle_data.gnode_receives[sender_id]
+            elif receiver_id in cycle_data.nodes:
+                node = cycle_data.nodes[receiver_id]
+                packets_received = search_msgs_received_count(node.received_bcast_msg.values(), node.received_other_msg.values(), sender_id)
+            if packets_received < 0:
+                if PRINT_ALL_REPLAY_CYCLES:
+                    print("Receiver data missing")
+                return -1
+            pp = (packets_received / packets_sent) if packets_sent > 0 else 0
+            if pp > 1:
+                print("\tERROR: More packets received than packets sent")
+                print("\tCycle: " + str(cycle_data.cycle_num) + ", Node ID: " + str(receiver_id) + ", Parent ID: " + str(sender_id) + ", PR: " + str(packets_received) + ", PS: " + str(packets_sent))
+            #if PRINT_ALL_REPLAY_CYCLES:
+                #print("\tDEBUG -> Parent: " + str(sender_id) + ", PR: " + str(packets_received) + ", PS: " + str(packets_sent))
+        elif PRINT_ALL_REPLAY_CYCLES:
+            print("\tSender data missing")
+    elif PRINT_ALL_REPLAY_CYCLES:
+        print("\tSender missing")
+    return pp
     
 def run_sim(sim_data):
     # Determine unique nodes
@@ -258,9 +295,8 @@ def run_sim(sim_data):
                 print("---------------------")
             node = cycle_data.nodes[node_id]
             # Real Data Calculation
-            real_data_parent_id = node.parent_id
             if PRINT_ALL_REPLAY_CYCLES:
-                print("Real Data: Node " + str(node_id) + " Parent " + str(real_data_parent_id))
+                print("Real Data: Node " + str(node_id) + " Parent " + str(node.parent_id))
             ir = node.parent_rssi
             rh = ir
             if PARENT_USE_PATH_RSSI:
@@ -289,25 +325,13 @@ def run_sim(sim_data):
                     else:
                         current_id = current_parent_id
                         cycle_detection.add(current_id)
-            pp = -1
-            if real_data_parent_id == 0 or real_data_parent_id in cycle_data.nodes:
-                if real_data_parent_id == 0:
-                    packets_sent = cycle_data.gnode_any_trans
-                else:
-                    packets_sent = cycle_data.nodes[real_data_parent_id].total_any_trans
-                if packets_sent >= 0: # Less than zero means no data was recorded
-                    packets_received = search_msgs_received_count(node.received_bcast_msg.values(), node.received_other_msg.values(), node.parent_id)
-                    pp = (packets_received / packets_sent) if packets_sent > 0 else 0
-                    if pp > 1:
-                        print("ERROR: More packets received than packets sent")
-                        print("\tCycle: " + str(cycle_num) + ", Node ID: " + str(node_id) + ", Parent ID: " + str(real_data_parent_id) + ", PR: " + str(packets_received) + ", PS: " + str(packets_sent))
-                    if PRINT_ALL_REPLAY_CYCLES:
-                        print("\tDEBUG -> Parent: " + str(real_data_parent_id) + ", PR: " + str(packets_received) + ", PS: " + str(packets_sent))
-                elif PRINT_ALL_REPLAY_CYCLES:
-                    print("\tParent PREV data missing")
-            elif PRINT_ALL_REPLAY_CYCLES:
-                print("\tParent missing")
-            link_condition_real_data[node_id] = Sim_Link_Condition(immediate_rssi = ir, rssi_heuristic = rh, packet_percentage = pp)
+            if PRINT_ALL_REPLAY_CYCLES:
+                print("\tDownstream Packet Percentage")
+            downstream_pp = calculate_packet_percentage(cycle_data, node_id, node.parent_id)
+            if PRINT_ALL_REPLAY_CYCLES:
+                print("\tUpstream Packet Percentage")
+            upstream_pp = calculate_packet_percentage(cycle_data, node.parent_id, node_id)
+            link_condition_real_data[node_id] = Sim_Link_Condition(immediate_rssi = ir, rssi_heuristic = rh, downstream_packet_percentage = downstream_pp, upstream_packet_percentage = upstream_pp)
             if PRINT_ALL_REPLAY_CYCLES:
                 print("\t" + str(link_condition_real_data[node_id]))
             
@@ -316,11 +340,10 @@ def run_sim(sim_data):
                     print("Static: No data available")
             else:
                 # Static Calculation
-                static_parent_id = static_topology[node_id].parent_id
                 if PRINT_ALL_REPLAY_CYCLES:
                     print("Static: Node " + str(node_id) + " Parent " + str(static_parent_id))
                 # Search if node received any messages from parent
-                ir = search_msgs_rssi(node.received_bcast_msg.values(), node.received_other_msg.values(), static_parent_id)
+                ir = search_msgs_rssi(node.received_bcast_msg.values(), node.received_other_msg.values(), static_topology[node_id].parent_id)
                 rh = ir
                 if PARENT_USE_PATH_RSSI:
                     rh = 0 # Set high at first
@@ -344,25 +367,13 @@ def run_sim(sim_data):
                                 print("\tPath RSSI: Incomplete path")
                             rh = 0
                             break
-                pp = -1 # Unavailable data
-                if static_parent_id == 0 or static_parent_id in cycle_data.nodes:
-                    if static_parent_id == 0:
-                        packets_sent = cycle_data.gnode_any_trans
-                    else:
-                        packets_sent = cycle_data.nodes[static_parent_id].total_any_trans
-                    if packets_sent >= 0: # Less than zero means no data was recorded
-                        packets_received = search_msgs_received_count(node.received_bcast_msg.values(), node.received_other_msg.values(), static_parent_id)
-                        pp = (packets_received / packets_sent) if packets_sent > 0 else 0
-                        if pp > 1:
-                            print("ERROR: More packets received than packets sent")
-                            print("\tCycle: " + str(cycle_num) + ", Node ID: " + str(node_id) + ", Parent ID: " + str(static_parent_id) + ", PR: " + str(packets_received) + ", PS: " + str(packets_sent))
-                        if PRINT_ALL_REPLAY_CYCLES:
-                            print("\tDEBUG -> Parent: " + str(static_parent_id) + ", PR: " + str(packets_received) + ", PS: " + str(packets_sent))
-                    elif PRINT_ALL_REPLAY_CYCLES:
-                        print("\tParent PREV data missing")
-                elif PRINT_ALL_REPLAY_CYCLES:
-                    print("\tParent missing")
-                link_condition_static[node_id] = Sim_Link_Condition(immediate_rssi = ir, rssi_heuristic = rh, packet_percentage = pp)
+                if PRINT_ALL_REPLAY_CYCLES:
+                    print("\tDownstream Packet Percentage")
+                downstream_pp = calculate_packet_percentage(cycle_data, node_id, static_topology[node_id].parent_id)
+                if PRINT_ALL_REPLAY_CYCLES:
+                    print("\tUpstream Packet Percentage")
+                upstream_pp = calculate_packet_percentage(cycle_data, static_topology[node_id].parent_id, node_id)
+                link_condition_static[node_id] = Sim_Link_Condition(immediate_rssi = ir, rssi_heuristic = rh, downstream_packet_percentage = downstream_pp, upstream_packet_percentage = upstream_pp)
                 if PRINT_ALL_REPLAY_CYCLES:
                     print("\t" + str(link_condition_static[node_id]))
     
@@ -381,6 +392,8 @@ def run_sim(sim_data):
         stats_downstream_parent_heuristic_static = []
         stats_downstream_packet_percentage_real_data = []
         stats_downstream_packet_percentage_static = []
+        stats_upstream_packet_percentage_real_data = []
+        stats_upstream_packet_percentage_static = []
         for cycle_num in sorted(sim_data.cycles.keys()):
             link_condition_real_data = cycle_link_condition_real_data[cycle_num]
             link_condition_static = cycle_link_condition_static[cycle_num]
@@ -389,21 +402,51 @@ def run_sim(sim_data):
                     stats_downstream_immediate_rssi_real_data.append(link_condition_real_data[node_id].immediate_rssi)
                 if link_condition_real_data[node_id].rssi_heuristic != 0:
                     stats_downstream_parent_heuristic_real_data.append(link_condition_real_data[node_id].rssi_heuristic)
-                if link_condition_real_data[node_id].packet_percentage >= 0:
-                    stats_downstream_packet_percentage_real_data.append(link_condition_real_data[node_id].packet_percentage)
+                if link_condition_real_data[node_id].downstream_packet_percentage >= 0:
+                    stats_downstream_packet_percentage_real_data.append(link_condition_real_data[node_id].downstream_packet_percentage)
+                if link_condition_real_data[node_id].upstream_packet_percentage >= 0:
+                    stats_upstream_packet_percentage_real_data.append(link_condition_real_data[node_id].upstream_packet_percentage)
             if node_id in link_condition_static:
                 if link_condition_static[node_id].immediate_rssi != 0:
                     stats_downstream_immediate_rssi_static.append(link_condition_static[node_id].immediate_rssi)
                 if link_condition_static[node_id].rssi_heuristic != 0:
                     stats_downstream_parent_heuristic_static.append(link_condition_static[node_id].rssi_heuristic)
-                if link_condition_static[node_id].packet_percentage >= 0:
-                    stats_downstream_packet_percentage_static.append(link_condition_static[node_id].packet_percentage)
+                if link_condition_static[node_id].downstream_packet_percentage >= 0:
+                    stats_downstream_packet_percentage_static.append(link_condition_static[node_id].downstream_packet_percentage)
+                if link_condition_static[node_id].upstream_packet_percentage >= 0:
+                    stats_upstream_packet_percentage_static.append(link_condition_static[node_id].upstream_packet_percentage)
         print("\tImmediate RSSI")
-        print("\t\tDownstream Real Data Mean:\t" + str(statistics.mean(stats_downstream_immediate_rssi_real_data)) + ", Valid Data Count: " + str(len(stats_downstream_immediate_rssi_real_data)))
-        print("\t\tDownstream Static Mean:\t\t" + str(statistics.mean(stats_downstream_immediate_rssi_static)) + ", Valid Data Count: " + str(len(stats_downstream_immediate_rssi_static)))
+        if len(stats_downstream_immediate_rssi_real_data) > 0:
+            print("\t\tDownstream Real Data Mean:\t" + str(statistics.mean(stats_downstream_immediate_rssi_real_data)) + ", Valid Data Count: " + str(len(stats_downstream_immediate_rssi_real_data)))
+        else:
+            print("\t\tDownstream Real Data Mean:\t\tInsufficient Data")
+        if len(stats_downstream_immediate_rssi_static) > 0:
+            print("\t\tDownstream Static Mean:\t\t" + str(statistics.mean(stats_downstream_immediate_rssi_static)) + ", Valid Data Count: " + str(len(stats_downstream_immediate_rssi_static)))
+        else:
+            print("\t\tDownstream Static Mean:\t\tInsufficient Data")
         print("\tParent Heuristic RSSI")
-        print("\t\tDownstream Real Data Mean:\t" + str(statistics.mean(stats_downstream_parent_heuristic_real_data)) + ", Valid Data Count: " + str(len(stats_downstream_parent_heuristic_real_data)))
-        print("\t\tDownstream Static Mean:\t\t" + str(statistics.mean(stats_downstream_parent_heuristic_static)) + ", Valid Data Count: " + str(len(stats_downstream_parent_heuristic_static)))
+        if len(stats_downstream_parent_heuristic_real_data) > 0:
+            print("\t\tDownstream Real Data Mean:\t" + str(statistics.mean(stats_downstream_parent_heuristic_real_data)) + ", Valid Data Count: " + str(len(stats_downstream_parent_heuristic_real_data)))
+        else:
+            print("\t\tDownstream Real Data Mean:\t\tInsufficient Data")
+        if len(stats_downstream_parent_heuristic_static) > 0:
+            print("\t\tDownstream Static Mean:\t\t" + str(statistics.mean(stats_downstream_parent_heuristic_static)) + ", Valid Data Count: " + str(len(stats_downstream_parent_heuristic_static)))
+        else:
+            print("\t\tDownstream Static Mean:\t\tInsufficient Data")
         print("\tPacket Percentage")
-        print("\t\tDownstream Real Data Mean:\t" + str(statistics.mean(stats_downstream_packet_percentage_real_data)) + ", Valid Data Count: " + str(len(stats_downstream_packet_percentage_real_data)))
-        print("\t\tDownstream Static Mean:\t\t" + str(statistics.mean(stats_downstream_packet_percentage_static)) + ", Valid Data Count: " + str(len(stats_downstream_packet_percentage_static)))
+        if len(stats_downstream_packet_percentage_real_data) > 0:
+            print("\t\tDownstream Real Data Mean:\t" + str(statistics.mean(stats_downstream_packet_percentage_real_data)) + ", Valid Data Count: " + str(len(stats_downstream_packet_percentage_real_data)))
+        else:
+            print("\t\tDownstream Real Data Mean:\t\tInsufficient Data")
+        if len(stats_downstream_packet_percentage_static) > 0:
+            print("\t\tDownstream Static Mean:\t\t" + str(statistics.mean(stats_downstream_packet_percentage_static)) + ", Valid Data Count: " + str(len(stats_downstream_packet_percentage_static)))
+        else:
+            print("\t\tDownstream Static Mean:\t\tInsufficient Data")
+        if len(stats_upstream_packet_percentage_real_data) > 0:
+            print("\t\tUpstream Real Data Mean:\t" + str(statistics.mean(stats_upstream_packet_percentage_real_data)) + ", Valid Data Count: " + str(len(stats_upstream_packet_percentage_real_data)))
+        else:
+            print("\t\tUpstream Real Data Mean:\t\tInsufficient Data")
+        if len(stats_upstream_packet_percentage_static) > 0:
+            print("\t\tUpstream Static Mean:\t\t" + str(statistics.mean(stats_upstream_packet_percentage_static)) + ", Valid Data Count: " + str(len(stats_upstream_packet_percentage_static)))
+        else:
+            print("\t\tUpstream Static Mean:\t\tInsufficient Data")

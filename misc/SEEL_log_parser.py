@@ -827,7 +827,7 @@ def main():
                         
                 if parameters.SIM_RUN and node_unique_cycle_num > 0:
                     if not node_unique_cycle_num in sim_data.cycles:
-                        sim_data.add_cycle(node_unique_cycle_num, sim.Sim_Cycle())
+                        sim_data.add_cycle(node_unique_cycle_num, sim.Sim_Cycle(cycle_num = node_unique_cycle_num))
                     # Fill out this cycle data
                     received_bcast_msg_converted = [sim.Sim_Node_Bcast_Msg( \
                                                     id = node_mapping[b_msg.id], \
