@@ -326,7 +326,14 @@ def run_sim(sim_data):
                     rh = 0 # Set high at first
                     current_id = node_id
                     while current_id != 0:
-                        current_node = cycle_data.nodes[current_id]
+                        if current_id in cycle_data.nodes:
+                            current_node = cycle_data.nodes[current_id]
+                        else:
+                            # Parent does not exist in this cycle
+                            if PRINT_ALL_REPLAY_CYCLES:
+                                print("\tPath RSSI: Incomplete path")
+                            rh = 0
+                            break
                         current_parent_id = static_topology[current_id].parent_id
                         current_parent_rssi = search_msgs_rssi(current_node.received_bcast_msg.values(), current_node.received_other_msg.values(), current_parent_id)
                         if current_parent_rssi != 0:
@@ -397,6 +404,6 @@ def run_sim(sim_data):
         print("\tParent Heuristic RSSI")
         print("\t\tDownstream Real Data Mean:\t" + str(statistics.mean(stats_downstream_parent_heuristic_real_data)) + ", Valid Data Count: " + str(len(stats_downstream_parent_heuristic_real_data)))
         print("\t\tDownstream Static Mean:\t\t" + str(statistics.mean(stats_downstream_parent_heuristic_static)) + ", Valid Data Count: " + str(len(stats_downstream_parent_heuristic_static)))
-        print("\tImmediate RSSI")
+        print("\tPacket Percentage")
         print("\t\tDownstream Real Data Mean:\t" + str(statistics.mean(stats_downstream_packet_percentage_real_data)) + ", Valid Data Count: " + str(len(stats_downstream_packet_percentage_real_data)))
         print("\t\tDownstream Static Mean:\t\t" + str(statistics.mean(stats_downstream_packet_percentage_static)) + ", Valid Data Count: " + str(len(stats_downstream_packet_percentage_static)))

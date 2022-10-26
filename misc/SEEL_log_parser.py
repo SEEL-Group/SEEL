@@ -493,7 +493,7 @@ def main():
                 if join_id != 0:
                     response = read_as_int(line, parameters.INDEX_BD_SNODE_JOIN_RESPONSE + repeat_index)
                     if response != 0: # Reponse of 0 means error
-                        node_entry(join_id, response, len(bcast_times))
+                        node_entry(join_id, response, bcast_count)
         else: # Node Data
             wtb = 0
             send_count = 0
@@ -512,7 +512,7 @@ def main():
                 bcast_instances[original_node_id] = len(bcast_times)
             # TODO: Clean up this section
             node_msgs[original_node_id].append(Node_Msg( \
-                bcast_count, \
+                read_as_int(line, parameters.INDEX_DATA_BCAST_COUNT), \
                 bcast_instance, \
                 wtb, \
                 original_node_id, \
@@ -561,6 +561,8 @@ def main():
                     msg.prev_received_msgs.append(Node_Msg_General_Msg(id, rssi, count, is_child))
                 else:
                     print("Foreign Node ID \"" + str(id) + "\" detected in Bcast Inst " + str(bcast_instance) + ", Bcast Num " + str(bcast_count))
+            if (parameters.PRINT_BCAST_INFO):
+                print("\t" + str(msg))
         current_line += 1
 
     # Analysis vars
@@ -658,7 +660,8 @@ def main():
 
             if (len(connection_inst_set) > parameters.PARAM_COUNT_WRAP_SAFETY or msg.bcast_num < (parameters.PARAM_COUNT_WRAP_SAFETY if len(connection_inst_set) == 0 else max(connection_inst_set)+ parameters.PARAM_COUNT_WRAP_SAFETY)): # Not from previous bcast inst
                 if msg.bcast_num < prev_bcast_num and prev_bcast_num > 192 and msg.bcast_num < 64 and len(connection_inst_set) > (connection_count_last_overflow + parameters.PARAM_COUNT_WRAP_SAFETY): # Assume bcast num overflowed, values used are 3/4 of 256 and 1/4 of 256
-                    #print("Debug: overflow")
+                    if parameters.PRINT_ALL_MSGS:
+                        print("Debug: overflow")
                     connection_count_overflow += 256
                     connection_count_last_overflow = len(connection_inst_set)
                 
@@ -682,11 +685,10 @@ def main():
                     dup = False
                     if parameters.PRINT_ALL_MSGS:
                         print(str(msg)) 
-                #else:
-                    #print("Debug: dup")
-            #else:
-                #print(str(msg)) 
-                #print("Debug: ignore")
+                elif parameters.PRINT_ALL_MSGS:
+                    print("DUP -> " + str(msg))
+            elif parameters.PRINT_ALL_MSGS:
+                print("IGNORE -> " + str(msg)) 
 
             if not dup:
                 # Unique bcast number across all bcast instances
@@ -837,6 +839,7 @@ def main():
                                             parent_rssi = msg.parent_rssi, \
                                             received_bcast_msg = received_bcast_msg_converted)
                     sim_data.cycles[node_unique_cycle_num].add_node(node_id, sim_node)
+                    #print("DEBUG -> ADDED Node " + str(node_id) + " to sim data on Cycle " + str(node_unique_cycle_num) + " when msg is from cycle " + str(msg.bcast_num))
                     # Fill out GNode cycle transmissions
                     if msg.bcast_inst in bcast_prev_trans and (overflow_comp_bcast_num + 1) in bcast_prev_trans[msg.bcast_inst]:
                         #print("DEBUG -> Set Cycle " + str(node_unique_cycle_num) + " GNODE Trans to: " + str(bcast_prev_trans[msg.bcast_inst][(overflow_comp_bcast_num + 1)]))
@@ -1115,7 +1118,8 @@ def main():
                                 TDMA_conflicts.append(dups)
             node.children_mean = statistics.mean(children) # Save for use later
             print("\tMean: " + str(node.children_mean))
-            print("\tStd Dev: " + str(statistics.stdev(children)))
+            if len(node.cycle_children) > 1: # Std. Dev requires at least 2 children
+                print("\tStd Dev: " + str(statistics.stdev(children)))
             if len(parameters.HARDCODED_NODE_TDMA) > 0:
                 print("\tTDMA Conflicts: " + str(len(TDMA_conflicts)))
                 print("\t\t" + str(TDMA_conflicts))
