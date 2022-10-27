@@ -8,7 +8,7 @@ import statistics
 
 # Parameters
 PRINT_INCOMING_DATA = False
-PRINT_ALL_TOPOLOGIES = False
+PRINT_ALL_TOPOLOGIES = True
 PRINT_ALL_REPLAY_CYCLES = False
 
 PARENT_USE_PATH_RSSI = True # Otherwise use immediate RSSI
@@ -170,7 +170,7 @@ def calculate_packet_percentage(cycle_data, receiver_id, sender_id):
                 return -1
             pp = (packets_received / packets_sent) if packets_sent > 0 else 0
             if pp > 1:
-                print("\tERROR: More packets received than packets sent")
+                print("ERROR: More packets received than packets sent")
                 print("\tCycle: " + str(cycle_data.cycle_num) + ", Node ID: " + str(receiver_id) + ", Parent ID: " + str(sender_id) + ", PR: " + str(packets_received) + ", PS: " + str(packets_sent))
             #if PRINT_ALL_REPLAY_CYCLES:
                 #print("\tDEBUG -> Parent: " + str(sender_id) + ", PR: " + str(packets_received) + ", PS: " + str(packets_sent))
@@ -242,7 +242,6 @@ def run_sim(sim_data):
                     print("Found full topology on Cycle " + str(cycle_num) + ":")
                 else:
                     print("Found partial topology on Cycle " + str(cycle_num) + ":")
-                    
                 for node_id in static_topology:
                     node = static_topology[node_id]
                     print("Node " + str(node_id) + ", Parent " + str(node.parent_id))
@@ -253,7 +252,7 @@ def run_sim(sim_data):
             suitable_topology_cycle = cycle_num
             best_static_topology = static_topology
             best_added_nodes = added_nodes
-            if added_nodes == len(unique_nodes):
+            if added_nodes == len(unique_nodes) and not PRINT_ALL_TOPOLOGIES:
                 break
 
     if suitable_topology_cycle >= 0:
@@ -261,7 +260,7 @@ def run_sim(sim_data):
             print("Found full topology on Cycle " + str(suitable_topology_cycle) + ":")
         else:
             print("Found partial topology on Cycle " + str(suitable_topology_cycle) + ":")
-        
+        static_topology = best_static_topology
         for node_id in static_topology:
                 node = static_topology[node_id]
                 print("Node " + str(node_id) + ", Parent " + str(node.parent_id))
@@ -335,7 +334,7 @@ def run_sim(sim_data):
             if PRINT_ALL_REPLAY_CYCLES:
                 print("\t" + str(link_condition_real_data[node_id]))
             
-            if suitable_topology_cycle < 0:
+            if suitable_topology_cycle < 0 or node_id not in static_topology:
                 if PRINT_ALL_REPLAY_CYCLES:
                     print("Static: No data available")
             else:
