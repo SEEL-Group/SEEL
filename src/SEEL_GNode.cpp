@@ -160,9 +160,57 @@ void SEEL_GNode::SEEL_Task_GNode_Receive::run()
     uint32_t receive_offset;
 
     // Check if there is a message available
+    if (!_inst->rfm_receive_msg(&msg, msg_rssi, receive_offset))
+    {
+        bool added = _inst->_ref_scheduler->add_task(&_inst->_task_receive);
+        SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_GNODE, __LINE__);
+        return;
+    }
+
+    // Extended Packet Packet logging: if we receive a packet, log it
+    if(msg.cmd == SEEL_CMD_BCAST)
+    {
+        // Create received broadcast (rb)
+        SEEL_Received_Broadcast rb(msg.send_id, msg_rssi);
+        rb.sender_id |= (_inst->_parent_lock ? 0x80 : 0x00); // MSB denotes if incoming. bcast was received after this node already sent a bcast (1) or not (0), remaining bits for sender id
+
+        // Search if rb already in queue
+        SEEL_Received_Broadcast* found_rb = _inst->_cb_info.received_bcasts.find(rb);
+        if (found_rb == NULL) // Add
+        {
+            SEEL_Assert::assert(_inst->_cb_info.received_bcasts.add(rb), SEEL_ASSERT_FILE_NUM_GNODE, __LINE__);
+            SEEL_Print::print(F("EP LOG: Added: ")); SEEL_Print::println(rb.sender_id);
+        }
+        else // Update
+        {
+            found_rb->sender_rssi = msg_rssi;
+            SEEL_Print::print(F("EP LOG: Updated: ")); SEEL_Print::println(found_rb->sender_id);
+        }
+    }
+    else
+    {
+        // Create received message (rm)
+        uint8_t misc = (msg.targ_id == _inst->_node_id) ? 0x81 : 0x01;// MSB denotes if this msg was intended for this node (from a child node) (1) or not (0), remaining bits for count which starts at 1
+        SEEL_Received_Message rm(msg.send_id, msg_rssi, misc);
+
+        // Search if rb already in queue
+        SEEL_Received_Message* found_rm = _inst->_received_msgs.find(rm);
+        if (found_rm == NULL) // Add
+        {
+            SEEL_Assert::assert(_inst->_received_msgs.add(rm), SEEL_ASSERT_FILE_NUM_GNODE, __LINE__);
+            SEEL_Print::print(F("EP LOG: Added: ")); SEEL_Print::print(rm.sender_id); SEEL_Print::print(F(", misc: ")); SEEL_Print::println(rm.sender_misc);
+        }
+        else // Update
+        {
+            found_rm->sender_rssi = msg_rssi;
+            ++(found_rm->sender_misc);
+            SEEL_Print::print(F("EP LOG: Updated: ")); SEEL_Print::print(found_rm->sender_id); SEEL_Print::print(F(", misc: ")); SEEL_Print::println(found_rm->sender_misc);
+        }
+    }
+
     // Since GNode receive function can take a while, don't receive until ACK queue is emptied
     // to prevent missing TDMA sent slots
-    if (!_inst->_ack_queue.empty() || !_inst->rfm_receive_msg(&msg, msg_rssi, receive_offset))
+    if (!_inst->_ack_queue.empty())
     {
         bool added = _inst->_ref_scheduler->add_task(&_inst->_task_receive);
         SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_GNODE, __LINE__);
@@ -289,7 +337,7 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
 
     if (_inst->_user_cb_broadcast != NULL)
     {
-        _inst->_user_cb_broadcast(to_send.data, prev_any_trans);
+        _inst->_user_cb_broadcast(to_send.data, prev_any_trans, _cb_info);
     }
 
     ++_inst->_bcast_count;

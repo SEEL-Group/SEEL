@@ -53,18 +53,46 @@ void write_to_file(const String& to_write)
 
 // This callback function is called right after the GNODE sends out its broadcast message
 // Read/Write Parameter: "msg_data" which is the data packet of the broadcast message
-void user_callback_broadcast(uint8_t msg_data[SEEL_MSG_DATA_SIZE], uint16_t prev_any_trans)
+void user_callback_broadcast(uint8_t msg_data[SEEL_MSG_DATA_SIZE], uint16_t prev_any_trans, SEEL_Node::SEEL_CB_Info* info)
 {
   // The contents of this function are an example of what one can do with this CB function
   
   String msg_string = "";
-
   msg_string = F("BT: "); // Broadcast Time
   msg_string += String(millis(), DEC) + F("\n");
-  
   msg_string += F("PT: "); // Previous Transmissions (any type) sent
   msg_string += String(prev_any_trans, DEC) + F("\n");
-
+  write_to_file(msg_string);
+  
+  msg_string = "";
+  msg_string += F("RB: "); // Previous Received Bcasts
+  while (!info->received_bcasts.empty())
+  {
+      SEEL_Received_Broadcast* bcast_ref = info->received_bcasts.front();
+      msg_string += String(bcast_ref->sender_id);
+      msg_string += F(" ");
+      msg_string += String(bcast_ref->sender_rssi);
+      msg_string += F(" ");
+      info->received_bcasts.pop_front();
+  }
+  write_to_file(msg_string);
+  
+  msg_string = "";
+  msg_string += F("RM: "); // Previous Received Non-Broadcast Messages
+  while (!info->prev_received_msgs.empty())
+  {
+      SEEL_Received_Broadcast* msg_ref = info->prev_received_msgs.front();
+      msg_string += String(msg_ref->sender_id);
+      msg_string += F(" ");
+      msg_string += String(msg_ref->sender_rssi);
+      msg_string += F(" ");
+      msg_string += String(msg_ref->sender_misc);
+      msg_string += F(" ");
+      info->prev_received_msgs.pop_front();
+  }
+  write_to_file(msg_string);
+  
+  msg_string = "";
   msg_string += F("BD: "); // Broadcast Data
   for (uint32_t i = 0; i < SEEL_MSG_DATA_SIZE; ++i)
   {

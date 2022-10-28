@@ -68,8 +68,8 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], SEEL_Node::SEEL_CB
   {
     msg_data[0] = SEEL_SNODE_ID; // original ID
     msg_data[1] = seel_snode.get_node_id(); // assigned ID
-    msg_data[2] = 0; // parent ID. Set in presend function, since parent may change if msg does not get sent out this cycle
-    msg_data[3] = 0; // parent RSSI. Set in presend function
+    msg_data[2] = seel_snode.get_parent_id();
+    msg_data[3] = info->parent_rssi;
     msg_data[4] = info->bcast_count;
     msg_data[5] = (uint8_t)(info->wtb_millis >> 24); // WTB
     msg_data[6] = (uint8_t)(info->wtb_millis >> 16);
@@ -144,12 +144,14 @@ void user_callback_presend(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node
 {
   // The contents of this function are an example of what one can do with this CB function
 
+  /*
   // Sets these fields to the immediate parent of the node and the last rssi value, to be seen by the GNODE for network debugging and analysis
   if (msg_data[2] == 0) // zero means unassigned, prevents continuous updating
   {
     msg_data[2] = seel_snode.get_parent_id();
     msg_data[3] = info->parent_rssi;
   }
+  */
 }
 
 // This callback function is called when this SNODE receives a DATA message to-be-forwarded.
