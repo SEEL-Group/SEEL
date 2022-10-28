@@ -4,6 +4,7 @@
 
 # Tested with Python 3.6.0
 
+import math
 import statistics
 
 # Parameters
@@ -12,6 +13,11 @@ PRINT_ALL_TOPOLOGIES = True
 PRINT_ALL_REPLAY_CYCLES = False
 
 PARENT_USE_PATH_RSSI = True # Otherwise use immediate RSSI
+
+CONFIDENCE_LEVEL_Z = 1.960 # 95%
+
+HARDCODED_STATIC_TOPOLOGY = [
+]
 
 class Sim_Node_Bcast_Msg:
     def __init__(self, id, rssi, unconsidered_bcast):
@@ -164,14 +170,11 @@ def calculate_packet_percentage(cycle_data, receiver_id, sender_id):
             elif receiver_id in cycle_data.nodes:
                 node = cycle_data.nodes[receiver_id]
                 packets_received = search_msgs_received_count(node.received_bcast_msg.values(), node.received_other_msg.values(), sender_id)
-            if packets_received < 0:
-                if PRINT_ALL_REPLAY_CYCLES:
-                    print("Receiver data missing")
-                return -1
             pp = (packets_received / packets_sent) if packets_sent > 0 else 0
             if pp > 1:
                 print("ERROR: More packets received than packets sent")
                 print("\tCycle: " + str(cycle_data.cycle_num) + ", Node ID: " + str(receiver_id) + ", Parent ID: " + str(sender_id) + ", PR: " + str(packets_received) + ", PS: " + str(packets_sent))
+                pp = 1
             #if PRINT_ALL_REPLAY_CYCLES:
                 #print("\tDEBUG -> Parent: " + str(sender_id) + ", PR: " + str(packets_received) + ", PS: " + str(packets_sent))
         elif PRINT_ALL_REPLAY_CYCLES:
@@ -195,89 +198,124 @@ def run_sim(sim_data):
                 node.print_node()        
     print("Unique nodes: " + str(unique_nodes))
     
-    # Form a static topology, note the current algorithm will not find the best static topology, just a working one
-    best_static_topology = {}
-    suitable_topology_cycle = -1
-    best_added_nodes = 0
-    for cycle_num in sorted(sim_data.cycles.keys()):
-        cycle_data = sim_data.cycles[cycle_num]
+    if len(HARDCODED_STATIC_TOPOLOGY) > 0:
+        print("Using hardcoded static topology")
         static_topology = {}
-        node_id_queue = [0]
-        static_topology[0] = Sim_Tree_Node(node_id = 0, hop_count = 0, parent_id = -1, parent_rssi = -256)
-        added_nodes = 0
-        while len(node_id_queue) > 0:
-            parent_node = static_topology[node_id_queue.pop(0)]
-            # Find all nodes that received bcast from "parent_node" this cycle_data
-            for node_id in cycle_data.nodes:
-                node = cycle_data.nodes[node_id]
-                parent_id = parent_node.node_id
-                # Check for "unconsidered_bcast" which means bcast was not used that cycle since it was received too late
-                if parent_id in node.received_bcast_msg and node.received_bcast_msg[parent_id].unconsidered_bcast == 0:
-                    # Determine RSSI metric based on parenting heuristic
-                    direct_rssi_to_parent = node.received_bcast_msg[parent_id].rssi
-                    if PARENT_USE_PATH_RSSI:
-                        parent_rssi = min(direct_rssi_to_parent, parent_node.parent_rssi)
-                    else: # Immediate RSSI
-                        parent_rssi = direct_rssi_to_parent
-                    
-                    # Check if this node has a parent
-                    if node_id not in static_topology: # If no parent set "parent_node" as parent
-                        static_topology[node_id] = Sim_Tree_Node(   node_id = node_id, hop_count = (parent_node.hop_count + 1), \
-                                                                    parent_id = parent_node.node_id, parent_rssi = parent_rssi)
-                        parent_node.children_id.append(node_id)
-                        added_nodes += 1
-                        # Since this node hasn't been explored yet, we need to add it to the node_id_queue
-                        node_id_queue.append(node_id)
-                    else: # If this node already has a parent, compare possible parent with exsiting parent
-                        previous_parent_id = static_topology[node_id].parent_compare(parent_node, parent_rssi)
-                        # "previous_parent_id" >= 0 means new parent was taken, need to eliminate child from old parent
-                        if previous_parent_id >= 0:
-                            static_topology[previous_parent_id].children_id.remove(node_id)
-                            node_id_queue.append(node_id)
-        
-        # Check if the generated static topology has as many nodes as unique nodes, so no nodes are left out
+        suitable_topology_cycle = 0
+        for pair in HARDCODED_STATIC_TOPOLOGY:
+            static_topology[pair[0]] = Sim_Tree_Node(node_id = pair[0], hop_count = 0, parent_id = pair[1], parent_rssi = -256)
+    else:
+        # Form a static topology, note the current algorithm will not find the best static topology, just a working one
+        best_static_topology = {}
+        suitable_topology_cycle = -1
+        best_added_nodes = 0
         if PRINT_ALL_TOPOLOGIES:
-            if added_nodes > 0:
-                if added_nodes == len(unique_nodes):
-                    print("Found full topology on Cycle " + str(cycle_num) + ":")
+            unique_full_topologies = []
+        for cycle_num in sorted(sim_data.cycles.keys()):
+            cycle_data = sim_data.cycles[cycle_num]
+            static_topology = {}
+            node_id_queue = [0]
+            static_topology[0] = Sim_Tree_Node(node_id = 0, hop_count = 0, parent_id = -1, parent_rssi = -256)
+            added_nodes = 0
+            while len(node_id_queue) > 0:
+                parent_node = static_topology[node_id_queue.pop(0)]
+                # Find all nodes that received bcast from "parent_node" this cycle_data
+                for node_id in cycle_data.nodes:
+                    node = cycle_data.nodes[node_id]
+                    parent_id = parent_node.node_id
+                    # Check for "unconsidered_bcast" which means bcast was not used that cycle since it was received too late
+                    if parent_id in node.received_bcast_msg and node.received_bcast_msg[parent_id].unconsidered_bcast == 0:
+                        # Determine RSSI metric based on parenting heuristic
+                        direct_rssi_to_parent = node.received_bcast_msg[parent_id].rssi
+                        if PARENT_USE_PATH_RSSI:
+                            parent_rssi = min(direct_rssi_to_parent, parent_node.parent_rssi)
+                        else: # Immediate RSSI
+                            parent_rssi = direct_rssi_to_parent
+                        
+                        # Check if this node has a parent
+                        if node_id not in static_topology: # If no parent set "parent_node" as parent
+                            static_topology[node_id] = Sim_Tree_Node(   node_id = node_id, hop_count = (parent_node.hop_count + 1), \
+                                                                        parent_id = parent_node.node_id, parent_rssi = parent_rssi)
+                            parent_node.children_id.append(node_id)
+                            added_nodes += 1
+                            # Since this node hasn't been explored yet, we need to add it to the node_id_queue
+                            node_id_queue.append(node_id)
+                        else: # If this node already has a parent, compare possible parent with exsiting parent
+                            previous_parent_id = static_topology[node_id].parent_compare(parent_node, parent_rssi)
+                            # "previous_parent_id" >= 0 means new parent was taken, need to eliminate child from old parent
+                            if previous_parent_id >= 0:
+                                static_topology[previous_parent_id].children_id.remove(node_id)
+                                #node_id_queue.append(node_id) Don't revist the node since the SEEL protocol does not
+            
+            # Check if the generated static topology has as many nodes as unique nodes, so no nodes are left out
+            if PRINT_ALL_TOPOLOGIES:
+                if added_nodes > 0:
+                    if added_nodes == len(unique_nodes):
+                        print("Found full topology on Cycle " + str(cycle_num) + ":")
+                        # Check if this is a unique topology
+                        new_top = True
+                        for ind in range(len(unique_full_topologies)):
+                            top = unique_full_topologies[ind][0]
+                            # Check if this is a new topology. TODO: Turn into Set check for speed improvement
+                            new_top = False
+                            for tree_node in top.values():
+                                if tree_node.node_id not in static_topology or tree_node.parent_id != static_topology[tree_node.node_id].parent_id:
+                                    new_top = True
+                                    break
+                            if not new_top:
+                                unique_full_topologies[ind][1] += 1
+                                break
+                        if new_top:
+                            unique_full_topologies.append([static_topology, 1]) # Second value is occurance count
+                    else:
+                        print("Found partial topology on Cycle " + str(cycle_num) + ":")
+                    for node_id in static_topology:
+                        node = static_topology[node_id]
+                        print("Node " + str(node_id) + ", Parent " + str(node.parent_id))
                 else:
-                    print("Found partial topology on Cycle " + str(cycle_num) + ":")
-                for node_id in static_topology:
+                    print("Unable to find suitable any topology on Cycle " + str(cycle_num) + ", added nodes = " + str(added_nodes))
+
+            if added_nodes > best_added_nodes:
+                suitable_topology_cycle = cycle_num
+                best_static_topology = static_topology
+                best_added_nodes = added_nodes
+                if added_nodes == len(unique_nodes) and not PRINT_ALL_TOPOLOGIES:
+                    break
+
+        if suitable_topology_cycle >= 0:
+            if PRINT_ALL_TOPOLOGIES:
+                print("Unique Full Topologies Found ***************************************")
+                counter = 1
+                for ind in range(len(unique_full_topologies)):
+                    top = unique_full_topologies[ind][0]
+                    occurance = unique_full_topologies[ind][1]
+                    print("Unique Topology #" + str(counter) + ", Occurance: " + str(occurance))
+                    counter += 1
+                    for node_id in top:
+                            node = top[node_id]
+                            print("[" + str(node_id) + ", " + str(node.parent_id) + "],") 
+            print("Topology search finished ***************************************")
+            if best_added_nodes == len(unique_nodes):
+                print("Found full topology on Cycle " + str(suitable_topology_cycle) + ":")
+            else:
+                print("Found partial topology on Cycle " + str(suitable_topology_cycle) + ":")
+            static_topology = best_static_topology
+            for node_id in static_topology:
                     node = static_topology[node_id]
                     print("Node " + str(node_id) + ", Parent " + str(node.parent_id))
-            else:
-                print("Unable to find suitable any topology on Cycle " + str(cycle_num) + ", added nodes = " + str(added_nodes))
-
-        if added_nodes > best_added_nodes:
-            suitable_topology_cycle = cycle_num
-            best_static_topology = static_topology
-            best_added_nodes = added_nodes
-            if added_nodes == len(unique_nodes) and not PRINT_ALL_TOPOLOGIES:
-                break
-
-    if suitable_topology_cycle >= 0:
-        if best_added_nodes == len(unique_nodes):
-            print("Found full topology on Cycle " + str(suitable_topology_cycle) + ":")
         else:
-            print("Found partial topology on Cycle " + str(suitable_topology_cycle) + ":")
-        static_topology = best_static_topology
-        for node_id in static_topology:
-                node = static_topology[node_id]
-                print("Node " + str(node_id) + ", Parent " + str(node.parent_id))
-    else:
-        print("ERROR: Unable to find any suitable topology")
-    '''
-    print("DEBUG: Cycle " + str(suitable_topology_cycle) + "***************************************")
-    cycle_data = sim_data.cycles[suitable_topology_cycle]
-    for node_id in cycle_data.nodes:
-        unique_nodes.add(node_id)
-        node = cycle_data.nodes[node_id]
-        print("DEBUG: Node " + str(node_id))
-        node.print_node()              
-    '''
+            print("ERROR: Unable to find any suitable topology")
+        '''
+        print("DEBUG: Cycle " + str(suitable_topology_cycle) + "***************************************")
+        cycle_data = sim_data.cycles[suitable_topology_cycle]
+        for node_id in cycle_data.nodes:
+            unique_nodes.add(node_id)
+            node = cycle_data.nodes[node_id]
+            print("DEBUG: Node " + str(node_id))
+            node.print_node()              
+        '''
             
     # Evaluate topology compared to existing data, currently only has Downstream metrics
-    # TODO: Add in Upstream metrics
     cycle_link_condition_real_data = {} # From actual data
     cycle_link_condition_static = {}
     cycle_detected_cycles = set()
@@ -415,37 +453,69 @@ def run_sim(sim_data):
                 if link_condition_static[node_id].upstream_packet_percentage >= 0:
                     stats_upstream_packet_percentage_static.append(link_condition_static[node_id].upstream_packet_percentage)
         print("\tImmediate RSSI")
-        if len(stats_downstream_immediate_rssi_real_data) > 0:
-            print("\t\tDownstream Real Data Mean:\t" + str(statistics.mean(stats_downstream_immediate_rssi_real_data)) + ", Valid Data Count: " + str(len(stats_downstream_immediate_rssi_real_data)))
+        if len(stats_downstream_immediate_rssi_real_data) > 1:
+            mean = statistics.mean(stats_downstream_immediate_rssi_real_data)
+            stdev = statistics.stdev(stats_downstream_immediate_rssi_real_data)
+            v_data_count = len(stats_downstream_immediate_rssi_real_data)
+            ci_pm = CONFIDENCE_LEVEL_Z * (stdev / math.sqrt(v_data_count)) # Confidence interval plus/minus
+            print("\t\tDownstream Real Data Mean:\t" + str(mean) + " ± " + str(ci_pm) + ", Valid Data Count: " + str(v_data_count))
         else:
             print("\t\tDownstream Real Data Mean:\t\tInsufficient Data")
-        if len(stats_downstream_immediate_rssi_static) > 0:
-            print("\t\tDownstream Static Mean:\t\t" + str(statistics.mean(stats_downstream_immediate_rssi_static)) + ", Valid Data Count: " + str(len(stats_downstream_immediate_rssi_static)))
+        if len(stats_downstream_immediate_rssi_static) > 1:
+            mean = statistics.mean(stats_downstream_immediate_rssi_static)
+            stdev = statistics.stdev(stats_downstream_immediate_rssi_static)
+            v_data_count = len(stats_downstream_immediate_rssi_static)
+            ci_pm = CONFIDENCE_LEVEL_Z * (stdev / math.sqrt(v_data_count))
+            print("\t\tDownstream Static Mean:\t\t" + str(mean) + " ± " + str(ci_pm) + ", Valid Data Count: " + str(v_data_count))
         else:
             print("\t\tDownstream Static Mean:\t\tInsufficient Data")
         print("\tParent Heuristic RSSI")
-        if len(stats_downstream_parent_heuristic_real_data) > 0:
-            print("\t\tDownstream Real Data Mean:\t" + str(statistics.mean(stats_downstream_parent_heuristic_real_data)) + ", Valid Data Count: " + str(len(stats_downstream_parent_heuristic_real_data)))
+        if len(stats_downstream_parent_heuristic_real_data) > 1:
+            mean = statistics.mean(stats_downstream_parent_heuristic_real_data)
+            stdev = statistics.stdev(stats_downstream_parent_heuristic_real_data)
+            v_data_count = len(stats_downstream_parent_heuristic_real_data)
+            ci_pm = CONFIDENCE_LEVEL_Z * (stdev / math.sqrt(v_data_count))
+            print("\t\tDownstream Real Data Mean:\t" + str(mean) + " ± " + str(ci_pm) + ", Valid Data Count: " + str(v_data_count))
         else:
             print("\t\tDownstream Real Data Mean:\t\tInsufficient Data")
-        if len(stats_downstream_parent_heuristic_static) > 0:
-            print("\t\tDownstream Static Mean:\t\t" + str(statistics.mean(stats_downstream_parent_heuristic_static)) + ", Valid Data Count: " + str(len(stats_downstream_parent_heuristic_static)))
+        if len(stats_downstream_parent_heuristic_static) > 1:
+            mean = statistics.mean(stats_downstream_parent_heuristic_static)
+            stdev = statistics.stdev(stats_downstream_parent_heuristic_static)
+            v_data_count = len(stats_downstream_parent_heuristic_static)
+            ci_pm = CONFIDENCE_LEVEL_Z * (stdev / math.sqrt(v_data_count))
+            print("\t\tDownstream Static Mean:\t\t" + str(mean) + " ± " + str(ci_pm) + ", Valid Data Count: " + str(v_data_count))
         else:
             print("\t\tDownstream Static Mean:\t\tInsufficient Data")
         print("\tPacket Percentage")
-        if len(stats_downstream_packet_percentage_real_data) > 0:
-            print("\t\tDownstream Real Data Mean:\t" + str(statistics.mean(stats_downstream_packet_percentage_real_data)) + ", Valid Data Count: " + str(len(stats_downstream_packet_percentage_real_data)))
+        if len(stats_downstream_packet_percentage_real_data) > 1:
+            mean = statistics.mean(stats_downstream_packet_percentage_real_data)
+            stdev = statistics.stdev(stats_downstream_packet_percentage_real_data)
+            v_data_count = len(stats_downstream_packet_percentage_real_data)
+            ci_pm = CONFIDENCE_LEVEL_Z * (stdev / math.sqrt(v_data_count))
+            print("\t\tDownstream Real Data Mean:\t" + str(mean) + " ± " + str(ci_pm) + ", Valid Data Count: " + str(v_data_count))
         else:
             print("\t\tDownstream Real Data Mean:\t\tInsufficient Data")
-        if len(stats_downstream_packet_percentage_static) > 0:
-            print("\t\tDownstream Static Mean:\t\t" + str(statistics.mean(stats_downstream_packet_percentage_static)) + ", Valid Data Count: " + str(len(stats_downstream_packet_percentage_static)))
+        if len(stats_downstream_packet_percentage_static) > 1:
+            mean = statistics.mean(stats_downstream_packet_percentage_static)
+            stdev = statistics.stdev(stats_downstream_packet_percentage_static)
+            v_data_count = len(stats_downstream_packet_percentage_static)
+            ci_pm = CONFIDENCE_LEVEL_Z * (stdev / math.sqrt(v_data_count))
+            print("\t\tDownstream Static Mean:\t\t" + str(mean) + " ± " + str(ci_pm) + ", Valid Data Count: " + str(v_data_count))
         else:
             print("\t\tDownstream Static Mean:\t\tInsufficient Data")
-        if len(stats_upstream_packet_percentage_real_data) > 0:
-            print("\t\tUpstream Real Data Mean:\t" + str(statistics.mean(stats_upstream_packet_percentage_real_data)) + ", Valid Data Count: " + str(len(stats_upstream_packet_percentage_real_data)))
+        if len(stats_upstream_packet_percentage_real_data) > 1:
+            mean = statistics.mean(stats_upstream_packet_percentage_real_data)
+            stdev = statistics.stdev(stats_upstream_packet_percentage_real_data)
+            v_data_count = len(stats_upstream_packet_percentage_real_data)
+            ci_pm = CONFIDENCE_LEVEL_Z * (stdev / math.sqrt(v_data_count))
+            print("\t\tUpstream Real Data Mean:\t" + str(mean) + " ± " + str(ci_pm) + ", Valid Data Count: " + str(v_data_count))
         else:
             print("\t\tUpstream Real Data Mean:\t\tInsufficient Data")
-        if len(stats_upstream_packet_percentage_static) > 0:
-            print("\t\tUpstream Static Mean:\t\t" + str(statistics.mean(stats_upstream_packet_percentage_static)) + ", Valid Data Count: " + str(len(stats_upstream_packet_percentage_static)))
+        if len(stats_upstream_packet_percentage_static) > 1:
+            mean = statistics.mean(stats_upstream_packet_percentage_static)
+            stdev = statistics.stdev(stats_upstream_packet_percentage_static)
+            v_data_count = len(stats_upstream_packet_percentage_static)
+            ci_pm = CONFIDENCE_LEVEL_Z * (stdev / math.sqrt(v_data_count))
+            print("\t\tUpstream Static Mean:\t\t" + str(mean) + " ± " + str(ci_pm) + ", Valid Data Count: " + str(v_data_count))
         else:
             print("\t\tUpstream Static Mean:\t\tInsufficient Data")
