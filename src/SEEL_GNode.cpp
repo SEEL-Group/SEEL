@@ -190,14 +190,14 @@ void SEEL_GNode::SEEL_Task_GNode_Receive::run()
     else
     {
         // Create received message (rm)
-        uint8_t misc = (msg.targ_id == _inst->_node_id) ? 0x81 : 0x01;// MSB denotes if this msg was intended for this node (from a child node) (1) or not (0), remaining bits for count which starts at 1
+        uint8_t misc = (msg.cmd != SEEL_CMD_ACK && msg.targ_id == _inst->_node_id) ? 0x81 : 0x01;// MSB denotes if this msg was intended for this node (from a child node) (1) or not (0), remaining bits for count which starts at 1
         SEEL_Received_Message rm(msg.send_id, msg_rssi, misc);
 
         // Search if rb already in queue
-        SEEL_Received_Message* found_rm = _inst->_received_msgs.find(rm);
+        SEEL_Received_Message* found_rm = _inst->_cb_info.prev_received_msgs.find(rm);
         if (found_rm == NULL) // Add
         {
-            SEEL_Assert::assert(_inst->_received_msgs.add(rm), SEEL_ASSERT_FILE_NUM_GNODE, __LINE__);
+            SEEL_Assert::assert(_inst->_cb_info.prev_received_msgs.add(rm), SEEL_ASSERT_FILE_NUM_GNODE, __LINE__);
             SEEL_Print::print(F("EP LOG: Added: ")); SEEL_Print::print(rm.sender_id); SEEL_Print::print(F(", misc: ")); SEEL_Print::println(rm.sender_misc);
         }
         else // Update
@@ -337,7 +337,7 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
 
     if (_inst->_user_cb_broadcast != NULL)
     {
-        _inst->_user_cb_broadcast(to_send.data, prev_any_trans, _cb_info);
+        _inst->_user_cb_broadcast(to_send.data, prev_any_trans, &(_inst->_cb_info));
     }
 
     ++_inst->_bcast_count;
