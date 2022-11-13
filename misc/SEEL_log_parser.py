@@ -7,6 +7,8 @@
 # Tested with Python 3.6.0
 
 # Requires installation of sklearn: "pip3 install sklearn"
+# Requires installation of seaborn: "pip3 install networkx"
+# Requires installation of seaborn: "pip3 install seaborn"
 
 # To run: python3 <path_to_this_file>/SEEL_log_parser.py <path_to_data_file>/<data_file> (optional)<path to param file>/<param file>
 
@@ -22,12 +24,14 @@
 import os
 import sys
 import math
+import copy
 import importlib
 import numpy as np
 from sklearn.metrics import r2_score
 import matplotlib.pyplot as plt
 import networkx as nx
 import statistics
+import seaborn as sns
 
 import SEEL_topology_sim as sim
 
@@ -40,7 +44,7 @@ class Parameters:
 
     PLOT_DISPLAY = False
     
-    SIM_RUN = True
+    SIM_RUN = False
     
     # Per node plots
     PLOT_NODE_SPECIFIC_BCASTS = False
@@ -49,8 +53,9 @@ class Parameters:
     PLOT_NODE_PARENT_CYCLE_RSSI = False
     
     PLOT_RSSI_ANALYSIS = False
-    PLOT_LOCS_WEIGHT_SCALAR = 1000 # Smaller for thicker lines
-    PLOT_LOCS_WEIGHT_SCALAR_SPECIFIC = 500 # Smaller for thicker lines
+    # Exponent to adjust transparency for topology overview plot. Value range: [0, inf]; smaller value = darker lines. Bias smaller # connections.
+    PLOT_LOCS_WEIGHT_EXP = 0.5
+    PLOT_LOCS_WEIGHT_EXP_SPECIFIC = 0.5 # For node-specific plots
 
     PARAM_COUNT_WRAP_SAFETY = 15 # Send count will not have wrapped within this many counts, keep it lower to account for node restarts too
 
@@ -73,6 +78,7 @@ class Parameters:
     }
     
     # Excludes nodes from correlation plots
+    
     # Useful for any outliers that may skew regressions
     HARDCODED_PLOT_EXCLUDE = {
         # Format -> node_id
@@ -85,6 +91,7 @@ class Parameters:
         "node_edge_color": "black",
         "node_width": 1,
         "edge_width": 1,
+        "arrow_size": 10,
     }
 
     ############################################################################
@@ -290,6 +297,7 @@ class Node_Analysis: # Per node
     def __init__(self):
         self.node_id = 0
         self.connections = {}
+        self.connections_rssi = {}
         self.connection_total = 0
         self.PDR_No_MM = 0 # PDR not adjusted for missed messages
         self.PDR = 0
@@ -456,6 +464,12 @@ def main():
             bcast_times.append(line[parameters.INDEX_BT_TIME])
         elif line[parameters.INDEX_HEADER] == "PT:": # Previous GNODE transmissions
             prev_trans = read_as_int(line, parameters.INDEX_PT_NUM)
+        elif line[parameters.INDEX_HEADER] == "RB:": # Received Broadcast
+            current_line += 1
+            continue
+        elif line[parameters.INDEX_HEADER] == "RM:": # Received Message (non-broadcast)
+            current_line += 1
+            continue
         elif line[parameters.INDEX_HEADER] == "BD:": # Bcast data
             sys_time = 0
             awk_time = 0
@@ -530,37 +544,38 @@ def main():
                 read_as_int(line, parameters.INDEX_DATA_DROPPED_MSGS_SELF), \
                 read_as_int(line, parameters.INDEX_DATA_DROPPED_MSGS_OTHERS), \
                 read_as_int(line, parameters.INDEX_DATA_PREV_FAILED_TRANS)))
-            msg = node_msgs[original_node_id][-1] # Recently appended msg
-            msg.prev_trans["bcast"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_BCAST)
-            msg.prev_trans["data"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_DATA)
-            msg.prev_trans["id_check"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_ID_CHECK)
-            msg.prev_trans["ack"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_ACK)
-            msg.prev_trans["fwd"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_FWD)
-            msg.prev_data_trans = msg.prev_trans["data"] + msg.prev_trans["id_check"] + msg.prev_trans["fwd"]
-            msg.prev_any_trans = msg.prev_data_trans + msg.prev_trans["bcast"] + msg.prev_trans["ack"]
-            for ind in range(0, parameters.INDEX_DATA_VEC_RECEIVED_BCASTS_SIZE):
-                ind_adj = parameters.INDEX_DATA_VEC_RECEIVED_BCASTS_IND + parameters.INDEX_DATA_VEC_RECEIVED_BCASTS_NUM_V * ind
-                rssi = read_as_int(line, ind_adj + 1) - 256
-                if rssi == -256:
-                    continue
-                id = read_as_int(line, ind_adj) & 0x7F
-                unconsidered_bcast = read_as_int(line, ind_adj) >> 7
-                if id == 0 or id in node_mapping:
-                    msg.received_bcasts.append(Node_Msg_Bcast_Msg(id, rssi, unconsidered_bcast))
-                else:
-                    print("Foreign Node ID \"" + str(id) + "\" detected in Bcast Inst " + str(bcast_instance) + ", Bcast Num " + str(bcast_count))
-            for ind in range(0, parameters.INDEX_DATA_VEC_PREV_RECEIVED_MSGS_SIZE):
-                ind_adj = parameters.INDEX_DATA_VEC_PREV_RECEIVED_MSGS_IND + parameters.INDEX_DATA_VEC_PREV_RECEIVED_MSGS_NUM_V * ind
-                rssi = read_as_int(line, ind_adj + 1) - 256
-                if rssi == -256:
-                    continue
-                id = read_as_int(line, ind_adj)
-                count = read_as_int(line, ind_adj + 2) & 0x7F
-                is_child = read_as_int(line, ind_adj + 2) >> 7
-                if id == 0 or id in node_mapping:
-                    msg.prev_received_msgs.append(Node_Msg_General_Msg(id, rssi, count, is_child))
-                else:
-                    print("Foreign Node ID \"" + str(id) + "\" detected in Bcast Inst " + str(bcast_instance) + ", Bcast Num " + str(bcast_count))
+            if parameters.SIM_RUN:
+                msg = node_msgs[original_node_id][-1] # Recently appended msg
+                msg.prev_trans["bcast"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_BCAST)
+                msg.prev_trans["data"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_DATA)
+                msg.prev_trans["id_check"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_ID_CHECK)
+                msg.prev_trans["ack"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_ACK)
+                msg.prev_trans["fwd"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_FWD)
+                msg.prev_data_trans = msg.prev_trans["data"] + msg.prev_trans["id_check"] + msg.prev_trans["fwd"]
+                msg.prev_any_trans = msg.prev_data_trans + msg.prev_trans["bcast"] + msg.prev_trans["ack"]
+                for ind in range(0, parameters.INDEX_DATA_VEC_RECEIVED_BCASTS_SIZE):
+                    ind_adj = parameters.INDEX_DATA_VEC_RECEIVED_BCASTS_IND + parameters.INDEX_DATA_VEC_RECEIVED_BCASTS_NUM_V * ind
+                    rssi = read_as_int(line, ind_adj + 1) - 256
+                    if rssi == -256:
+                        continue
+                    id = read_as_int(line, ind_adj) & 0x7F
+                    unconsidered_bcast = read_as_int(line, ind_adj) >> 7
+                    if id == 0 or id in node_mapping:
+                        msg.received_bcasts.append(Node_Msg_Bcast_Msg(id, rssi, unconsidered_bcast))
+                    else:
+                        print("Foreign Node ID \"" + str(id) + "\" detected in Bcast Inst " + str(bcast_instance) + ", Bcast Num " + str(bcast_count))
+                for ind in range(0, parameters.INDEX_DATA_VEC_PREV_RECEIVED_MSGS_SIZE):
+                    ind_adj = parameters.INDEX_DATA_VEC_PREV_RECEIVED_MSGS_IND + parameters.INDEX_DATA_VEC_PREV_RECEIVED_MSGS_NUM_V * ind
+                    rssi = read_as_int(line, ind_adj + 1) - 256
+                    if rssi == -256:
+                        continue
+                    id = read_as_int(line, ind_adj)
+                    count = read_as_int(line, ind_adj + 2) & 0x7F
+                    is_child = read_as_int(line, ind_adj + 2) >> 7
+                    if id == 0 or id in node_mapping:
+                        msg.prev_received_msgs.append(Node_Msg_General_Msg(id, rssi, count, is_child))
+                    else:
+                        print("Foreign Node ID \"" + str(id) + "\" detected in Bcast Inst " + str(bcast_instance) + ", Bcast Num " + str(bcast_count))
             if (parameters.PRINT_BCAST_INFO):
                 print("\t" + str(msg))
         current_line += 1
@@ -963,10 +978,12 @@ def main():
                 parent_connection_ratio = total_connections / node_analysis[node_id].connection_total
                 if parent_connection_ratio > node_analysis[node_id].highest_parent_ratio:
                     node_analysis[node_id].highest_parent_ratio  = parent_connection_ratio
-                print("\t\t\tAvg RSSI: " + str(sum(connections_rssi[p_key]) / total_connections))
+                connection_rssi = sum(connections_rssi[p_key]) / total_connections
+                print("\t\t\tAvg RSSI: " + str(connection_rssi))
                 if parameters.PLOT_DISPLAY and len(parameters.HARDCODED_NODE_LOCS) > 0:
-                    G.add_edge(node_id, p_key, weight=total_connections/parameters.PLOT_LOCS_WEIGHT_SCALAR)
+                    G.add_edge(node_id, p_key, weight=total_connections)
                 node_analysis[node_id].connections[p_key] = total_connections
+                node_analysis[node_id].connections_rssi[p_key] = connection_rssi
         node_analysis[node_id].avg_rssi = statistics.mean(node_analysis[node_id].rssi)
         node_analysis[node_id].avg_missed_msgs = statistics.mean([x[1] for x in node_analysis[node_id].missed_msgs])
         print(flush=True)
@@ -1206,6 +1223,66 @@ def main():
         print("Plot Msg total good data: " + str(len(msg_parent_rssi)))
         print("Plot Msg total bad data: " + str(msg_dropped_cycles)) 
         
+        # *********** TOPOLOGY PLOT ***********
+    
+        # Plot network with parent-child connections
+        if len(parameters.HARDCODED_NODE_LOCS) > 0:
+            # nodes
+            locs = {node: (10*x, -10*y) for (node, (x,y)) in parameters.HARDCODED_NODE_LOCS.items()}
+            nx.draw_networkx_nodes(G, locs, node_size=parameters.NETWORK_DRAW_OPTIONS["node_size"], \
+                node_color=parameters.NETWORK_DRAW_OPTIONS["node_color"], edgecolors=parameters.NETWORK_DRAW_OPTIONS["node_edge_color"],
+                linewidths=parameters.NETWORK_DRAW_OPTIONS["node_width"])
+            # edges
+            edges_max = max([G[u][v]['weight'] for u,v in G.edges()])
+            weighted_edges_normalized = [math.pow(G[u][v]['weight'] / edges_max, parameters.PLOT_LOCS_WEIGHT_EXP) for u,v in G.edges()]
+            weighted_edges_color = [(0, 0, 0, edge) for edge in weighted_edges_normalized]
+            nx.draw_networkx_edges(G, locs, edge_color=weighted_edges_color, connectionstyle="angle3", node_size=parameters.NETWORK_DRAW_OPTIONS["node_size"], arrowsize=parameters.NETWORK_DRAW_OPTIONS["arrow_size"], width=parameters.NETWORK_DRAW_OPTIONS["edge_width"])
+            # labels
+            nx.draw_networkx_labels(G, locs, font_size=parameters.NETWORK_DRAW_OPTIONS["node_font_size"])
+
+            ax = plt.gca()
+            plt.axis("off")
+            plt.tight_layout()
+            #plt.title("Combined Parent Map")
+            plt.xlabel("GPS X")
+            plt.ylabel("GPS Y")
+            plt.axis('equal')
+            plt.show()
+            #plt.savefig("topology_overview.png", format="png", bbox_inches='tight', dpi=2000)
+            
+            # Per Node Plots
+            if parameters.PLOT_NODE_SPECIFIC_MAPS:
+                for n_key in node_analysis:
+                    G.clear()
+                    # Show all the nodes
+                    for n in node_analysis:
+                        G.add_edge(n, n, weight=0)
+                    for p in node_analysis[n_key].paths:
+                        connections = node_analysis[n_key].connections[p[-2]] # Percentage connections of this path, p[1] is the first parent
+                        for node in reversed(range(1, len(p))):
+                            G.add_edge(p[node], p[node - 1], weight=connections)
+                    
+                    # nodes
+                    nx.draw_networkx_nodes(G, locs, node_size=parameters.NETWORK_DRAW_OPTIONS["node_size"], \
+                        node_color=parameters.NETWORK_DRAW_OPTIONS["node_color"], edgecolors=parameters.NETWORK_DRAW_OPTIONS["node_edge_color"],
+                        linewidths=parameters.NETWORK_DRAW_OPTIONS["node_width"])
+                    # edges
+                    edges_max = max([G[u][v]['weight'] for u,v in G.edges()])
+                    weighted_edges_normalized = [math.pow(G[u][v]['weight'] / edges_max, parameters.PLOT_LOCS_WEIGHT_EXP_SPECIFIC) for u,v in G.edges()]
+                    weighted_edges_color = [(0, 0, 0, edge) for edge in weighted_edges_normalized]
+                    nx.draw_networkx_edges(G, locs, edge_color=weighted_edges_color, connectionstyle="angle3", node_size=parameters.NETWORK_DRAW_OPTIONS["node_size"], arrowsize=parameters.NETWORK_DRAW_OPTIONS["arrow_size"], width=parameters.NETWORK_DRAW_OPTIONS["edge_width"])
+                    # labels
+                    nx.draw_networkx_labels(G, locs, font_size=parameters.NETWORK_DRAW_OPTIONS["node_font_size"])
+
+                    ax = plt.gca()
+                    plt.axis("off")
+                    plt.tight_layout()
+                    plt.title("Node " + str(n_key) + " Map")
+                    plt.xlabel("GPS X")
+                    plt.ylabel("GPS Y")
+                    plt.axis('equal')
+                    plt.show()  
+        
         # *********** SPECIFIC ANALYSIS PLOTS ***********
         
         if parameters.PLOT_RSSI_ANALYSIS:
@@ -1228,11 +1305,11 @@ def main():
                         unique_cycle_num.append(cycle[0])
                         connection_RSSI.append(cycle[1])
                     plt.scatter(unique_cycle_num, connection_RSSI);
-                    plt.title("Node " + str(n_key) + " to Parent " + str(p_key) + " RSSI")
+                    plt.title("Child ID " + str(n_key) + " to Parent ID " + str(p_key) + " RSSI")
                     plt.xlabel("Cycle")
                     plt.ylabel("RSSI")
-                    plt.xlim([0, len(bcast_times)])
-                    plt.ylim([min(-120, min(connection_RSSI)), max(-50, max(connection_RSSI))])
+                    plt.xlim([unique_cycle_num[0], unique_cycle_num[-1]])
+                    plt.ylim([min(connection_RSSI) - 1, max(connection_RSSI) + 1])
                     plt.show()
                     
         # Plot PDR and PDR_No_MM
@@ -1263,6 +1340,45 @@ def main():
         plt.show()
         print("Mean PDR No Adjust: " + str(statistics.mean(all_nodes_PDR_no_adjust)))
         print("Mean PDR Adjust: " + str(statistics.mean(all_nodes_PDR_adjust)))
+        
+        # Plot heatmap of parent-child connections and avg RSSI
+        connections_count = []
+        connections_RSSI = []
+        connections_mask = []
+        hmap_vmin = -125
+        hmap_vmax = -90
+        child_labels = sorted(node_analysis.keys())
+        parent_labels = copy.deepcopy(child_labels)
+        parent_labels.insert(0, 0)
+        parent_labels.reverse()
+        for c_key in child_labels:
+            count = node_analysis[c_key].connections
+            rssi = node_analysis[c_key].connections_rssi
+            p_connections_count = []
+            p_connections_RSSI = []
+            p_mask = []
+            for p_key in parent_labels:
+                if p_key in count and rssi[p_key] <= hmap_vmax: # Some data with higher rssi is from initial setup, clean out those data
+                    p_connections_count.append(count[p_key])
+                    p_connections_RSSI.append(rssi[p_key])
+                    p_mask.append(False)
+                else:
+                    p_connections_count.append(0)
+                    p_connections_RSSI.append(0)
+                    p_mask.append(True)
+            connections_count.append(p_connections_count)
+            connections_RSSI.append(p_connections_RSSI)
+            connections_mask.append(p_mask)
+        connections_count = np.array(connections_count).transpose()
+        connections_RSSI = np.array(connections_RSSI).transpose()
+        connections_mask = np.array(connections_mask).transpose()
+        axis = sns.heatmap(data=connections_RSSI, annot=connections_count, mask=connections_mask, linewidth=0.5, fmt=".0f", vmin=hmap_vmin, vmax=hmap_vmax)
+        #axis.set_facecolor("black") # Mask color
+        axis.set_xticklabels(child_labels)
+        axis.set_yticklabels(parent_labels)
+        axis.set_xlabel('Child ID')
+        axis.set_ylabel('Parent ID')
+        plt.show()
         
         # *********** NODE PLOTS ***********
         
@@ -1497,60 +1613,7 @@ def main():
                 axis[1].set_title("Num Children vs Cycle")
                 axis[1].set_xlabel("Cycle")
                 axis[1].set_ylabel("Num Children")
-                plt.show()
-    
-        # *********** TOPOLOGY PLOTS ***********
-    
-        # Plot network with parent-child connections
-        if len(parameters.HARDCODED_NODE_LOCS) > 0:
-            # nodes
-            locs_flipped = {node: (y, x) for (node, (x,y)) in parameters.HARDCODED_NODE_LOCS.items()}
-            nx.draw_networkx_nodes(G, locs_flipped, node_size=parameters.NETWORK_DRAW_OPTIONS["node_size"], \
-                node_color=parameters.NETWORK_DRAW_OPTIONS["node_color"], edgecolors=parameters.NETWORK_DRAW_OPTIONS["node_edge_color"],
-                linewidths=parameters.NETWORK_DRAW_OPTIONS["node_width"])
-            # edges
-            weighted_edges = [G[u][v]['weight'] for u,v in G.edges()]
-            nx.draw_networkx_edges(G, locs_flipped, width=weighted_edges, connectionstyle="angle3")
-            # labels
-            nx.draw_networkx_labels(G, locs_flipped, font_size=parameters.NETWORK_DRAW_OPTIONS["node_font_size"])
-
-            ax = plt.gca()
-            plt.axis("off")
-            plt.tight_layout()
-            plt.title("Combined Parent Map")
-            plt.xlabel("GPS X")
-            plt.ylabel("GPS Y")
-            plt.show()
-            
-            # Per Node Plots
-            if parameters.PLOT_NODE_SPECIFIC_MAPS:
-                for n_key in node_analysis:
-                    G.clear()
-                    # Show all the nodes
-                    for n in node_analysis:
-                        G.add_edge(n, n, weight=0)
-                    for p in node_analysis[n_key].paths:
-                        connections = node_analysis[n_key].connections[p[-2]] # Percentage connections of this path, p[1] is the first parent
-                        for node in reversed(range(1, len(p))):
-                            G.add_edge(p[node], p[node - 1], weight=connections/parameters.PLOT_LOCS_WEIGHT_SCALAR_SPECIFIC)
-                    
-                    # nodes
-                    nx.draw_networkx_nodes(G, locs_flipped, node_size=parameters.NETWORK_DRAW_OPTIONS["node_size"], \
-                        node_color=parameters.NETWORK_DRAW_OPTIONS["node_color"], edgecolors=parameters.NETWORK_DRAW_OPTIONS["node_edge_color"],
-                        linewidths=parameters.NETWORK_DRAW_OPTIONS["node_width"])
-                    # edges
-                    weighted_edges = [G[u][v]['weight'] for u,v in G.edges()]
-                    nx.draw_networkx_edges(G, locs_flipped, width=weighted_edges, connectionstyle="angle3")
-                    # labels
-                    nx.draw_networkx_labels(G, locs_flipped, font_size=parameters.NETWORK_DRAW_OPTIONS["node_font_size"])
-
-                    ax = plt.gca()
-                    plt.axis("off")
-                    plt.tight_layout()
-                    plt.title("Node " + str(n_key) + " Map")
-                    plt.xlabel("GPS X")
-                    plt.ylabel("GPS Y")
-                    plt.show()       
+                plt.show()     
     
     # Topology Simulation
     if parameters.SIM_RUN:

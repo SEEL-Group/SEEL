@@ -16,8 +16,9 @@ class Parameters:
     PLOT_NODE_PARENT_CYCLE_RSSI = True
     
     PLOT_RSSI_ANALYSIS = True
-    PLOT_LOCS_WEIGHT_SCALAR = 1000 # Smaller for thicker lines
-    PLOT_LOCS_WEIGHT_SCALAR_SPECIFIC = 500 # Smaller for thicker lines
+    # Exponent to adjust transparency for topology overview plot. Value range: [0, inf]; smaller value = darker lines. Bias smaller # connections.
+    PLOT_LOCS_WEIGHT_EXP = 0.5
+    PLOT_LOCS_WEIGHT_EXP_SPECIFIC = 0.5 # For node-specific plots
 
     PARAM_COUNT_WRAP_SAFETY = 15 # Send count will not have wrapped within this many counts, keep it lower to account for node restarts too
 
@@ -52,6 +53,7 @@ class Parameters:
         "node_edge_color": "black",
         "node_width": 1,
         "edge_width": 1,
+        "arrow_size": 10,
     }
 
     ############################################################################

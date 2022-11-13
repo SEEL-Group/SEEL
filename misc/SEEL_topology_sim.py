@@ -9,12 +9,12 @@ import statistics
 
 # Parameters
 PRINT_INCOMING_DATA = False
-PRINT_ALL_TOPOLOGIES = True
+PRINT_ALL_TOPOLOGIES = False
 PRINT_ALL_REPLAY_CYCLES = False
 
 PARENT_USE_PATH_RSSI = True # Otherwise use immediate RSSI
 
-CONFIDENCE_LEVEL_Z = 1.960 # 95%
+CONFIDENCE_LEVEL_Z = 1.65 # 1.96 for 95%, 1.65 for 90%
 
 HARDCODED_STATIC_TOPOLOGY = [
 ]
@@ -183,6 +183,29 @@ def calculate_packet_percentage(cycle_data, receiver_id, sender_id):
         print("\tSender missing")
     return pp
     
+def print_stats_with_CI(stats_arr, text_label, text_padding = ""):
+    if len(stats_arr) > 1:
+        mean = statistics.mean(stats_arr)
+        stdev = statistics.stdev(stats_arr)
+        v_data_count = len(stats_arr)
+        ci_pm = CONFIDENCE_LEVEL_Z * (stdev / math.sqrt(v_data_count)) # Confidence interval plus/minus
+        print("\t\t" + text_label + " Mean:\t" + text_padding +  "{:.5f}".format(mean) + " \\pm " + "{:.5f}".format(ci_pm) + ", Valid Data Count: " + str(v_data_count))
+    else:
+        print("\t\t" + text_label + " Mean:\t\tInsufficient Data")
+        
+def print_node_stats(d_ir_rd, d_ir_s, d_ph_rd, d_ph_s, d_pp_rd, d_pp_s, u_pp_rd, u_pp_s):
+    print("\tImmediate RSSI")
+    print_stats_with_CI(d_ir_rd, "Downstream Real Data")
+    print_stats_with_CI(d_ir_s, "Downstream Static", "\t")
+    print("\tParent Heuristic RSSI")
+    print_stats_with_CI(d_ph_rd, "Downstream Real Data")
+    print_stats_with_CI(d_ph_s, "Downstream Static", "\t")
+    print("\tPacket Percentage")
+    print_stats_with_CI(d_pp_rd, "Downstream Real Data")
+    print_stats_with_CI(d_pp_s, "Downstream Static", "\t")
+    print_stats_with_CI(u_pp_rd, "Upstream Real Data")
+    print_stats_with_CI(u_pp_s, "Upstream Static", "\t")
+            
 def run_sim(sim_data):
     # Determine unique nodes
     unique_nodes = set()
@@ -420,7 +443,15 @@ def run_sim(sim_data):
         print("Found " + str(len(cycle_detected_cycles)) + " cycles: " + str(cycle_detected_cycles))
     else:
         print("No cycles detected")
-        
+    
+    combined_stats_downstream_immediate_rssi_real_data = []
+    combined_stats_downstream_immediate_rssi_static = []
+    combined_stats_downstream_parent_heuristic_real_data = []
+    combined_stats_downstream_parent_heuristic_static = []
+    combined_stats_downstream_packet_percentage_real_data = []
+    combined_stats_downstream_packet_percentage_static = []
+    combined_stats_upstream_packet_percentage_real_data = []
+    combined_stats_upstream_packet_percentage_static = []
     for node_id in unique_nodes:
         print("Node " + str(node_id))
         stats_downstream_immediate_rssi_real_data = []
@@ -437,85 +468,43 @@ def run_sim(sim_data):
             if node_id in link_condition_real_data:
                 if link_condition_real_data[node_id].immediate_rssi != 0:
                     stats_downstream_immediate_rssi_real_data.append(link_condition_real_data[node_id].immediate_rssi)
+                    combined_stats_downstream_immediate_rssi_real_data.append(link_condition_real_data[node_id].immediate_rssi)
                 if link_condition_real_data[node_id].rssi_heuristic != 0:
                     stats_downstream_parent_heuristic_real_data.append(link_condition_real_data[node_id].rssi_heuristic)
+                    combined_stats_downstream_parent_heuristic_real_data.append(link_condition_real_data[node_id].rssi_heuristic)
                 if link_condition_real_data[node_id].downstream_packet_percentage >= 0:
                     stats_downstream_packet_percentage_real_data.append(link_condition_real_data[node_id].downstream_packet_percentage)
+                    combined_stats_downstream_packet_percentage_real_data.append(link_condition_real_data[node_id].downstream_packet_percentage)
                 if link_condition_real_data[node_id].upstream_packet_percentage >= 0:
                     stats_upstream_packet_percentage_real_data.append(link_condition_real_data[node_id].upstream_packet_percentage)
+                    combined_stats_upstream_packet_percentage_real_data.append(link_condition_real_data[node_id].upstream_packet_percentage)
             if node_id in link_condition_static:
                 if link_condition_static[node_id].immediate_rssi != 0:
                     stats_downstream_immediate_rssi_static.append(link_condition_static[node_id].immediate_rssi)
+                    combined_stats_downstream_immediate_rssi_static.append(link_condition_static[node_id].immediate_rssi)
                 if link_condition_static[node_id].rssi_heuristic != 0:
                     stats_downstream_parent_heuristic_static.append(link_condition_static[node_id].rssi_heuristic)
+                    combined_stats_downstream_parent_heuristic_static.append(link_condition_static[node_id].rssi_heuristic)
                 if link_condition_static[node_id].downstream_packet_percentage >= 0:
                     stats_downstream_packet_percentage_static.append(link_condition_static[node_id].downstream_packet_percentage)
+                    combined_stats_downstream_packet_percentage_static.append(link_condition_static[node_id].downstream_packet_percentage)
                 if link_condition_static[node_id].upstream_packet_percentage >= 0:
                     stats_upstream_packet_percentage_static.append(link_condition_static[node_id].upstream_packet_percentage)
-        print("\tImmediate RSSI")
-        if len(stats_downstream_immediate_rssi_real_data) > 1:
-            mean = statistics.mean(stats_downstream_immediate_rssi_real_data)
-            stdev = statistics.stdev(stats_downstream_immediate_rssi_real_data)
-            v_data_count = len(stats_downstream_immediate_rssi_real_data)
-            ci_pm = CONFIDENCE_LEVEL_Z * (stdev / math.sqrt(v_data_count)) # Confidence interval plus/minus
-            print("\t\tDownstream Real Data Mean:\t" + str(mean) + " ± " + str(ci_pm) + ", Valid Data Count: " + str(v_data_count))
-        else:
-            print("\t\tDownstream Real Data Mean:\t\tInsufficient Data")
-        if len(stats_downstream_immediate_rssi_static) > 1:
-            mean = statistics.mean(stats_downstream_immediate_rssi_static)
-            stdev = statistics.stdev(stats_downstream_immediate_rssi_static)
-            v_data_count = len(stats_downstream_immediate_rssi_static)
-            ci_pm = CONFIDENCE_LEVEL_Z * (stdev / math.sqrt(v_data_count))
-            print("\t\tDownstream Static Mean:\t\t" + str(mean) + " ± " + str(ci_pm) + ", Valid Data Count: " + str(v_data_count))
-        else:
-            print("\t\tDownstream Static Mean:\t\tInsufficient Data")
-        print("\tParent Heuristic RSSI")
-        if len(stats_downstream_parent_heuristic_real_data) > 1:
-            mean = statistics.mean(stats_downstream_parent_heuristic_real_data)
-            stdev = statistics.stdev(stats_downstream_parent_heuristic_real_data)
-            v_data_count = len(stats_downstream_parent_heuristic_real_data)
-            ci_pm = CONFIDENCE_LEVEL_Z * (stdev / math.sqrt(v_data_count))
-            print("\t\tDownstream Real Data Mean:\t" + str(mean) + " ± " + str(ci_pm) + ", Valid Data Count: " + str(v_data_count))
-        else:
-            print("\t\tDownstream Real Data Mean:\t\tInsufficient Data")
-        if len(stats_downstream_parent_heuristic_static) > 1:
-            mean = statistics.mean(stats_downstream_parent_heuristic_static)
-            stdev = statistics.stdev(stats_downstream_parent_heuristic_static)
-            v_data_count = len(stats_downstream_parent_heuristic_static)
-            ci_pm = CONFIDENCE_LEVEL_Z * (stdev / math.sqrt(v_data_count))
-            print("\t\tDownstream Static Mean:\t\t" + str(mean) + " ± " + str(ci_pm) + ", Valid Data Count: " + str(v_data_count))
-        else:
-            print("\t\tDownstream Static Mean:\t\tInsufficient Data")
-        print("\tPacket Percentage")
-        if len(stats_downstream_packet_percentage_real_data) > 1:
-            mean = statistics.mean(stats_downstream_packet_percentage_real_data)
-            stdev = statistics.stdev(stats_downstream_packet_percentage_real_data)
-            v_data_count = len(stats_downstream_packet_percentage_real_data)
-            ci_pm = CONFIDENCE_LEVEL_Z * (stdev / math.sqrt(v_data_count))
-            print("\t\tDownstream Real Data Mean:\t" + str(mean) + " ± " + str(ci_pm) + ", Valid Data Count: " + str(v_data_count))
-        else:
-            print("\t\tDownstream Real Data Mean:\t\tInsufficient Data")
-        if len(stats_downstream_packet_percentage_static) > 1:
-            mean = statistics.mean(stats_downstream_packet_percentage_static)
-            stdev = statistics.stdev(stats_downstream_packet_percentage_static)
-            v_data_count = len(stats_downstream_packet_percentage_static)
-            ci_pm = CONFIDENCE_LEVEL_Z * (stdev / math.sqrt(v_data_count))
-            print("\t\tDownstream Static Mean:\t\t" + str(mean) + " ± " + str(ci_pm) + ", Valid Data Count: " + str(v_data_count))
-        else:
-            print("\t\tDownstream Static Mean:\t\tInsufficient Data")
-        if len(stats_upstream_packet_percentage_real_data) > 1:
-            mean = statistics.mean(stats_upstream_packet_percentage_real_data)
-            stdev = statistics.stdev(stats_upstream_packet_percentage_real_data)
-            v_data_count = len(stats_upstream_packet_percentage_real_data)
-            ci_pm = CONFIDENCE_LEVEL_Z * (stdev / math.sqrt(v_data_count))
-            print("\t\tUpstream Real Data Mean:\t" + str(mean) + " ± " + str(ci_pm) + ", Valid Data Count: " + str(v_data_count))
-        else:
-            print("\t\tUpstream Real Data Mean:\t\tInsufficient Data")
-        if len(stats_upstream_packet_percentage_static) > 1:
-            mean = statistics.mean(stats_upstream_packet_percentage_static)
-            stdev = statistics.stdev(stats_upstream_packet_percentage_static)
-            v_data_count = len(stats_upstream_packet_percentage_static)
-            ci_pm = CONFIDENCE_LEVEL_Z * (stdev / math.sqrt(v_data_count))
-            print("\t\tUpstream Static Mean:\t\t" + str(mean) + " ± " + str(ci_pm) + ", Valid Data Count: " + str(v_data_count))
-        else:
-            print("\t\tUpstream Static Mean:\t\tInsufficient Data")
+                    combined_stats_upstream_packet_percentage_static.append(link_condition_static[node_id].upstream_packet_percentage)
+        print_node_stats(   d_ir_rd = stats_downstream_immediate_rssi_real_data, \
+                            d_ir_s = stats_downstream_immediate_rssi_static, \
+                            d_ph_rd = stats_downstream_parent_heuristic_real_data, \
+                            d_ph_s = stats_downstream_parent_heuristic_static, \
+                            d_pp_rd = stats_downstream_packet_percentage_real_data, \
+                            d_pp_s = stats_downstream_packet_percentage_static, \
+                            u_pp_rd = stats_upstream_packet_percentage_real_data, \
+                            u_pp_s = stats_upstream_packet_percentage_static)
+    print("Combined")
+    print_node_stats(   d_ir_rd = combined_stats_downstream_immediate_rssi_real_data, \
+                        d_ir_s = combined_stats_downstream_immediate_rssi_static, \
+                        d_ph_rd = combined_stats_downstream_parent_heuristic_real_data, \
+                        d_ph_s = combined_stats_downstream_parent_heuristic_static, \
+                        d_pp_rd = combined_stats_downstream_packet_percentage_real_data, \
+                        d_pp_s = combined_stats_downstream_packet_percentage_static, \
+                        u_pp_rd = combined_stats_upstream_packet_percentage_real_data, \
+                        u_pp_s = combined_stats_upstream_packet_percentage_static)
