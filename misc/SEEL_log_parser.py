@@ -29,6 +29,8 @@ import importlib
 import numpy as np
 from sklearn.metrics import r2_score
 import matplotlib.pyplot as plt
+from matplotlib import cm
+from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 import networkx as nx
 import statistics
 import seaborn as sns
@@ -1234,8 +1236,8 @@ def main():
                 linewidths=parameters.NETWORK_DRAW_OPTIONS["node_width"])
             # edges
             edges_max = max([G[u][v]['weight'] for u,v in G.edges()])
-            weighted_edges_normalized = [math.pow(G[u][v]['weight'] / edges_max, parameters.PLOT_LOCS_WEIGHT_EXP) for u,v in G.edges()]
-            weighted_edges_color = [(0, 0, 0, edge) for edge in weighted_edges_normalized]
+            weighted_edges_normalized = [G[u][v]['weight'] / edges_max for u,v in G.edges()]
+            weighted_edges_color = [(0, 0, 0, 0.15 + edge * 0.85) for edge in weighted_edges_normalized]
             nx.draw_networkx_edges(G, locs, edge_color=weighted_edges_color, connectionstyle="angle3", node_size=parameters.NETWORK_DRAW_OPTIONS["node_size"], arrowsize=parameters.NETWORK_DRAW_OPTIONS["arrow_size"], width=parameters.NETWORK_DRAW_OPTIONS["edge_width"])
             # labels
             nx.draw_networkx_labels(G, locs, font_size=parameters.NETWORK_DRAW_OPTIONS["node_font_size"])
@@ -1345,8 +1347,8 @@ def main():
         connections_count = []
         connections_RSSI = []
         connections_mask = []
-        hmap_vmin = -125
-        hmap_vmax = -90
+        hmap_vmin = 0
+        hmap_vmax = 720
         child_labels = sorted(node_analysis.keys())
         parent_labels = copy.deepcopy(child_labels)
         parent_labels.insert(0, 0)
@@ -1372,7 +1374,10 @@ def main():
         connections_count = np.array(connections_count).transpose()
         connections_RSSI = np.array(connections_RSSI).transpose()
         connections_mask = np.array(connections_mask).transpose()
-        axis = sns.heatmap(data=connections_RSSI, annot=connections_count, mask=connections_mask, linewidth=0.5, fmt=".0f", vmin=hmap_vmin, vmax=hmap_vmax)
+        GreysBig = cm.get_cmap('Greys', 512)
+        customcm = ListedColormap(GreysBig(np.linspace(0.15, 1, 436)))
+        sns.set(font_scale=2)
+        axis = sns.heatmap(data=connections_RSSI, cmap=customcm, annot=connections_count, mask=connections_mask, linewidth=0.5, fmt=".0f", vmin=hmap_vmin, vmax=hmap_vmax, cbar_kws={"aspect": 5})
         #axis.set_facecolor("black") # Mask color
         axis.set_xticklabels(child_labels)
         axis.set_yticklabels(parent_labels)
