@@ -45,7 +45,7 @@ void user_function()
 // Write Parameter: "msg_data", which is the data packet to send
 // Read-Only Parameter: "info" contains misc SEEL info, defined in SEEL_Node.h
 // Returns: true if the data message should be sent out
-bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::SEEL_CB_Info* info)
+bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], SEEL_Node::SEEL_CB_Info* info)
 {
   // The contents of this function are an example of what one can do with this CB function
 
@@ -64,12 +64,12 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
 
   // SEEL_MSG_DATA_SIZE = SEEL_MSG_MISC_SIZE + SEEL_MSG_USER_SIZE
   // If more than SEEL_MSG_MISC_SIZE data bytes are needed, increase SEEL_MSG_USER_SIZE by the missing amount  
-  if (SEEL_MSG_DATA_SIZE >= 21) // Safety check to prevent out of bounds access
+  if (SEEL_MSG_DATA_SIZE >= 26) // Safety check to prevent out of bounds access
   {
     msg_data[0] = SEEL_SNODE_ID; // original ID
     msg_data[1] = seel_snode.get_node_id(); // assigned ID
-    msg_data[2] = 0; // parent ID. Set in presend function, since parent may change if msg does not get sent out this cycle
-    msg_data[3] = 0; // parent RSSI. Set in presend function
+    msg_data[2] = seel_snode.get_parent_id();
+    msg_data[3] = info->parent_rssi;
     msg_data[4] = info->bcast_count;
     msg_data[5] = (uint8_t)(info->wtb_millis >> 24); // WTB
     msg_data[6] = (uint8_t)(info->wtb_millis >> 16);
@@ -77,21 +77,26 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::S
     msg_data[8] = (uint8_t)(info->wtb_millis);
     msg_data[9] = (uint8_t)(send_count >> 8);
     msg_data[10] = (uint8_t)(send_count);
-    msg_data[11] = info->prev_data_transmissions;
-    msg_data[12] = info->missed_msgs;
+    msg_data[11] = info->missed_msgs;
+    msg_data[12] = info->missed_bcasts;
     msg_data[13] = info->prev_max_data_queue_size;
     msg_data[14] = info->prev_CRC_fails;
     msg_data[15] = info->prev_flags;
-    msg_data[16] = info->prev_transmissions;
-    msg_data[17] = info->prev_queue_dropped_msgs;
-    msg_data[18] = info->hop_count; // tracks downstream node hop count
-    msg_data[19] = 1; // tracks upstream msg hop count, initialized to 1 and incremented with every forward
-    msg_data[20] = info->missed_bcasts;
+    msg_data[16] = info->hop_count; // tracks downstream node hop count
+    msg_data[17] = 1; // tracks upstream msg hop count, initialized to 1 and incremented with every forward
+    msg_data[18] = info->prev_queue_dropped_msgs_self;
+    msg_data[19] = info->prev_queue_dropped_msgs_others;
+    msg_data[20] = info->prev_failed_transmissions;
+    msg_data[21] = info->prev_transmissions.bcast;
+    msg_data[22] = info->prev_transmissions.data;
+    msg_data[23] = info->prev_transmissions.id_check;
+    msg_data[24] = info->prev_transmissions.ack;
+    msg_data[25] = info->prev_transmissions.fwd;
 
     // Fill rest with zeros
-    for (uint32_t i = 21; i < SEEL_MSG_DATA_SIZE; ++i)
+    for (uint32_t i = 26; i < SEEL_MSG_DATA_SIZE; ++i)
     {
-      msg_data[i] = 0;
+        msg_data[i] = 0;
     }
   }
 
@@ -109,12 +114,14 @@ void user_callback_presend(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node
 {
   // The contents of this function are an example of what one can do with this CB function
 
+  /*
   // Sets these fields to the immediate parent of the node and the last rssi value, to be seen by the GNODE for network debugging and analysis
   if (msg_data[2] == 0) // zero means unassigned, prevents continuous updating
   {
     msg_data[2] = seel_snode.get_parent_id();
     msg_data[3] = info->parent_rssi;
   }
+  */
 }
 
 // This callback function is called when this SNODE receives a DATA message to-be-forwarded.
@@ -125,9 +132,9 @@ void user_callback_presend(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node
 // Return: Whether message should be forwarded
 bool user_callback_forwarding(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::SEEL_CB_Info* info)
 {
-  if (SEEL_MSG_DATA_SIZE >= 20)
+  if (SEEL_MSG_DATA_SIZE >= 18)
   {
-    msg_data[19] += 1; // tracks upstream msg hop count, initialized to 1 and incremented with every forward
+    msg_data[17] += 1; // tracks upstream msg hop count, initialized to 1 and incremented with every forward
   }
     
   return true;
