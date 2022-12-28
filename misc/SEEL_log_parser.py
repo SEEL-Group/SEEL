@@ -4,9 +4,11 @@
 # the script will state that NODE missed BCASTS during the duration of the pause. Quick power cycles are okay. 
 # If node join entries are not captured in the logs (logging created on an established network), node IDs can be added in the "Hardcoded Section"
 
-# Tested with Python 3.5.2
+# Tested with Python 3.6.0
 
 # Requires installation of sklearn: "pip3 install sklearn"
+# Requires installation of seaborn: "pip3 install networkx"
+# Requires installation of seaborn: "pip3 install seaborn"
 
 # To run: python3 <path_to_this_file>/SEEL_log_parser.py <path_to_data_file>/<data_file> (optional)<path to param file>/<param file>
 
@@ -22,19 +24,29 @@
 import os
 import sys
 import math
+import copy
 import importlib
 import numpy as np
 from sklearn.metrics import r2_score
 import matplotlib.pyplot as plt
+from matplotlib import cm
+from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 import networkx as nx
 import statistics
+import seaborn as sns
+
+import SEEL_topology_sim as sim
 
 class Parameters:
     ############################################################################
     # General Parameters
     PRINT_ALL_MSGS = False
+    PRINT_ALL_MSGS_EXTENDED = False # Large packet info
+    PRINT_BCAST_INFO = False
 
     PLOT_DISPLAY = False
+    
+    SIM_RUN = False
     
     # Per node plots
     PLOT_NODE_SPECIFIC_BCASTS = False
@@ -43,8 +55,9 @@ class Parameters:
     PLOT_NODE_PARENT_CYCLE_RSSI = False
     
     PLOT_RSSI_ANALYSIS = False
-    PLOT_LOCS_WEIGHT_SCALAR = 1000 # Smaller for thicker lines
-    PLOT_LOCS_WEIGHT_SCALAR_SPECIFIC = 500 # Smaller for thicker lines
+    # Exponent to adjust transparency for topology overview plot. Value range: [0, inf]; smaller value = darker lines. Bias smaller # connections.
+    PLOT_LOCS_WEIGHT_EXP = 0.5
+    PLOT_LOCS_WEIGHT_EXP_SPECIFIC = 0.5 # For node-specific plots
 
     PARAM_COUNT_WRAP_SAFETY = 15 # Send count will not have wrapped within this many counts, keep it lower to account for node restarts too
 
@@ -67,6 +80,7 @@ class Parameters:
     }
     
     # Excludes nodes from correlation plots
+    
     # Useful for any outliers that may skew regressions
     HARDCODED_PLOT_EXCLUDE = {
         # Format -> node_id
@@ -79,6 +93,7 @@ class Parameters:
         "node_edge_color": "black",
         "node_width": 1,
         "edge_width": 1,
+        "arrow_size": 10,
     }
 
     ############################################################################
@@ -86,6 +101,8 @@ class Parameters:
     INDEX_HEADER = 0
     # INDEX_BT 0 used for the text "BT:"
     INDEX_BT_TIME = 1
+    # INDEX_PT 0 used for the text "PT:"
+    INDEX_PT_NUM = 1
     # INDEX_BD 0 used for the text "BD:"
     INDEX_BD_FIRST = 1
     INDEX_BD_BCAST_COUNT = 2
@@ -117,16 +134,37 @@ class Parameters:
     INDEX_DATA_WTB_3 = 8
     INDEX_DATA_SEND_COUNT_0 = 9
     INDEX_DATA_SEND_COUNT_1 = 10
-    INDEX_DATA_PREV_DATA_TRANS = 11
-    INDEX_DATA_MISSED_MSGS = 12
+    INDEX_DATA_MISSED_MSGS = 11
+    INDEX_DATA_MISSED_BCASTS = 12
     INDEX_DATA_MAX_QUEUE_SIZE = 13
     INDEX_DATA_CRC_FAILS = 14
     INDEX_DATA_FLAGS = 15
-    INDEX_DATA_ANY_TRANSMISSIONS = 16
-    INDEX_DATA_DROPPED_MSGS = 17
-    INDEX_DATA_HC_DOWNSTREAM = 18
-    INDEX_DATA_HC_UPSTREAM = 19
-    INDEX_DATA_MISSED_BCASTS = 20
+    INDEX_DATA_HC_DOWNSTREAM = 16
+    INDEX_DATA_HC_UPSTREAM = 17
+    INDEX_DATA_DROPPED_MSGS_SELF = 18
+    INDEX_DATA_DROPPED_MSGS_OTHERS = 19
+    INDEX_DATA_PREV_FAILED_TRANS = 20
+    INDEX_DATA_PREV_TRANS_BCAST = 21
+    INDEX_DATA_PREV_TRANS_DATA = 22
+    INDEX_DATA_PREV_TRANS_ID_CHECK = 23
+    INDEX_DATA_PREV_TRANS_ACK = 24
+    INDEX_DATA_PREV_TRANS_FWD = 25
+    ###
+    # VEC RECEIVED_BCASTS
+    INDEX_DATA_VEC_RECEIVED_BCASTS_IND = 26
+    INDEX_DATA_VEC_RECEIVED_BCASTS_SIZE = 8
+    INDEX_DATA_VEC_RECEIVED_BCASTS_NUM_V = 2
+    # V1: ID, 1st bit (MSB) denotes if the incoming bcast was received after this node already sent a bcast, remaining bit for node ID
+    # V2: RSSI
+    ###
+    # VEC RECEIVED MSGS, does not include bcast msgs
+    INDEX_DATA_VEC_PREV_RECEIVED_MSGS_IND = 42
+    INDEX_DATA_VEC_PREV_RECEIVED_MSGS_SIZE = 8
+    INDEX_DATA_VEC_PREV_RECEIVED_MSGS_NUM_V = 3
+    # V1 = 0 # ID
+    # V2 = 0 # RSSI, latest sender
+    # V3 = 0 # Misc, 1st bit (MSB) denotes if sender was child, remaining bits is send count
+    ###
 
     ############################################################################
     # SEEL Parameters    
@@ -165,6 +203,7 @@ bcast_info = []
 bcast_inst_count = {} # Tracks number of previous bcasts at the start of a new bcast instance
 bcast_info_overflow = {}
 bcast_instances = {} # per node, since nodes may join at different times
+bcast_prev_trans = {}
 
 node_mapping = {}
 node_msgs = {}
@@ -186,18 +225,38 @@ class Cycle_Stats:
         self.data_transmissions = -1
 
 class Bcast_Info:
-    def __init__(self, bcast_num, bcast_inst, sys_time, awk_time, slp_time):
+    def __init__(self, bcast_num, bcast_inst, sys_time, awk_time, slp_time, prev_trans):
         self.bcast_num = bcast_num
         self.bcast_inst = bcast_inst
         self.sys_time = sys_time
         self.awk_time = awk_time
         self.slp_time = slp_time
+        self.prev_trans = prev_trans
 
     def __str__(self):
-        return "Bcast num: " + str(self.bcast_num) + " Inst: " + str(self.bcast_inst) + " System time: " + str(self.sys_time) + " Awake time: " + str(self.awk_time) + " Sleep time: " + str(self.slp_time)
+        return "Bcast num: " + str(self.bcast_num) + "\tInst: " + str(self.bcast_inst) + "\tSystem time: " + str(self.sys_time) + "\tAwake time: " + str(self.awk_time) + "\tSleep time: " + str(self.slp_time) + "\tPrev Trans: " + str(self.prev_trans)
     
+class Node_Msg_Bcast_Msg:
+    def __init__(self, id, rssi, unconsidered_bcast):
+        self.id = id
+        self.rssi = rssi
+        self.unconsidered_bcast = unconsidered_bcast
+
+    def __repr__(self):
+        return "Id: " + str(self.id) + ", RSSI: " + str(self.rssi) + ", UB: " + str(self.unconsidered_bcast)
+
+class Node_Msg_General_Msg:
+    def __init__(self, id, rssi, count, is_child):
+        self.id = id
+        self.rssi = rssi
+        self.count = count
+        self.is_child = is_child
+
+    def __repr__(self):
+        return "Id: " + str(self.id) + ", RSSI: " + str(self.rssi) + ", Count: " + str(self.count) + ", Child: " + str(self.is_child)
+        
 class Node_Msg:
-    def __init__(self, bcast_num, bcast_inst, wtb, prev_data_trans, original_node_id, assigned_node_id, parent_id, parent_rssi, send_count, prev_queue_size, prev_missed_msgs, prev_missed_bcasts, prev_crc_fails, prev_flags, prev_any_trans, prev_dropped_msgs, hc_downstream, hc_upstream):
+    def __init__(self, bcast_num, bcast_inst, wtb, original_node_id, assigned_node_id, parent_id, parent_rssi, send_count, prev_queue_size, prev_missed_msgs, prev_missed_bcasts, prev_crc_fails, prev_flags, hc_downstream, hc_upstream, prev_dropped_msgs_self, prev_dropped_msgs_others, prev_failed_trans):
         self.bcast_num = bcast_num
         self.bcast_inst = bcast_inst
         self.wtb = wtb
@@ -206,30 +265,41 @@ class Node_Msg:
         self.parent_id = parent_id
         self.parent_rssi = parent_rssi
         self.send_count = send_count
-        self.prev_data_trans = prev_data_trans
         self.prev_queue_size = prev_queue_size
         self.prev_missed_msgs = prev_missed_msgs
         self.prev_missed_bcasts = prev_missed_bcasts
         self.prev_crc_fails = prev_crc_fails # Received CRC fails, not sent
         self.prev_flags = prev_flags
-        self.prev_any_trans = prev_any_trans
-        self.prev_dropped_msgs = prev_dropped_msgs
         self.hc_downstream = hc_downstream
         self.hc_upstream = hc_upstream
+        # Large packet
+        self.prev_dropped_msgs_self = prev_dropped_msgs_self
+        self.prev_dropped_msgs_others = prev_dropped_msgs_others
+        self.prev_dropped_msgs = prev_dropped_msgs_self + prev_dropped_msgs_others
+        self.prev_failed_trans = prev_failed_trans
+        self.prev_data_trans = -1
+        self.prev_any_trans = -1
+        self.prev_trans = {}
+        self.received_bcasts = []
+        self.prev_received_msgs = []
 
     def __str__(self):
-        return "Bcast num: " + str(self.bcast_num) + "\tBcast inst: " + str(self.bcast_inst) + "\tNode ID: " + str(self.original_node_id) + \
+        msg = "Bcast num: " + str(self.bcast_num) + "\tBcast inst: " + str(self.bcast_inst) + "\tNode ID: " + str(self.original_node_id) + \
         "\tParent ID: " + str(self.parent_id) + "\tParent RSSI: " + str(self.parent_rssi) + "\tSend Count: " + str(self.send_count) + \
         "\tDownstream HC: " + str(self.hc_downstream) + "\tUpstream HC: " + str(self.hc_upstream) + "\tWTB: " + str(self.wtb) + \
-        "\tPrev Data Trans: " + str(self.prev_data_trans) + "\tPrev Any Trans: " + str(self.prev_any_trans) + "\tPrev Dropped Msgs: " + \
-        str(self.prev_dropped_msgs) + "\tPrev Max Q Size: " + str(self.prev_queue_size) + "\tMissed Msgs: " + str(self.prev_missed_msgs) + \
-        "\tMissed Bcasts: " + str(self.prev_missed_bcasts) + "\tPrev CRC Fails: " + str(self.prev_crc_fails) + "\tPrev Flags: " + \
-        str( "{:08b}".format(self.prev_flags))
+        "\tPrev Q Size: " + str(self.prev_queue_size) + "\tMissed Msgs: " + str(self.prev_missed_msgs) + "\tMissed Bcasts: " + str(self.prev_missed_bcasts) + \
+        "\tPrev CRC Fails: " + str(self.prev_crc_fails) + "\tPrev Flags: " + str( "{:08b}".format(self.prev_flags))
+        if parameters.PRINT_ALL_MSGS_EXTENDED:
+            msg += "\n\tPrev Transmissions: " + str(self.prev_trans) + \
+            "\n\tRec. Bcasts(" + str(len(self.received_bcasts)) + "): " + str(self.received_bcasts) + \
+            "\n\tPrev Rec. Messages(" + str(len(self.prev_received_msgs)) + "): " + str(self.prev_received_msgs)
+        return msg
 
 class Node_Analysis: # Per node
     def __init__(self):
         self.node_id = 0
         self.connections = {}
+        self.connections_rssi = {}
         self.connection_total = 0
         self.PDR_No_MM = 0 # PDR not adjusted for missed messages
         self.PDR = 0
@@ -264,6 +334,9 @@ class Node_Analysis: # Per node
         self.PDR_connection_count = 0
         self.PDR_connection_count_max = 0
         self.PDR_connection_count_max_adjust = 0
+        # Large packet
+        self.received_bcast_count = []
+        self.received_msg_count = []
 
 class Msg_Analysis: # Per node
     def __init__(self):
@@ -379,8 +452,10 @@ def main():
     # Parse Logs
     current_line = 0
     bcast_instance = -1
-    bcast_count = 0
     bcast_inst_count[0] = 0
+    bcast_count_wrap_adjust = 0
+    bcast_count = 0
+    prev_trans = 0
     while current_line < df_length:
         line = df_read[current_line].split()
         if len(line) == 0:
@@ -389,6 +464,14 @@ def main():
         line[1:len(line)] = list(map(int, line[1:len(line)]))
         if line[parameters.INDEX_HEADER] == "BT:": # Bcast time
             bcast_times.append(line[parameters.INDEX_BT_TIME])
+        elif line[parameters.INDEX_HEADER] == "PT:": # Previous GNODE transmissions
+            prev_trans = read_as_int(line, parameters.INDEX_PT_NUM)
+        elif line[parameters.INDEX_HEADER] == "RB:": # Received Broadcast
+            current_line += 1
+            continue
+        elif line[parameters.INDEX_HEADER] == "RM:": # Received Message (non-broadcast)
+            current_line += 1
+            continue
         elif line[parameters.INDEX_HEADER] == "BD:": # Bcast data
             sys_time = 0
             awk_time = 0
@@ -404,20 +487,29 @@ def main():
             slp_time += read_as_int(line, parameters.INDEX_BD_SNODE_SLEEP_TIME_0) << 24
             slp_time += read_as_int(line, parameters.INDEX_BD_SNODE_SLEEP_TIME_1) << 16
             slp_time += read_as_int(line, parameters.INDEX_BD_SNODE_SLEEP_TIME_2) << 8
-            slp_time += read_as_int(line, parameters.INDEX_BD_SNODE_SLEEP_TIME_3)
+            slp_time += read_as_int(line, parameters.INDEX_BD_SNODE_SLEEP_TIME_3)    
             if read_as_int(line, parameters.INDEX_BD_FIRST) > 0:
                 bcast_instance += 1
                 bcast_inst_count[bcast_instance] = bcast_count
-            bcast_count += 1            
-            bcast_info.append(Bcast_Info(read_as_int(line, parameters.INDEX_BD_BCAST_COUNT), bcast_instance, sys_time, awk_time, slp_time))
-            
+                bcast_count_wrap_adjust = 0
+            elif bcast_count_unadjusted == 255: # Previous almost wrapped and this reset to 0 isn't due to a GNODE reset (BD_FIRST)
+                bcast_count_wrap_adjust += 256
+            bcast_count_unadjusted = read_as_int(line, parameters.INDEX_BD_BCAST_COUNT)
+            bcast_count = bcast_count_unadjusted + bcast_count_wrap_adjust
+            bcast_info.append(Bcast_Info(bcast_count, bcast_instance, sys_time, awk_time, slp_time, prev_trans))
+            if (parameters.PRINT_BCAST_INFO):
+                print(bcast_info[-1])
+            if bcast_instance not in bcast_prev_trans:
+                bcast_prev_trans[bcast_instance] = {}
+            bcast_prev_trans[bcast_instance][bcast_count] = prev_trans
+            prev_trans = 0
             for i in range(math.floor((len(line) - parameters.INDEX_BD_SNODE_JOIN_ID) / 2)):
                 repeat_index = i * 2
                 join_id = read_as_int(line, parameters.INDEX_BD_SNODE_JOIN_ID + repeat_index)
                 if join_id != 0:
                     response = read_as_int(line, parameters.INDEX_BD_SNODE_JOIN_RESPONSE + repeat_index)
                     if response != 0: # Reponse of 0 means error
-                        node_entry(join_id, response, len(bcast_times))
+                        node_entry(join_id, response, bcast_count)
         else: # Node Data
             wtb = 0
             send_count = 0
@@ -434,14 +526,60 @@ def main():
                 node_mapping[assigned_node_id] = original_node_id
                 node_msgs[original_node_id] = []
                 bcast_instances[original_node_id] = len(bcast_times)
-            node_msgs[original_node_id].append(Node_Msg(read_as_int(line, parameters.INDEX_DATA_BCAST_COUNT), \
-                bcast_instance, wtb, read_as_int(line, parameters.INDEX_DATA_PREV_DATA_TRANS), original_node_id, \
-                assigned_node_id, read_as_int(line, parameters.INDEX_DATA_PARENT_ID), read_as_int(line, \
-                parameters.INDEX_DATA_PARENT_RSSI) - 256, send_count, read_as_int(line, parameters.INDEX_DATA_MAX_QUEUE_SIZE), \
-                read_as_int(line, parameters.INDEX_DATA_MISSED_MSGS), read_as_int(line, parameters.INDEX_DATA_MISSED_BCASTS), \
-                read_as_int(line, parameters.INDEX_DATA_CRC_FAILS), read_as_int(line, parameters.INDEX_DATA_FLAGS), read_as_int(line, \
-                parameters.INDEX_DATA_ANY_TRANSMISSIONS), read_as_int(line, parameters.INDEX_DATA_DROPPED_MSGS), read_as_int(line, \
-                parameters.INDEX_DATA_HC_DOWNSTREAM), read_as_int(line, parameters.INDEX_DATA_HC_UPSTREAM)))
+            # TODO: Clean up this section
+            node_msgs[original_node_id].append(Node_Msg( \
+                read_as_int(line, parameters.INDEX_DATA_BCAST_COUNT), \
+                bcast_instance, \
+                wtb, \
+                original_node_id, \
+                assigned_node_id, \
+                read_as_int(line, parameters.INDEX_DATA_PARENT_ID), \
+                read_as_int(line, parameters.INDEX_DATA_PARENT_RSSI) - 256, \
+                send_count, \
+                read_as_int(line, parameters.INDEX_DATA_MAX_QUEUE_SIZE), \
+                read_as_int(line, parameters.INDEX_DATA_MISSED_MSGS), 
+                read_as_int(line, parameters.INDEX_DATA_MISSED_BCASTS), \
+                read_as_int(line, parameters.INDEX_DATA_CRC_FAILS), \
+                read_as_int(line, parameters.INDEX_DATA_FLAGS), \
+                read_as_int(line, parameters.INDEX_DATA_HC_DOWNSTREAM), \
+                read_as_int(line, parameters.INDEX_DATA_HC_UPSTREAM), \
+                read_as_int(line, parameters.INDEX_DATA_DROPPED_MSGS_SELF), \
+                read_as_int(line, parameters.INDEX_DATA_DROPPED_MSGS_OTHERS), \
+                read_as_int(line, parameters.INDEX_DATA_PREV_FAILED_TRANS)))
+            if parameters.SIM_RUN:
+                msg = node_msgs[original_node_id][-1] # Recently appended msg
+                msg.prev_trans["bcast"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_BCAST)
+                msg.prev_trans["data"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_DATA)
+                msg.prev_trans["id_check"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_ID_CHECK)
+                msg.prev_trans["ack"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_ACK)
+                msg.prev_trans["fwd"] = read_as_int(line, parameters.INDEX_DATA_PREV_TRANS_FWD)
+                msg.prev_data_trans = msg.prev_trans["data"] + msg.prev_trans["id_check"] + msg.prev_trans["fwd"]
+                msg.prev_any_trans = msg.prev_data_trans + msg.prev_trans["bcast"] + msg.prev_trans["ack"]
+                for ind in range(0, parameters.INDEX_DATA_VEC_RECEIVED_BCASTS_SIZE):
+                    ind_adj = parameters.INDEX_DATA_VEC_RECEIVED_BCASTS_IND + parameters.INDEX_DATA_VEC_RECEIVED_BCASTS_NUM_V * ind
+                    rssi = read_as_int(line, ind_adj + 1) - 256
+                    if rssi == -256:
+                        continue
+                    id = read_as_int(line, ind_adj) & 0x7F
+                    unconsidered_bcast = read_as_int(line, ind_adj) >> 7
+                    if id == 0 or id in node_mapping:
+                        msg.received_bcasts.append(Node_Msg_Bcast_Msg(id, rssi, unconsidered_bcast))
+                    else:
+                        print("Foreign Node ID \"" + str(id) + "\" detected in Bcast Inst " + str(bcast_instance) + ", Bcast Num " + str(bcast_count))
+                for ind in range(0, parameters.INDEX_DATA_VEC_PREV_RECEIVED_MSGS_SIZE):
+                    ind_adj = parameters.INDEX_DATA_VEC_PREV_RECEIVED_MSGS_IND + parameters.INDEX_DATA_VEC_PREV_RECEIVED_MSGS_NUM_V * ind
+                    rssi = read_as_int(line, ind_adj + 1) - 256
+                    if rssi == -256:
+                        continue
+                    id = read_as_int(line, ind_adj)
+                    count = read_as_int(line, ind_adj + 2) & 0x7F
+                    is_child = read_as_int(line, ind_adj + 2) >> 7
+                    if id == 0 or id in node_mapping:
+                        msg.prev_received_msgs.append(Node_Msg_General_Msg(id, rssi, count, is_child))
+                    else:
+                        print("Foreign Node ID \"" + str(id) + "\" detected in Bcast Inst " + str(bcast_instance) + ", Bcast Num " + str(bcast_count))
+            if (parameters.PRINT_BCAST_INFO):
+                print("\t" + str(msg))
         current_line += 1
 
     # Analysis vars
@@ -456,6 +594,10 @@ def main():
         if parameters.PLOT_RSSI_ANALYSIS:
             analysis_rssi = []
             analysis_transmissions = []
+
+    # Sim vars
+    if parameters.SIM_RUN:
+        sim_data = sim.Sim_Data()
 
     # GNODE 
     print("Total Bcasts: " + str(total_bcasts))
@@ -535,7 +677,8 @@ def main():
 
             if (len(connection_inst_set) > parameters.PARAM_COUNT_WRAP_SAFETY or msg.bcast_num < (parameters.PARAM_COUNT_WRAP_SAFETY if len(connection_inst_set) == 0 else max(connection_inst_set)+ parameters.PARAM_COUNT_WRAP_SAFETY)): # Not from previous bcast inst
                 if msg.bcast_num < prev_bcast_num and prev_bcast_num > 192 and msg.bcast_num < 64 and len(connection_inst_set) > (connection_count_last_overflow + parameters.PARAM_COUNT_WRAP_SAFETY): # Assume bcast num overflowed, values used are 3/4 of 256 and 1/4 of 256
-                    #print("Debug: overflow")
+                    if parameters.PRINT_ALL_MSGS:
+                        print("Debug: overflow")
                     connection_count_overflow += 256
                     connection_count_last_overflow = len(connection_inst_set)
                 
@@ -559,16 +702,15 @@ def main():
                     dup = False
                     if parameters.PRINT_ALL_MSGS:
                         print(str(msg)) 
-                #else:
-                    #print("Debug: dup")
-            #else:
-                #print(str(msg)) 
-                #print("Debug: ignore")
+                elif parameters.PRINT_ALL_MSGS:
+                    print("DUP -> " + str(msg))
+            elif parameters.PRINT_ALL_MSGS:
+                print("IGNORE -> " + str(msg)) 
 
             if not dup:
                 # Unique bcast number across all bcast instances
-                node_unique_cycle_num = bcast_inst_count[msg.bcast_inst] + overflow_comp_bcast_num - (0 if first_bcast_num < 0 else first_bcast_num)
-                #print("Debug: node unique bcast" + str(node_unique_cycle_num))
+                node_unique_cycle_num = bcast_inst_count[msg.bcast_inst] + overflow_comp_bcast_num # - (0 if first_bcast_num < 0 else first_bcast_num)
+                #print("Debug: node unique bcast " + str(node_unique_cycle_num))
             
                 # Update node mappings with latest ID since they could change throughout deployment
                 # However, this should NOT occur since assigned IDs should be UNIQUE
@@ -668,6 +810,8 @@ def main():
                 node_analysis[node_id].dropped_msgs.append(msg.prev_dropped_msgs)
                 node_analysis[node_id].hc_downstream.append(msg.hc_downstream)
                 node_analysis[node_id].hc_upstream.append(msg.hc_upstream)
+                node_analysis[node_id].received_bcast_count.append(len(msg.received_bcasts))
+                node_analysis[node_id].received_msg_count.append(len(msg.prev_received_msgs))
         
                 if not msg.prev_flags in node_analysis[node_id].flags:
                     node_analysis[node_id].flags[msg.prev_flags] = 0
@@ -697,6 +841,40 @@ def main():
 
                         analysis_prev_data = [msg.bcast_num, msg.parent_rssi, msg.prev_queue_size]
                         analysis_reset = False
+                        
+                if parameters.SIM_RUN and node_unique_cycle_num > 0:
+                    if not node_unique_cycle_num in sim_data.cycles:
+                        sim_data.add_cycle(node_unique_cycle_num, sim.Sim_Cycle(cycle_num = node_unique_cycle_num))
+                    # Fill out this cycle data
+                    received_bcast_msg_converted = [sim.Sim_Node_Bcast_Msg( \
+                                                    id = node_mapping[b_msg.id], \
+                                                    rssi = b_msg.rssi, \
+                                                    unconsidered_bcast = b_msg.unconsidered_bcast) \
+                                                    for b_msg in msg.received_bcasts]
+                    sim_node = sim.Sim_Node(node_id = node_id, \
+                                            parent_id = parent_original_id,\
+                                            parent_rssi = msg.parent_rssi, \
+                                            received_bcast_msg = received_bcast_msg_converted)
+                    sim_data.cycles[node_unique_cycle_num].add_node(node_id, sim_node)
+                    #print("DEBUG -> ADDED Node " + str(node_id) + " to sim data on Cycle " + str(node_unique_cycle_num) + " when msg is from cycle " + str(msg.bcast_num))
+                    # Fill out GNode cycle transmissions
+                    if msg.bcast_inst in bcast_prev_trans and (overflow_comp_bcast_num + 1) in bcast_prev_trans[msg.bcast_inst]:
+                        #print("DEBUG -> Set Cycle " + str(node_unique_cycle_num) + " GNODE Trans to: " + str(bcast_prev_trans[msg.bcast_inst][(overflow_comp_bcast_num + 1)]))
+                        sim_data.cycles[node_unique_cycle_num].set_gnode_trans(bcast_prev_trans[msg.bcast_inst][(overflow_comp_bcast_num + 1)])
+                    # Fill out previous cycle data
+                    prev_cycle_unique_num = (node_unique_cycle_num - 1)
+                    if prev_cycle_unique_num in sim_data.cycles and node_id in sim_data.cycles[prev_cycle_unique_num].nodes:
+                        sim_node = sim_data.cycles[prev_cycle_unique_num].nodes[node_id]
+                        received_other_msg_converted = [sim.Sim_Node_Other_Msg( \
+                                                        id = node_mapping[o_msg.id], \
+                                                        rssi = o_msg.rssi, \
+                                                        count = o_msg.count, \
+                                                        is_child = o_msg.is_child) \
+                                                        for o_msg in msg.prev_received_msgs]
+                        sim_node.set_prev_data( failed_data_trans = msg.prev_failed_trans, \
+                                                total_data_trans = msg.prev_data_trans, \
+                                                total_any_trans = msg.prev_any_trans, \
+                                                received_other_msg = received_other_msg_converted)
             else: # if dup
                 duplicate_msg += 1
         connection_inst_max -= (0 if first_bcast_num < 0 else (first_bcast_num - 1)) 
@@ -751,8 +929,11 @@ def main():
                 mean_wtb_missed_bcast = statistics.mean(wtb_missed_bcast)
                 print("\t\t\tMean ANY MISS WTB Millis: " + str(mean_wtb_missed_bcast))
                 print("\t\t\tANY MISS WTB Instances: " + str(len(wtb_missed_bcast)))
-                MM_adjusted_WTB = (total_wtb_general - (mean_wtb_missed_bcast * len(wtb_missed_bcast))) / (len(wtb_general) - len(wtb_missed_bcast))
-                print("\t\t\tMean Drift WTB (General WTB - ANY MISS WTB) MILLIS: " + str(MM_adjusted_WTB))
+                if len(wtb_general) - len(wtb_missed_bcast) != 0:
+                    MM_adjusted_WTB = (total_wtb_general - (mean_wtb_missed_bcast * len(wtb_missed_bcast))) / (len(wtb_general) - len(wtb_missed_bcast))
+                    print("\t\t\tMean Drift WTB (General WTB - ANY MISS WTB) MILLIS: " + str(MM_adjusted_WTB))
+                else:
+                    print("\t\t\tInsufficient Mean Drift WTB data")
             else:
                 print("\t\t\tNo MISSES")
             print("\t\tComparing General WTB to MAX MISS WTB (a node missing SEEL_FORCE_SLEEP_RESET_COUNT number of bcasts)")
@@ -780,6 +961,9 @@ def main():
         print("\tMissed Msgs: " + str(total_missed_msgs))
         print("\tMissed Bcasts: " + str(total_missed_bcasts))
         print("\tFlags: " + str(node_analysis[node_id].flags))
+        print("\tLarge Packet Info")
+        print("\t\tAvg received bcast count: " + str(statistics.mean(node_analysis[node_id].received_bcast_count)))
+        print("\t\tAvg received msg count: " + str(statistics.mean(node_analysis[node_id].received_msg_count)))
         if len(parameters.HARDCODED_NODE_TDMA) > 0:
             print("\tParent Connections (TDMA): ")
         else:
@@ -796,10 +980,12 @@ def main():
                 parent_connection_ratio = total_connections / node_analysis[node_id].connection_total
                 if parent_connection_ratio > node_analysis[node_id].highest_parent_ratio:
                     node_analysis[node_id].highest_parent_ratio  = parent_connection_ratio
-                print("\t\t\tAvg RSSI: " + str(sum(connections_rssi[p_key]) / total_connections))
+                connection_rssi = sum(connections_rssi[p_key]) / total_connections
+                print("\t\t\tAvg RSSI: " + str(connection_rssi))
                 if parameters.PLOT_DISPLAY and len(parameters.HARDCODED_NODE_LOCS) > 0:
-                    G.add_edge(node_id, p_key, weight=total_connections/parameters.PLOT_LOCS_WEIGHT_SCALAR)
+                    G.add_edge(node_id, p_key, weight=total_connections)
                 node_analysis[node_id].connections[p_key] = total_connections
+                node_analysis[node_id].connections_rssi[p_key] = connection_rssi
         node_analysis[node_id].avg_rssi = statistics.mean(node_analysis[node_id].rssi)
         node_analysis[node_id].avg_missed_msgs = statistics.mean([x[1] for x in node_analysis[node_id].missed_msgs])
         print(flush=True)
@@ -951,7 +1137,8 @@ def main():
                                 TDMA_conflicts.append(dups)
             node.children_mean = statistics.mean(children) # Save for use later
             print("\tMean: " + str(node.children_mean))
-            print("\tStd Dev: " + str(statistics.stdev(children)))
+            if len(node.cycle_children) > 1: # Std. Dev requires at least 2 children
+                print("\tStd Dev: " + str(statistics.stdev(children)))
             if len(parameters.HARDCODED_NODE_TDMA) > 0:
                 print("\tTDMA Conflicts: " + str(len(TDMA_conflicts)))
                 print("\t\t" + str(TDMA_conflicts))
@@ -1038,6 +1225,66 @@ def main():
         print("Plot Msg total good data: " + str(len(msg_parent_rssi)))
         print("Plot Msg total bad data: " + str(msg_dropped_cycles)) 
         
+        # *********** TOPOLOGY PLOT ***********
+    
+        # Plot network with parent-child connections
+        if len(parameters.HARDCODED_NODE_LOCS) > 0:
+            # nodes
+            locs = {node: (10*x, -10*y) for (node, (x,y)) in parameters.HARDCODED_NODE_LOCS.items()}
+            nx.draw_networkx_nodes(G, locs, node_size=parameters.NETWORK_DRAW_OPTIONS["node_size"], \
+                node_color=parameters.NETWORK_DRAW_OPTIONS["node_color"], edgecolors=parameters.NETWORK_DRAW_OPTIONS["node_edge_color"],
+                linewidths=parameters.NETWORK_DRAW_OPTIONS["node_width"])
+            # edges
+            edges_max = max([G[u][v]['weight'] for u,v in G.edges()])
+            weighted_edges_normalized = [G[u][v]['weight'] / edges_max for u,v in G.edges()]
+            weighted_edges_color = [(0, 0, 0, 0.15 + edge * 0.85) for edge in weighted_edges_normalized]
+            nx.draw_networkx_edges(G, locs, edge_color=weighted_edges_color, connectionstyle="angle3", node_size=parameters.NETWORK_DRAW_OPTIONS["node_size"], arrowsize=parameters.NETWORK_DRAW_OPTIONS["arrow_size"], width=parameters.NETWORK_DRAW_OPTIONS["edge_width"])
+            # labels
+            nx.draw_networkx_labels(G, locs, font_size=parameters.NETWORK_DRAW_OPTIONS["node_font_size"])
+
+            ax = plt.gca()
+            plt.axis("off")
+            plt.tight_layout()
+            #plt.title("Combined Parent Map")
+            plt.xlabel("GPS X")
+            plt.ylabel("GPS Y")
+            plt.axis('equal')
+            plt.show()
+            #plt.savefig("topology_overview.png", format="png", bbox_inches='tight', dpi=2000)
+            
+            # Per Node Plots
+            if parameters.PLOT_NODE_SPECIFIC_MAPS:
+                for n_key in node_analysis:
+                    G.clear()
+                    # Show all the nodes
+                    for n in node_analysis:
+                        G.add_edge(n, n, weight=0)
+                    for p in node_analysis[n_key].paths:
+                        connections = node_analysis[n_key].connections[p[-2]] # Percentage connections of this path, p[1] is the first parent
+                        for node in reversed(range(1, len(p))):
+                            G.add_edge(p[node], p[node - 1], weight=connections)
+                    
+                    # nodes
+                    nx.draw_networkx_nodes(G, locs, node_size=parameters.NETWORK_DRAW_OPTIONS["node_size"], \
+                        node_color=parameters.NETWORK_DRAW_OPTIONS["node_color"], edgecolors=parameters.NETWORK_DRAW_OPTIONS["node_edge_color"],
+                        linewidths=parameters.NETWORK_DRAW_OPTIONS["node_width"])
+                    # edges
+                    edges_max = max([G[u][v]['weight'] for u,v in G.edges()])
+                    weighted_edges_normalized = [math.pow(G[u][v]['weight'] / edges_max, parameters.PLOT_LOCS_WEIGHT_EXP_SPECIFIC) for u,v in G.edges()]
+                    weighted_edges_color = [(0, 0, 0, edge) for edge in weighted_edges_normalized]
+                    nx.draw_networkx_edges(G, locs, edge_color=weighted_edges_color, connectionstyle="angle3", node_size=parameters.NETWORK_DRAW_OPTIONS["node_size"], arrowsize=parameters.NETWORK_DRAW_OPTIONS["arrow_size"], width=parameters.NETWORK_DRAW_OPTIONS["edge_width"])
+                    # labels
+                    nx.draw_networkx_labels(G, locs, font_size=parameters.NETWORK_DRAW_OPTIONS["node_font_size"])
+
+                    ax = plt.gca()
+                    plt.axis("off")
+                    plt.tight_layout()
+                    plt.title("Node " + str(n_key) + " Map")
+                    plt.xlabel("GPS X")
+                    plt.ylabel("GPS Y")
+                    plt.axis('equal')
+                    plt.show()  
+        
         # *********** SPECIFIC ANALYSIS PLOTS ***********
         
         if parameters.PLOT_RSSI_ANALYSIS:
@@ -1060,11 +1307,11 @@ def main():
                         unique_cycle_num.append(cycle[0])
                         connection_RSSI.append(cycle[1])
                     plt.scatter(unique_cycle_num, connection_RSSI);
-                    plt.title("Node " + str(n_key) + " to Parent " + str(p_key) + " RSSI")
+                    plt.title("Child ID " + str(n_key) + " to Parent ID " + str(p_key) + " RSSI")
                     plt.xlabel("Cycle")
                     plt.ylabel("RSSI")
-                    plt.xlim([0, len(bcast_times)])
-                    plt.ylim([min(-120, min(connection_RSSI)), max(-50, max(connection_RSSI))])
+                    plt.xlim([unique_cycle_num[0], unique_cycle_num[-1]])
+                    plt.ylim([min(connection_RSSI) - 1, max(connection_RSSI) + 1])
                     plt.show()
                     
         # Plot PDR and PDR_No_MM
@@ -1095,6 +1342,48 @@ def main():
         plt.show()
         print("Mean PDR No Adjust: " + str(statistics.mean(all_nodes_PDR_no_adjust)))
         print("Mean PDR Adjust: " + str(statistics.mean(all_nodes_PDR_adjust)))
+        
+        # Plot heatmap of parent-child connections and avg RSSI
+        connections_count = []
+        connections_RSSI = []
+        connections_mask = []
+        hmap_vmin = 0
+        hmap_vmax = 720
+        child_labels = sorted(node_analysis.keys())
+        parent_labels = copy.deepcopy(child_labels)
+        parent_labels.insert(0, 0)
+        parent_labels.reverse()
+        for c_key in child_labels:
+            count = node_analysis[c_key].connections
+            rssi = node_analysis[c_key].connections_rssi
+            p_connections_count = []
+            p_connections_RSSI = []
+            p_mask = []
+            for p_key in parent_labels:
+                if p_key in count and rssi[p_key] <= hmap_vmax: # Some data with higher rssi is from initial setup, clean out those data
+                    p_connections_count.append(count[p_key])
+                    p_connections_RSSI.append(rssi[p_key])
+                    p_mask.append(False)
+                else:
+                    p_connections_count.append(0)
+                    p_connections_RSSI.append(0)
+                    p_mask.append(True)
+            connections_count.append(p_connections_count)
+            connections_RSSI.append(p_connections_RSSI)
+            connections_mask.append(p_mask)
+        connections_count = np.array(connections_count).transpose()
+        connections_RSSI = np.array(connections_RSSI).transpose()
+        connections_mask = np.array(connections_mask).transpose()
+        GreysBig = cm.get_cmap('Greys', 512)
+        customcm = ListedColormap(GreysBig(np.linspace(0.15, 1, 436)))
+        sns.set(font_scale=2)
+        axis = sns.heatmap(data=connections_RSSI, cmap=customcm, annot=connections_count, mask=connections_mask, linewidth=0.5, fmt=".0f", vmin=hmap_vmin, vmax=hmap_vmax, cbar_kws={"aspect": 5})
+        #axis.set_facecolor("black") # Mask color
+        axis.set_xticklabels(child_labels)
+        axis.set_yticklabels(parent_labels)
+        axis.set_xlabel('Child ID')
+        axis.set_ylabel('Parent ID')
+        plt.show()
         
         # *********** NODE PLOTS ***********
         
@@ -1329,60 +1618,13 @@ def main():
                 axis[1].set_title("Num Children vs Cycle")
                 axis[1].set_xlabel("Cycle")
                 axis[1].set_ylabel("Num Children")
-                plt.show()
+                plt.show()     
     
-        # *********** TOPOLOGY PLOTS ***********
+    # Topology Simulation
+    if parameters.SIM_RUN:
+        print("***************************************** TOPOLOGY SIM *****************************************")
     
-        # Plot network with parent-child connections
-        if len(parameters.HARDCODED_NODE_LOCS) > 0:
-            # nodes
-            locs_flipped = {node: (y, x) for (node, (x,y)) in parameters.HARDCODED_NODE_LOCS.items()}
-            nx.draw_networkx_nodes(G, locs_flipped, node_size=parameters.NETWORK_DRAW_OPTIONS["node_size"], \
-                node_color=parameters.NETWORK_DRAW_OPTIONS["node_color"], edgecolors=parameters.NETWORK_DRAW_OPTIONS["node_edge_color"],
-                linewidths=parameters.NETWORK_DRAW_OPTIONS["node_width"])
-            # edges
-            weighted_edges = [G[u][v]['weight'] for u,v in G.edges()]
-            nx.draw_networkx_edges(G, locs_flipped, width=weighted_edges, connectionstyle="angle3")
-            # labels
-            nx.draw_networkx_labels(G, locs_flipped, font_size=parameters.NETWORK_DRAW_OPTIONS["node_font_size"])
-
-            ax = plt.gca()
-            plt.axis("off")
-            plt.tight_layout()
-            plt.title("Combined Parent Map")
-            plt.xlabel("GPS X")
-            plt.ylabel("GPS Y")
-            plt.show()
-            
-            # Per Node Plots
-            if parameters.PLOT_NODE_SPECIFIC_MAPS:
-                for n_key in node_analysis:
-                    G.clear()
-                    # Show all the nodes
-                    for n in node_analysis:
-                        G.add_edge(n, n, weight=0)
-                    for p in node_analysis[n_key].paths:
-                        connections = node_analysis[n_key].connections[p[-2]] # Percentage connections of this path, p[1] is the first parent
-                        for node in reversed(range(1, len(p))):
-                            G.add_edge(p[node], p[node - 1], weight=connections/parameters.PLOT_LOCS_WEIGHT_SCALAR_SPECIFIC)
-                    
-                    # nodes
-                    nx.draw_networkx_nodes(G, locs_flipped, node_size=parameters.NETWORK_DRAW_OPTIONS["node_size"], \
-                        node_color=parameters.NETWORK_DRAW_OPTIONS["node_color"], edgecolors=parameters.NETWORK_DRAW_OPTIONS["node_edge_color"],
-                        linewidths=parameters.NETWORK_DRAW_OPTIONS["node_width"])
-                    # edges
-                    weighted_edges = [G[u][v]['weight'] for u,v in G.edges()]
-                    nx.draw_networkx_edges(G, locs_flipped, width=weighted_edges, connectionstyle="angle3")
-                    # labels
-                    nx.draw_networkx_labels(G, locs_flipped, font_size=parameters.NETWORK_DRAW_OPTIONS["node_font_size"])
-
-                    ax = plt.gca()
-                    plt.axis("off")
-                    plt.tight_layout()
-                    plt.title("Node " + str(n_key) + " Map")
-                    plt.xlabel("GPS X")
-                    plt.ylabel("GPS Y")
-                    plt.show()       
+        sim.run_sim(sim_data)
 
 if __name__ == "__main__":
     main()
