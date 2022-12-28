@@ -10,7 +10,9 @@ File purpose:   Enables users to use assert statements that write to EEPROM on f
 #ifndef SEEL_Assert_h
 #define SEEL_Assert_h
 
+#if SEEL_ASSERT_ENABLE_NVM == TRUE
 #include <EEPROM.h>
+#endif
 
 #include "SEEL_Params.h"
 #include "SEEL_Print.h"

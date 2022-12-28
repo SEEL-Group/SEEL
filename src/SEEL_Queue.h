@@ -95,17 +95,6 @@ public:
 };
 
 template <class T> 
-class SEEL_GNode_Msg_Queue : public SEEL_Queue<T> {
-private:
-    T content_ary[SEEL_GNODE_MSG_QUEUE_SIZE];
-public:
-    SEEL_GNode_Msg_Queue() {
-        this->_content_ary_ptr = content_ary;
-        this->Q_MAX_SIZE = SEEL_GNODE_MSG_QUEUE_SIZE;
-    }
-};
-
-template <class T> 
 class SEEL_Sched_Queue : public SEEL_Queue<T> {
 private:
     T content_ary[SEEL_SCHED_QUEUE_SIZE];
@@ -115,6 +104,5 @@ public:
         this->Q_MAX_SIZE = SEEL_SCHED_QUEUE_SIZE;
     }
 };
-
 
 #endif // SEEL_Queue_h

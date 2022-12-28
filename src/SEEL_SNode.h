@@ -55,7 +55,11 @@ private:
     // Checks for LoRa messages and handles appropriately. Receives broadcast.
     class SEEL_Task_SNode_Receive : public SEEL_Task_SNode {virtual void run();};
     SEEL_Task_SNode_Receive _task_receive;
-	
+
+    // Locks parent and begins data/id_check/fwd transmissions
+    class SEEL_Task_SNode_Parent_Lock : public SEEL_Task_SNode {virtual void run();};
+    SEEL_Task_SNode_Parent_Lock _task_parent_lock;
+
     // Ends waiting for broadcasts (join phase), transitions into data phase
     class SEEL_Task_SNode_Enqueue : public SEEL_Task_SNode {virtual void run();};
     SEEL_Task_SNode_Enqueue _task_enqueue_msg;
@@ -112,7 +116,6 @@ private:
     bool _system_sync; // Set to false on Snode start-up, set to true on first non-blacklist broadcast received
     bool _acked;
     bool _WD_adjusted; // Set to true after WD timer gets corrected (more accurate sleep times)
-
 };
 
 

@@ -19,6 +19,7 @@ void SEEL_Node::init(uint32_t n_id, uint32_t ts)
 
     _node_id = n_id;
     _tdma_slot = ts;
+    _prev_tdma_slot = 0;
     if (_tdma_slot >= SEEL_TDMA_SLOTS && SEEL_TDMA_USE_TDMA)
     {
         SEEL_Print::println(F("Error - TDMA Slot Overflow")); // Error - TDMA SLOTS Overflow
@@ -172,25 +173,22 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
 
     if (msg_len > 0) // Message is available
     { 
+        float snr = 0.0f;
         uint32_t receive_time = millis();
         uint8_t buf[SEEL_MSG_TOTAL_SIZE];
-        String print_msg = "";
 
-        print_msg += (crc_valid) ? F(">>R: ") : F(">>CRC FAIL: ");
-        for (uint8_t i = 0; i < msg_len; ++i)
+        SEEL_Print::print((crc_valid) ? F(">>R: ") : F(">>CRC FAIL: "));
+        for (uint8_t i = 0; i < min(msg_len, SEEL_MSG_TOTAL_SIZE); ++i)
         {
             buf[i] = _LoRaPHY_ptr->read();
-            print_msg += buf[i];
-            print_msg += F(" ");
         }
         rssi = _LoRaPHY_ptr->packetRssi();
-        float snr = _LoRaPHY_ptr->packetSnr();
+        snr = _LoRaPHY_ptr->packetSnr();
 
         // Converts raw msg buffer to SEEL_Message
         buf_to_SEEL_msg(msg, buf);
 
         // Check if the message has already been seen, to prevent a loop
-
         if (!crc_valid) {
             ++_CRC_fails; // Number of packets RECEIVED with invalid CRC
         }
@@ -198,18 +196,23 @@ bool SEEL_Node::rfm_receive_msg(SEEL_Message* msg, int8_t& rssi, uint32_t& metho
             SEEL_Print::println(F("Duplicate message")); 
             SEEL_Node::set_flag(SEEL_Flags::FLAG_DUP_MSG);
         }
+        else if (msg_len != SEEL_MSG_TOTAL_SIZE) {
+            SEEL_Print::println(F("Wrong length message")); // Could be from external LoRa transmission
+        }
         else {
             valid_msg = true;
         }
 
         method_time = millis() - receive_time;
-        print_msg += F("SNR: ");
-        print_msg += snr;
-        print_msg += F(" RSSI: ");
-        print_msg += rssi;
-        print_msg += F(", Rec. Time: ");
-        print_msg += method_time;
-        SEEL_Print::println(print_msg);
+        print_msg(msg);
+        SEEL_Print::print(F("Len: "));
+        SEEL_Print::print(msg_len);
+        SEEL_Print::print(F(", SNR: "));
+        SEEL_Print::print(snr);
+        SEEL_Print::print(F(", RSSI: "));
+        SEEL_Print::print(rssi);
+        SEEL_Print::print(F(", Rec. Time: "));
+        SEEL_Print::println(method_time);
         SEEL_Print::flush();
     }
     
@@ -269,17 +272,24 @@ bool SEEL_Node::try_send(SEEL_Message* to_send_ptr, bool seq_inc)
 }
 
 void SEEL_Node::SEEL_Task_Node_Send::run()
-{	
+{
     bool can_send = true;
     uint32_t time_millis = millis();
 
     // Select which collision avoidance strategy to use
     if (SEEL_TDMA_USE_TDMA)
     {
-        uint32_t current_slot = (time_millis % SEEL_TDMA_CYCLE_TIME_MILLIS) / SEEL_TDMA_SLOT_WAIT_MILLIS;
+        uint8_t current_slot = (time_millis % SEEL_TDMA_CYCLE_TIME_MILLIS) / SEEL_TDMA_SLOT_WAIT_MILLIS;
 
         // Compare with buffer because NODE should not send message if the msg is expected to finish after the slot
         can_send = (current_slot == _inst->_tdma_slot) && ((time_millis % SEEL_TDMA_SLOT_WAIT_MILLIS) < SEEL_TDMA_BUFFER_MILLIS);
+        if (SEEL_TDMA_SINGLE_SEND && can_send)
+        {
+            // Only send on first instance of slot change
+            can_send = (_inst->_prev_tdma_slot != current_slot);
+        }
+
+        _inst->_prev_tdma_slot = current_slot;
     }
     else // Exponential Backoff
     {
@@ -287,7 +297,7 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
     }
 
     // If cannot send or nothing to send, return
-    if (!can_send || (!_inst->_bcast_avail && _inst->_ack_queue.empty() && _inst->_data_queue_ptr->empty()))
+    if (!can_send || (!_inst->_bcast_avail && _inst->_ack_queue.empty() && _inst->_data_queue_ptr != NULL && _inst->_data_queue_ptr->empty()))
     {
         bool added = _inst->_ref_scheduler->add_task(&_inst->_task_send);
         SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_NODE, __LINE__);
@@ -321,7 +331,7 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
         {
             _inst->_bcast_avail = false;
             _inst->_bcast_sent = true;
-            ++(_inst->_any_msgs_sent);
+            ++(_inst->_cycle_transmissions.bcast);
         }
     }
     else if (!_inst->_ack_queue.empty())
@@ -336,10 +346,10 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
         _inst->create_msg(to_send_ptr, SEEL_GNODE_ID, SEEL_CMD_ACK);
 
         if (_inst->try_send(to_send_ptr, true)) {
-            ++(_inst->_any_msgs_sent);
+            ++(_inst->_cycle_transmissions.ack);
         }
     }
-    else if (!_inst->_data_queue_ptr->empty())// DATA or ID_CHECK or FORWARDED message
+    else if (_inst->_parent_lock && _inst->_data_queue_ptr != NULL && !_inst->_data_queue_ptr->empty())// DATA or ID_CHECK or FORWARDED message
     {
         to_send_ptr = _inst->_data_queue_ptr->front();
         uint32_t msg_cmd = to_send_ptr->cmd;
@@ -361,6 +371,7 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
             return;
         }
 
+        uint32_t msg_original_send_id = to_send_ptr->send_id;
         // Any ID_CHECK or DATA msgs need to be sent to this node's parent at THIS cycle,
         // but queue'd messages might have different parents. So correct the parent at SEND time.
         // Same with self ID, node may take a suggested ID, so sender should also be corrected
@@ -370,8 +381,19 @@ void SEEL_Node::SEEL_Task_Node_Send::run()
         if (_inst->try_send(to_send_ptr, true))
         {
             ++(_inst->_unack_msgs);
-            ++(_inst->_data_msgs_sent);
-            ++(_inst->_any_msgs_sent);
+            ++(_inst->_failed_transmissions);
+            if (msg_original_send_id != _inst->_node_id) // Fwd msg
+            {
+                ++(_inst->_cycle_transmissions.fwd);
+            }
+            else if (msg_cmd == SEEL_CMD_DATA)
+            {
+                ++(_inst->_cycle_transmissions.data);
+            }
+            else if (msg_cmd == SEEL_CMD_ID_CHECK)
+            {
+                ++(_inst->_cycle_transmissions.id_check);
+            }
         }
         // Do not pop msg from queue until msg is ack'd
     }

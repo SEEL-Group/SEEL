@@ -17,7 +17,7 @@ class SEEL_GNode : public SEEL_Node
 {
 public:
     // Typedefs
-    typedef void (*user_callback_broadcast_t) (uint8_t msg_data[SEEL_MSG_DATA_SIZE]);
+    typedef void (*user_callback_broadcast_t) (uint8_t msg_data[SEEL_MSG_DATA_SIZE], uint16_t prev_any_trans, const SEEL_CB_Info* info);
     typedef void (*user_callback_data_t) (const uint8_t msg_data[SEEL_MSG_DATA_SIZE], const int8_t msg_rssi);
 
     // ***************************************************
@@ -111,7 +111,6 @@ private:
     // ***************************************************
     // Member variables
     SEEL_ID_INFO _id_container[SEEL_MAX_NODES];
-    SEEL_GNode_Msg_Queue<SEEL_Message> _gnode_data_queue;
     SEEL_Default_Queue<SEEL_ID_BCAST> _pending_bcast_ids;
     user_callback_broadcast_t _user_cb_broadcast;
     user_callback_data_t _user_cb_data;
@@ -120,7 +119,6 @@ private:
     uint32_t _snode_sleep_time_secs;
     uint8_t _bcast_count;
     bool _first_bcast;
-
 };
 
 #endif // SEEL_GNode_h

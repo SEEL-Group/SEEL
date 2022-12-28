@@ -33,7 +33,11 @@ void SEEL_GNode::init(  SEEL_Scheduler* ref_scheduler,
     _cb_info.hop_count = 0;
     _path_rssi = 0;
     _first_bcast = true;
-    _data_queue_ptr = &_gnode_data_queue;
+    _data_queue_ptr = NULL;
+    _parent_lock = true;
+    
+    // Large packet info
+    _cycle_transmissions.clear();
 
     // Initialize tasks with this inst
     _task_bcast.set_inst(this);
@@ -158,7 +162,15 @@ void SEEL_GNode::SEEL_Task_GNode_Receive::run()
     // Check if there is a message available
     if (!_inst->rfm_receive_msg(&msg, msg_rssi, receive_offset))
     {
-        // No message is available
+        bool added = _inst->_ref_scheduler->add_task(&_inst->_task_receive);
+        SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_GNODE, __LINE__);
+        return;
+    }
+
+    // Since GNode receive function can take a while, don't receive until ACK queue is emptied
+    // to prevent missing TDMA sent slots
+    if (!_inst->_ack_queue.empty())
+    {
         bool added = _inst->_ref_scheduler->add_task(&_inst->_task_receive);
         SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_GNODE, __LINE__);
         return;
@@ -217,6 +229,10 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
 
     // Clear ack queue
     _inst->_ack_queue.clear();
+
+    // Large packet info
+    uint16_t prev_any_trans = _inst->_cycle_transmissions.get_total_trans();
+    _inst->_cycle_transmissions.clear();
 
     // Check if there are any new ID's that need to be added to gateway signal
     for (uint32_t i = 0; i < SEEL_MSG_DATA_ID_FEEDBACK_TOTAL_SIZE; i += 2)
@@ -278,12 +294,9 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
     to_send.data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 2] = (uint8_t) (system_time >> 8);
     to_send.data[SEEL_MSG_DATA_TIME_SYNC_INDEX + 3] = (uint8_t) (system_time);
 
-    // Send out gateway msg
-    _inst->create_msg(&to_send, SEEL_GNODE_ID, SEEL_CMD_BCAST);
-    _inst->try_send(&to_send, true);
     if (_inst->_user_cb_broadcast != NULL)
     {
-        _inst->_user_cb_broadcast(to_send.data);
+        _inst->_user_cb_broadcast(to_send.data, prev_any_trans, &(_inst->_cb_info));
     }
 
     ++_inst->_bcast_count;
@@ -292,4 +305,11 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
     // Re-add bcast task, with cycle delay
     bool added = _inst->_ref_scheduler->add_task(&_inst->_task_bcast, _inst->_cycle_period_secs * SEEL_SECS_TO_MILLIS);
     SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_GNODE, __LINE__);
+
+    // Send out gateway msg; send out msg at the end of catch immediately transition to receiving msgs
+    _inst->create_msg(&to_send, SEEL_GNODE_ID, SEEL_CMD_BCAST);
+    if (_inst->try_send(&to_send, true))
+    {
+        ++(_inst->_cycle_transmissions.bcast);
+    }
 }

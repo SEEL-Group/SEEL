@@ -41,18 +41,17 @@ constexpr uint16_t SEEL_ASSERT_NVM_MAX_LINE_NUM = 65535; // 16 bits for line
 
 constexpr uint8_t SEEL_DEFAULT_QUEUE_SIZE = 10; // Allocation size of ALL queues used in SEEL
 constexpr uint8_t SEEL_SNODE_MSG_QUEUE_SIZE = 7; // Optimize for message size in buffers
-constexpr uint8_t SEEL_GNODE_MSG_QUEUE_SIZE = 7; // Optimize for message size in buffers
 constexpr uint8_t SEEL_SCHED_QUEUE_SIZE = 10; // Must maintain minimum size (7) for scheduler to function
 
 // ***************************************************
 /* SEEL LoRa Params */
 
 constexpr uint32_t SEEL_RFM95_FREQ = 915E6;
-constexpr int8_t SEEL_RFM95_SF = 12;
-constexpr uint32_t SEEL_RFM95_BW = 250E3;
-constexpr int8_t SEEL_RFM95_GNODE_TX = 20; // 2 to 20 for PA Boost
+constexpr int8_t SEEL_RFM95_SF = 7;
+constexpr uint32_t SEEL_RFM95_BW = 500E3;
+constexpr int8_t SEEL_RFM95_GNODE_TX = 2; // 2 to 20 for PA Boost
 constexpr int8_t SEEL_RFM95_GNODE_CR = 8; // 5 to 8
-constexpr int8_t SEEL_RFM95_SNODE_TX = 20; // 2 to 20 for PA Boost
+constexpr int8_t SEEL_RFM95_SNODE_TX = 2; // 2 to 20 for PA Boost
 constexpr int8_t SEEL_RFM95_SNODE_CR = 8; // 5 to 8
 
 // SEEL Message size
@@ -61,7 +60,7 @@ constexpr int8_t SEEL_RFM95_SNODE_CR = 8; // 5 to 8
 // Influences the ToA of a message, which may require changing TDMA parameters (if using TDMA)
 // More allocated bytes lets users send more data at a time, allows more SNODEs to join the network per cycle,
 // and increases the number of NODEs that can be ACK'd per ACK message
-constexpr uint32_t SEEL_MSG_USER_SIZE = 3;
+constexpr uint32_t SEEL_MSG_USER_SIZE = 20;
 
 // Duplicate msg holder
 // How many messages to hold when checking for duplicates
@@ -86,7 +85,7 @@ constexpr uint8_t SEEL_MAX_CYCLE_MISSES = 25;
 // Upperbound transmission duration used to create TDMA slot widths. Also used as initial estimate 
 // to correct for transmission delay when time sychronizing; value will be updated with measured msg send ToA
 // SEEL_Print'ed in RFM send method
-constexpr uint32_t SEEL_TRANSMISSION_UB_DUR_MILLIS = 1000;
+constexpr uint32_t SEEL_TRANSMISSION_UB_DUR_MILLIS = 100;
 
 // How long Arduino watchdog timer can sleep at a time
 // Only select values can be used, check Arduino WD specs (SLEEP_8S is maximum duration per sleep instance)
@@ -98,7 +97,7 @@ constexpr period_t SEEL_WD_TIMER_DUR = SLEEP_8S; // From LowPower.h
 constexpr uint32_t SEEL_ADJUSTED_SLEEP_INITAL_ESTIMATE_MILLIS = 10000;
 // How early to wake up SNODE to prepare for bcast
 // Consider making this value bigger as the sleep time increases to have a safer margin of error from WD's deviation
-constexpr uint32_t SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS = 20000;
+constexpr uint32_t SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS = 5000;
 
 // Enabling force sleep makes SNODEs go to sleep after being awake for the maximum awake time
 // Note awake time for force sleep starts taking awake time since wake up, not when the bcast msg was received
@@ -116,27 +115,17 @@ constexpr float SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE = 1.5f;
 // Set this value to 0 to disable force sleep (always stay on waiting for bcast)
 constexpr uint32_t SEEL_FORCE_SLEEP_RESET_COUNT = 3;
 
-// RSSI-based Parent Selection
-// Selection Modes
-// Ties in RSSI modes broken by lowest hop count
-enum SEEL_PARENT_SELECTION_MODE
-{
-    SEEL_PSEL_FIRST_BROADCAST, // Selects parent based off of sender of first received broadcast message
-    SEEL_PSEL_IMMEDIATE_RSSI,  // Selects parent based off of the immediate sender with the largest RSSI among received broadcast messages
-    SEEL_PSEL_PATH_RSSI // Selects parent with the best path RSSI, where path RSSI is determined by the worst RSSI along the path
-};
-// If enabled, collects broadcasts for a duration of SEEL_SMART_PARENT_DURATION_MILLIS and chooses node with highest RSSI to be parent. 
-// If SEEL_SMART_PARENT_DURATION_MILLIS=0 then SNode will collect broadcasts until it's time to send broadcast.
-constexpr SEEL_PARENT_SELECTION_MODE SEEL_PSEL_MODE = SEEL_PSEL_PATH_RSSI;
-constexpr uint32_t SEEL_PSEL_DURATION_MILLIS = 0; // Should be much less than awake time of SNODE, Special Case if zero (refer to above).
-
 // Collision avoidance scheme 1: TDMA
 // Time for all slots to send = transmission_duration * slots + buffer * (slots - 1)
 // Pros: Shorter wait window, more predictable performance
 // Cons: Requires user setup and calculation unique to each deployment
+// [*SEEL_TDMA_PRE_BUFFER_MILLIS*|******SEEL_TRANSMISSION_UB_DUR_MILLIS******|*SEEL_TDMA_POST_BUFFER_MILLIS*]
+// Prebuffer determines how many repeat messages can fit in a slot
+// Postbuffer allows widening the TDMA slot for misc processing delays
 constexpr bool SEEL_TDMA_USE_TDMA = true; // Otherwise uses Exponential backoff
+constexpr bool SEEL_TDMA_SINGLE_SEND = true; // Only sends 1 message per TDMA slot, otherwise sends as many as possible
 constexpr uint8_t SEEL_TDMA_SLOTS = 10; // Maximum group of nodes, first slot begins at 0
-constexpr uint32_t SEEL_TDMA_BUFFER_MILLIS = 500; // Buffer time between scheduled TMDA transmissions, factors in receive buffer copy delay (SEEL_Print'ed in RFM receive method)
+constexpr uint32_t SEEL_TDMA_BUFFER_MILLIS = 400; // Buffer time between scheduled TMDA transmissions, factors in receive buffer copy delay (SEEL_Print'ed in RFM receive method)
 constexpr uint32_t SEEL_TDMA_SLOT_WAIT_MILLIS = SEEL_TRANSMISSION_UB_DUR_MILLIS + SEEL_TDMA_BUFFER_MILLIS;
 constexpr uint32_t SEEL_TDMA_CYCLE_TIME_MILLIS = SEEL_TDMA_SLOT_WAIT_MILLIS * SEEL_TDMA_SLOTS;
 
@@ -146,5 +135,18 @@ constexpr uint32_t SEEL_TDMA_CYCLE_TIME_MILLIS = SEEL_TDMA_SLOT_WAIT_MILLIS * SE
 constexpr uint32_t SEEL_EB_INIT_MILLIS = 10000; // How long first backoff max is
 constexpr uint32_t SEEL_EB_MIN_MILLIS = 0;
 constexpr float SEEL_EB_EXP_SCALE = 2.0f;
+
+// RSSI-based Parent Selection
+// Selection Modes
+// Ties in RSSI modes broken by lowest hop count
+enum SEEL_PARENT_SELECTION_MODE
+{
+    SEEL_PSEL_FIRST_BROADCAST, // Selects parent based off of sender of first received broadcast message
+    SEEL_PSEL_IMMEDIATE_RSSI,  // Selects parent based off of the immediate sender with the largest RSSI among received broadcast messages
+    SEEL_PSEL_PATH_RSSI // Selects parent with the best path RSSI, where path RSSI is determined by the worst RSSI along the path
+};
+// If enabled, collects broadcasts for a duration of SEEL_SMART_PARENT_DURATION_MILLIS after receiving a bcast and update parent if better
+constexpr SEEL_PARENT_SELECTION_MODE SEEL_PSEL_MODE = SEEL_PSEL_PATH_RSSI;
+constexpr uint32_t SEEL_PSEL_DURATION_MILLIS = SEEL_TDMA_CYCLE_TIME_MILLIS;
 
 #endif // SEEL_Params

@@ -29,27 +29,58 @@ public:
         FLAG_ASSERT_FIRED = 3
     };
 
+    class SEEL_Transmissions
+    {
+    public:
+        uint8_t bcast;
+        uint8_t data;
+        uint8_t id_check;
+        uint8_t ack;
+        uint8_t fwd;
+        
+        SEEL_Transmissions()
+        {
+            clear();
+        }
+        
+        void clear()
+        {
+            bcast = 0;
+            data = 0;
+            id_check = 0;
+            ack = 0;
+            fwd = 0;
+        }
+        
+        uint16_t get_total_trans()
+        {
+            return (uint16_t)bcast + (uint16_t)data + (uint16_t)id_check + (uint16_t)ack + (uint16_t)fwd;
+        }
+    };
+
     // Contains information that helps debugging the network after deployment.
     // Combining everything into struct allows for easy variable sizes to be passed
     // through functions.
     struct SEEL_CB_Info
     {
+        SEEL_Transmissions prev_transmissions;
+        uint8_t prev_queue_dropped_msgs_self;
+        uint8_t prev_queue_dropped_msgs_others;
+        uint8_t prev_failed_transmissions;
+        
         uint32_t wtb_millis; // Time between waking up and this NODE receiving the broadcast message
-        uint8_t prev_data_transmissions; // Number of data/id_check/fwd tranmissions in the PREVIOUS cycle
-        uint8_t prev_transmissions;
         uint8_t prev_CRC_fails;
         uint8_t hop_count;
         uint8_t missed_bcasts;
         uint8_t missed_msgs;
         uint8_t prev_max_data_queue_size; // prev cycle max data queue size during a cycle 
-        uint8_t prev_queue_dropped_msgs;
         uint8_t bcast_count;
         uint8_t prev_flags; // prev cycle logging flags; see above enum for more information
         int8_t parent_rssi; // RSSI value of the bcast msg received from the parent, initialized to 0
         bool first_callback; // Whether this callback call is the first one this cycle (allows for initialization)
 
-        SEEL_CB_Info() : wtb_millis(0), prev_data_transmissions(0), prev_CRC_fails(0), hop_count(0), missed_bcasts(0), 
-        missed_msgs(0), prev_max_data_queue_size(0), bcast_count(0), first_callback(false), prev_flags(0) {}
+        SEEL_CB_Info() : wtb_millis(0), prev_CRC_fails(0), hop_count(0), missed_bcasts(0), 
+        missed_msgs(0), bcast_count(0), prev_flags(0), first_callback(false) {}
     };
 
     // ***************************************************
@@ -124,6 +155,7 @@ protected:
 
     SEEL_Default_Queue<uint8_t> _ack_queue;
     SEEL_Queue<SEEL_Message>* _data_queue_ptr; // includes ID_CHECK and FWD msgs
+    SEEL_Transmissions _cycle_transmissions;
     SEEL_Message _bcast_msg;
     SEEL_CB_Info _cb_info;
 
@@ -133,21 +165,21 @@ protected:
     uint32_t _tranmission_ToA; // estimate on ToA based on last measured transmission. Should be consistent since transmission parameters are consistent
     uint8_t _node_id;
     uint8_t _parent_id;
-    uint8_t _tdma_slot; // TDMA
+    uint8_t _tdma_slot; // TDMA transmission slot
+    uint8_t _prev_tdma_slot;
     uint8_t _seq_num; // Note: Will overflow after 255, but overflow does not affect functionality since seq_num serves to differentiate msgs
-    uint8_t _data_msgs_sent; // includes ID_CHECK and FWD msgs, tracks how many data msgs we sent
-    uint8_t _any_msgs_sent;
     uint8_t _CRC_fails;
     uint8_t _max_data_queue_size;
-    uint8_t _queue_dropped_msgs;
+    uint8_t _queue_dropped_msgs_self;
+    uint8_t _queue_dropped_msgs_others;
+    uint8_t _failed_transmissions;
     uint8_t _flags;
     int8_t _path_rssi; // changes based on parent selection mode
     bool _id_verified;
     bool _bcast_avail; // bcast msg is ready to be sent out
     bool _bcast_sent; // bcast msg has been sent out this cycle
-
+    bool _parent_lock;
     
-
 private:
     // Structs & Classes
     struct SEEL_Dup_Msg

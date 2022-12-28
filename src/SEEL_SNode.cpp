@@ -54,6 +54,7 @@ void SEEL_SNode::init(  SEEL_Scheduler* ref_scheduler,
     // Set task instances
     _task_wake.set_inst(this);
     _task_receive.set_inst(this);
+    _task_parent_lock.set_inst(this);
     _task_enqueue_msg.set_inst(this);
     _task_user.set_inst(this);
     _task_sleep.set_inst(this);
@@ -69,16 +70,18 @@ void SEEL_SNode::SEEL_Task_SNode_Wake::run()
     _inst->_cb_info.wtb_millis = millis();
     _inst->_msg_send_delay = 0;
     _inst->_unack_msgs = 0;
-    _inst->_data_msgs_sent = 0;
-    _inst->_any_msgs_sent = 0;
     _inst->_CRC_fails = 0;
     _inst->_bcast_received = false;
     _inst->_parent_sync = false;
     _inst->_cb_info.first_callback = true; // Allows ability to only send 1 message per cycle
     _inst->_bcast_avail = false;
     _inst->_bcast_sent = false; // Set to true in SEEL_Node.cpp when bcast msg sent out
-    
-    _inst->_queue_dropped_msgs = 0;
+    _inst->_parent_lock = false;
+
+    _inst->_cycle_transmissions.clear();
+    _inst->_queue_dropped_msgs_self = 0;
+    _inst->_queue_dropped_msgs_others = 0;
+    _inst->_failed_transmissions = 0;
     _inst->_max_data_queue_size = 0;
     _inst->clear_flags();
     _inst->_cb_info.hop_count = UINT8_MAX;
@@ -196,8 +199,8 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
 
     // Prioritize bcast check over everything else
     // Possible to receive bcast msgs from multiple nodes; action depends on parent selection mode
-    // Only respond to bcast msgs while own bcast msg has not been sent yet
-    if(msg.cmd == SEEL_CMD_BCAST && !_inst->_bcast_sent)
+    // Only respond to bcast msgs while parent selection not locked
+    if(msg.cmd == SEEL_CMD_BCAST && !_inst->_parent_lock)
     {
         // "_acked" is only false here if the node never slept last cycle. Used to check if we never slept and received another bcast (missed a cycle)
         // acked may get set to false when node receives multiple bcasts in the same cycle (from diff nodes due to the blacklist system),
@@ -259,11 +262,10 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                     rssi_mode_value = min(msg_rssi, incoming_rssi);
                 }
 
-                // A new parent is considered better if it has a higher RSSI metric than the
-                // previous parent, with ties broken by hop count
-                if(!_inst->_parent_sync ||
-                    (rssi_mode_value > _inst->_path_rssi) || 
-                    (rssi_mode_value == _inst->_path_rssi && incoming_hop_count < _inst->_cb_info.hop_count))
+                // A new parent is considered better if:
+                if(!_inst->_parent_sync || // Snode has no current
+                    (incoming_hop_count >= _inst->_cb_info.hop_count && // Or (incoming parent has a LOWER OR EQUAL hop count (prevents cycles from forming)
+                    rssi_mode_value > _inst->_path_rssi)) // AND it has a higher (stronger) RSSI heuristic)
                 {
                     _inst->_parent_id = msg.send_id;
                     _inst->_cb_info.hop_count = incoming_hop_count;
@@ -363,11 +365,21 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                     _inst->_id_verified = (prev_system_sync && _inst->bcast_id_check(&msg));
                 }
 
-                // If the Parent Selection mode is FIRST_BROADCAST then no broadcast collection delay is needed.
-                bool added = _inst->_ref_scheduler->add_task(&_inst->_task_enqueue_msg, (SEEL_PSEL_MODE == SEEL_PSEL_FIRST_BROADCAST) ? 0 : SEEL_PSEL_DURATION_MILLIS);
+                bool added = _inst->_ref_scheduler->add_task(&_inst->_task_send); // Only start sending messages when broadcast is received and processed
                 SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
-                added = _inst->_ref_scheduler->add_task(&_inst->_task_send); // Only start sending messages when broadcast is received and processed
-                SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
+
+                if (SEEL_PSEL_MODE == SEEL_PSEL_FIRST_BROADCAST)
+                {
+                    // If the Parent Selection mode is FIRST_BROADCAST then no broadcast collection delay is needed
+                    _inst->_parent_lock = true;
+                    added = _inst->_ref_scheduler->add_task(&_inst->_task_enqueue_msg);
+                    SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
+                }
+                else
+                {
+                    added = _inst->_ref_scheduler->add_task(&_inst->_task_parent_lock, SEEL_PSEL_DURATION_MILLIS);
+                    SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
+                }
             }
         }
         else if(!_inst->_bcast_received) // Received bcast from blacklist node, but can still take time sync and sleep info
@@ -392,6 +404,7 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
             _inst->_data_queue_ptr->pop_front();
             _inst->_msg_send_delay = 0;
             _inst->_unack_msgs = 0;
+            --(_inst->_failed_transmissions);
             _inst->_acked = true; // Gets set to true until cycle ends. This is to see if the parent ever ack'd messages. If not, add parent to blacklist.
 
             SEEL_Print::println(F("ACK received"));
@@ -421,6 +434,13 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
     }
 
     bool added = _inst->_ref_scheduler->add_task(&_inst->_task_receive);
+    SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
+}
+
+void SEEL_SNode::SEEL_Task_SNode_Parent_Lock::run()
+{
+    _inst->_parent_lock = true;
+    bool added = _inst->_ref_scheduler->add_task(&_inst->_task_enqueue_msg);
     SEEL_Assert::assert(added, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
 }
 
@@ -466,16 +486,18 @@ void SEEL_SNode::SEEL_Task_SNode_User::run()
 void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
 {
     // Store any info messages
-    _inst->_cb_info.prev_data_transmissions = _inst->_data_msgs_sent;
-    _inst->_cb_info.prev_transmissions = _inst->_any_msgs_sent;
     _inst->_cb_info.prev_CRC_fails = _inst->_CRC_fails;
     _inst->_cb_info.prev_max_data_queue_size = _inst->_max_data_queue_size;
-    _inst->_cb_info.prev_queue_dropped_msgs = _inst->_queue_dropped_msgs;
     if (!SEEL_Assert::_assert_queue.empty()) {
         _inst->set_flag(SEEL_Flags::FLAG_ASSERT_FIRED);
     }
     _inst->_cb_info.prev_flags = _inst->_flags;
     _inst->_last_parent = _inst->_parent_id;
+
+    _inst->_cb_info.prev_transmissions = _inst->_cycle_transmissions;
+    _inst->_cb_info.prev_queue_dropped_msgs_self = _inst->_queue_dropped_msgs_self;
+    _inst->_cb_info.prev_queue_dropped_msgs_others = _inst->_queue_dropped_msgs_others;
+    _inst->_cb_info.prev_failed_transmissions = _inst->_failed_transmissions;
 
     // If we are non-force sleeping and parent_sync is false, then we must have received a bcast from a blacklisted parent
     // and not one from a non-blacklisted parent; thus, we did not generate data this cycle
@@ -485,7 +507,7 @@ void SEEL_SNode::SEEL_Task_SNode_Sleep::run()
     }
 
     // A parent was selected and a (ack-needed) msg was sent to parent, but parent never responded back
-    if(_inst->_parent_sync && !_inst->_acked && _inst->_data_msgs_sent > 0) 
+    if(_inst->_parent_sync && !_inst->_acked && _inst->_cycle_transmissions.data > 0) 
     {
         // Blacklist the parent
         SEEL_Print::print(F("Blacklisted NODE: ")); SEEL_Print::println(_inst->_parent_id); // Blacklist: parent ID
@@ -622,7 +644,7 @@ bool SEEL_SNode::enqueue_forwarding_msg(SEEL_Message* prev_msg)
     }
     else {
         SEEL_Print::println(F("Forwarding message not added"));
-        _queue_dropped_msgs += 1;
+        _queue_dropped_msgs_others += 1;
         SEEL_Node::set_flag(SEEL_Flags::FLAG_ADD_MAX_DATA_QUEUE);
     }
     return added;
@@ -654,7 +676,7 @@ bool SEEL_SNode::enqueue_node_id()
     }
     else {
         SEEL_Print::println(F("ID message not added"));
-        _queue_dropped_msgs += 1;
+        _queue_dropped_msgs_self += 1;
         SEEL_Node::set_flag(SEEL_Flags::FLAG_ADD_MAX_DATA_QUEUE);
     }
 
@@ -697,7 +719,7 @@ bool SEEL_SNode::enqueue_data()
             }
             else {
                 SEEL_Print::println(F("Data message not added"));
-                _queue_dropped_msgs += 1;
+                _queue_dropped_msgs_self += 1;
                 SEEL_Node::set_flag(SEEL_Flags::FLAG_ADD_MAX_DATA_QUEUE);
             }
             
@@ -715,14 +737,16 @@ void SEEL_SNode::sleep()
     // period the watchdog time can sleep for
     uint32_t sleep_counts = 0;
     uint32_t snode_sleep_time_millis = _snode_sleep_time_secs * SEEL_SECS_TO_MILLIS;
-    if(snode_sleep_time_millis > (SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _sleep_time_offset_millis))
+    uint32_t early_wakeup_time = SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _sleep_time_offset_millis;
+    // TODO: Make similar case for EB algorithm
+    if (SEEL_TDMA_USE_TDMA)
     {
-        SEEL_Assert::assert(snode_sleep_time_millis >= (SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _sleep_time_offset_millis), SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
-        sleep_counts = (snode_sleep_time_millis
-            - SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS
-            - _sleep_time_offset_millis) / _sleep_time_estimate_millis;
+        // Need to wake up earlier if we received bcast later
+        // To be safe, need to wake up parent hop count times TDMA cycle time millis earlier
+        // Imagine worst case when parent takes entire TDMA cycle to broadcast
+        // Since (updated) parent must have smaller hop count than current node, this logic works for parent updates too
+        early_wakeup_time = max(early_wakeup_time, SEEL_TDMA_CYCLE_TIME_MILLIS * (_cb_info.hop_count - 1)); // Parent hop count is ours minus 1
     }
-
     if(_missed_bcasts > 0)
     {
         // Make signed int since awake duration could be smaller than specified, then sleep longer
@@ -732,20 +756,15 @@ void SEEL_SNode::sleep()
         int32_t extra_awake_time_millis = (SEEL_FORCE_SLEEP_AWAKE_MULT * 
             pow(SEEL_FORCE_SLEEP_AWAKE_DURATION_SCALE, _missed_bcasts) - 1) * 
             _snode_awake_time_secs * SEEL_SECS_TO_MILLIS;
-        // Sleep needs to be calculated a different way since SNODE stayed awake longer than specified
-        if(snode_sleep_time_millis > (extra_awake_time_millis +
-            SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _sleep_time_offset_millis))
-        {
-            SEEL_Assert::assert(snode_sleep_time_millis >= (extra_awake_time_millis + SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _sleep_time_offset_millis), SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
-            sleep_counts = (snode_sleep_time_millis - (extra_awake_time_millis + 
-                SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS + _sleep_time_offset_millis)) / 
-                _sleep_time_estimate_millis;
-        }
-        else
-        {
-            sleep_counts = 0;
-        }
+        early_wakeup_time += extra_awake_time_millis;
     }
+    SEEL_Print::print(F("Extra wakeup time (millis): ")); SEEL_Print::println(early_wakeup_time);
+    SEEL_Assert::assert(snode_sleep_time_millis >= early_wakeup_time, SEEL_ASSERT_FILE_NUM_SNODE, __LINE__);
+    if(snode_sleep_time_millis > early_wakeup_time)
+    {
+        sleep_counts = (snode_sleep_time_millis - early_wakeup_time) / _sleep_time_estimate_millis;
+    }
+    // Else, sleep counts stay at 0
 
     SEEL_Print::print(F("Sleeping for ")); SEEL_Print::print(sleep_counts); SEEL_Print::println(F(" counts"));
     SEEL_Print::flush();
