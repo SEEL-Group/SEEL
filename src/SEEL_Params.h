@@ -50,9 +50,9 @@ constexpr uint32_t SEEL_RFM95_FREQ = 915E6;
 constexpr int8_t SEEL_RFM95_SF = 7;
 constexpr uint32_t SEEL_RFM95_BW = 500E3;
 constexpr int8_t SEEL_RFM95_GNODE_TX = 2; // 2 to 20 for PA Boost
-constexpr int8_t SEEL_RFM95_GNODE_CR = 8; // 5 to 8
+constexpr int8_t SEEL_RFM95_GNODE_CR = 5; // 5 to 8
 constexpr int8_t SEEL_RFM95_SNODE_TX = 2; // 2 to 20 for PA Boost
-constexpr int8_t SEEL_RFM95_SNODE_CR = 8; // 5 to 8
+constexpr int8_t SEEL_RFM95_SNODE_CR = 5; // 5 to 8
 
 // SEEL Message size
 // Additional bytes allocated for the message packet
@@ -60,7 +60,7 @@ constexpr int8_t SEEL_RFM95_SNODE_CR = 8; // 5 to 8
 // Influences the ToA of a message, which may require changing TDMA parameters (if using TDMA)
 // More allocated bytes lets users send more data at a time, allows more SNODEs to join the network per cycle,
 // and increases the number of NODEs that can be ACK'd per ACK message
-constexpr uint32_t SEEL_MSG_USER_SIZE = 20;
+constexpr uint32_t SEEL_MSG_USER_SIZE = 4;
 
 // Duplicate msg holder
 // How many messages to hold when checking for duplicates

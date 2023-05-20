@@ -65,34 +65,6 @@ void user_callback_broadcast(uint8_t msg_data[SEEL_MSG_DATA_SIZE], uint16_t prev
   write_to_file(msg_string);
   
   msg_string = "";
-  msg_string += F("RB: "); // Previous Received Bcasts
-  while (!info->received_bcasts.empty())
-  {
-      SEEL_Node::SEEL_Received_Broadcast* bcast_ref = info->received_bcasts.front();
-      msg_string += String(bcast_ref->sender_id);
-      msg_string += F(" ");
-      msg_string += String(bcast_ref->sender_rssi);
-      msg_string += F(" ");
-      info->received_bcasts.pop_front();
-  }
-  write_to_file(msg_string);
-  
-  msg_string = "";
-  msg_string += F("RM: "); // Previous Received Non-Broadcast Messages
-  while (!info->prev_received_msgs.empty())
-  {
-      SEEL_Node::SEEL_Received_Message* msg_ref = info->prev_received_msgs.front();
-      msg_string += String(msg_ref->sender_id);
-      msg_string += F(" ");
-      msg_string += String(msg_ref->sender_rssi);
-      msg_string += F(" ");
-      msg_string += String(msg_ref->sender_misc);
-      msg_string += F(" ");
-      info->prev_received_msgs.pop_front();
-  }
-  write_to_file(msg_string);
-  
-  msg_string = "";
   msg_string += F("BD: "); // Broadcast Data
   for (uint32_t i = 0; i < SEEL_MSG_DATA_SIZE; ++i)
   {
@@ -141,17 +113,17 @@ void setup()
   // Enables file logging
   FileSystem.begin();
 
-  ///*
+  /*
   // Initialize Serial (Serial based comms)
   Serial.begin(9600);
   SEEL_Print::init(&Serial);
-  //*/
-  /*
+  */
+  ///*
   // Initialize Console (Console bridge based comms, Dragino)
   Bridge.begin(115200);
   Console.begin();
   SEEL_Print::init(&Console);
-  */
+  //*/
 
   // Initialize Assert NVM
   SEEL_Assert::init_nvm();
