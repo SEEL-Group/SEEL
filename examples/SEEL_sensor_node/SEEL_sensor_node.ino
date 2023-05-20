@@ -64,7 +64,7 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], SEEL_Node::SEEL_CB
 
   // SEEL_MSG_DATA_SIZE = SEEL_MSG_MISC_SIZE + SEEL_MSG_USER_SIZE
   // If more than SEEL_MSG_MISC_SIZE data bytes are needed, increase SEEL_MSG_USER_SIZE by the missing amount  
-  if (SEEL_MSG_DATA_SIZE >= 26) // Safety check to prevent out of bounds access
+  if (SEEL_MSG_DATA_SIZE >= 21) // Safety check to prevent out of bounds access
   {
     msg_data[0] = SEEL_SNODE_ID; // original ID
     msg_data[1] = seel_snode.get_node_id(); // assigned ID
@@ -87,14 +87,9 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], SEEL_Node::SEEL_CB
     msg_data[18] = info->prev_queue_dropped_msgs_self;
     msg_data[19] = info->prev_queue_dropped_msgs_others;
     msg_data[20] = info->prev_failed_transmissions;
-    msg_data[21] = info->prev_transmissions.bcast;
-    msg_data[22] = info->prev_transmissions.data;
-    msg_data[23] = info->prev_transmissions.id_check;
-    msg_data[24] = info->prev_transmissions.ack;
-    msg_data[25] = info->prev_transmissions.fwd;
 
     // Fill rest with zeros
-    for (uint32_t i = 26; i < SEEL_MSG_DATA_SIZE; ++i)
+    for (uint32_t i = 21; i < SEEL_MSG_DATA_SIZE; ++i)
     {
         msg_data[i] = 0;
     }
