@@ -4,9 +4,9 @@ The LoRa Synchronized Energy-Efficient LPWAN (SEEL) communication protocol is a 
 
 While the SEEL protocol is hardware independent, the current software implementation of SEEL is designed for the Arduino platform.
 
-Check the documentation file (documents/seel_documentation.pdf) for implementation details.
+Check the documentation file (documents/LoRa_SEEL_Documentation.pdf) for implementation details.
 
-Check the associated paper (documents/LoRa_SEEL.pdf) for an overview of SEEL with experimental results.
+Check the associated paper (documents/LoRa_SEEL_Paper.pdf) for an overview of SEEL with experimental results.
 
 *** Software Setup *********************************************************
 
@@ -22,7 +22,7 @@ Check the associated paper (documents/LoRa_SEEL.pdf) for an overview of SEEL wit
 
 5) Restart Arduino for the changes to take effect
 
-6) See advanced install instructions (such as logging setup) in SEEL_documentation.pdf
+6) See advanced install instructions (such as logging setup) in LoRa_SEEL_Documentation.pdf
 
 *****************************************************************************
 
