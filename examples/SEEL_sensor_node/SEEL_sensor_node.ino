@@ -22,9 +22,11 @@ bool send_ready;
 // LED DEMO
 constexpr uint8_t LED_PIN = 13; // Default Arduino Pro Mini LED pin
 constexpr uint8_t NUM_LED_TYPES = 10; // Number of LED types allowed, used for modulo operation
-constexpr uint8_t FLASH_DURATION_MILLIS = 100;
-uint8_t led_parent_id = SEEL_SNODE_ID; // Should be [0, MAX_LED_TYPES)
+constexpr uint32_t FLASH_DURATION_MILLIS = 100;
 SEEL_Task LED_task;
+uint8_t led_parent_id = SEEL_SNODE_ID; // Should be [0, MAX_LED_TYPES)
+bool LED_task_added = false;
+
 
 void print_task_info(String msg)
 {
@@ -48,25 +50,60 @@ void user_function()
   send_ready = true;
 }
 
+// LED DEMO
 void LED_flash()
 {
   uint32_t mod_time = millis() % (NUM_LED_TYPES * FLASH_DURATION_MILLIS);
 
-  if (mod_time >= (led_parent_id * FLASH_DURATION_MILLIS)  && mod_time < (led_parent_id + 1) * FLASH_DURATION_MILLIS)
+  if (mod_time >= (led_parent_id * FLASH_DURATION_MILLIS) && mod_time < (led_parent_id + 1) * FLASH_DURATION_MILLIS)
   {
     digitalWrite(LED_PIN, HIGH);
+    //SEEL_Print::println(F("Write High"));
   }
   else
   {
     digitalWrite(LED_PIN, LOW);
+    //SEEL_Print::println(F("Write Low"));
   }
 
   // Repeat task until sleep
-  seel_sched.add_task(LED_task);
+  seel_sched.add_task(&LED_task);
 }
 
-// This callback function is called when a new message CAN be sent out
-// Write Parameter: "msg_data", which is the data packet to send
+// LED DEMO
+// This callback function is called after this node receives a broadcast message but before this node can send
+// out a bcast message. Thus, any modifications to "bcast_data" will be sent if the broadcast message is sent.
+// Write Parameter: "bcast_data" contains misc SEEL info, defined in SEEL_Node.h
+// Read-Only Parameter: "new_parent" is true if the sender of this broadcast was set as this node's new parent
+void user_callback_broadcast(uint8_t bcast_data[SEEL_MSG_DATA_SIZE], const bool new_parent)
+{
+  if (new_parent)
+  {
+    // If this node is the FIRST node to set the LED parent field, then set the field as this node's ID
+    // If this node is not the first node, set this node's led_parent_id to be the one in the field
+    if (bcast_data[SEEL_MSG_DATA_LED_PARENT_INDEX] == 0)
+    {
+      led_parent_id = SEEL_SNODE_ID;
+      bcast_data[SEEL_MSG_DATA_LED_PARENT_INDEX] = SEEL_SNODE_ID;
+      SEEL_Print::print(F("Set LED field to Node ID ")); SEEL_Print::println(SEEL_SNODE_ID);
+    }
+    else
+    {
+      led_parent_id = bcast_data[SEEL_MSG_DATA_LED_PARENT_INDEX];
+      SEEL_Print::print(F("Set LED Parent to Node ")); SEEL_Print::println(led_parent_id);
+    }
+
+    if (!LED_task_added)
+    {
+      seel_sched.add_task(&LED_task);  
+      SEEL_Print::println(F("Added LED task"));
+    }
+    LED_task_added = true;
+  }
+}
+
+// This callback function is called when a new message CAN be sent out.
+// Write Parameter: "msg_data", which is the data packet to send.
 // Read-Only Parameter: "info" contains misc SEEL info, defined in SEEL_Node.h
 // Returns: true if the data message should be sent out
 bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], SEEL_Node::SEEL_CB_Info* info)
@@ -125,8 +162,8 @@ bool user_callback_load(uint8_t msg_data[SEEL_MSG_DATA_SIZE], SEEL_Node::SEEL_CB
 }
 
 // This callback function is called right before is DATA message is sent out.
-// This is useful to modify the message packet for information that could change between cycles
-// Useful because a message may be generate during one cycle and not sent out until another; some fields (like the SNODE's parent) may change between these cycles
+// This is useful to modify the message packet for information that could change between cycles.
+// Useful because a message may be generate during one cycle and not sent out until another; some fields (like the SNODE's parent) may change between these cycles.
 // Write Parameter: "msg_data", which is the data packet to send
 // Read-Only Parameter: "info" contains misc SEEL info, defined in SEEL_Node.h
 void user_callback_presend(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node::SEEL_CB_Info* info)
@@ -144,8 +181,8 @@ void user_callback_presend(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_Node
 }
 
 // This callback function is called when this SNODE receives a DATA message to-be-forwarded.
-// Afterwards, the message is added to this SNODE's send_queue
-// Message target and sender are handeled by the SEEL protocol and is not provided to this function, only the data field of the packet is visible here
+// Afterwards, the message is added to this SNODE's send_queue.
+// Message target and sender are handeled by the SEEL protocol and is not provided to this function, only the data field of the packet is visible here.
 // Write Parameter: "msg_data", which is the data packet to forward
 // Read-Only Parameter: "info" contains misc SEEL info, defined in SEEL_Node.h
 // Return: Whether message should be forwarded
@@ -159,6 +196,14 @@ bool user_callback_forwarding(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_N
   return true;
 }
 
+// LED DEMO
+// This callback function is called right before the SNode goes to sleep.
+void user_callback_sleep()
+{
+  LED_task_added = false;
+  SEEL_Print::println(F("Called Sleep Callback"));
+}
+
 void setup()
 {
   // Not a great source of entropy: https://www.academia.edu/1161820/Ardrand_The_Arduino_as_a_Hardware_Random-Number_Generator
@@ -166,7 +211,7 @@ void setup()
 
   // Intialize USER variables
   user_task = SEEL_Task(user_function);
-  LED_task = SEEL_Task(LED_Flash);
+  LED_task = SEEL_Task(LED_flash);
   send_count = 0;
 
   // LED DEMO
@@ -181,7 +226,8 @@ void setup()
 
   // Initialize sensor node and link response function
   seel_snode.init(&seel_sched, // Scheduler reference
-                  user_callback_load, user_callback_presend, user_callback_forwarding, // User callback functions
+                  user_callback_broadcast, user_callback_load, // User callback functions
+                  user_callback_presend, user_callback_forwarding, user_callback_sleep, // User callback functions
                   SEEL_LoRaPHY_CS_PIN, SEEL_LoRaPHY_RESET_PIN, SEEL_LoRaPHY_INT_PIN, // Pins
                   SEEL_SNODE_ID, SEEL_TDMA_SLOT_ASSIGNMENT); // ID and TDMA slot assignments
 

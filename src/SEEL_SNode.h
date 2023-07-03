@@ -18,17 +18,21 @@ class SEEL_SNode: public SEEL_Node
 {
 public:
     // Typedefs
-    typedef bool (*user_callback_load_t)(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_CB_Info* info);
-    typedef bool (*user_callback_forwarding_t)(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_CB_Info* info);
+    typedef void (*user_callback_broadcast_t)(uint8_t bcast_data[SEEL_MSG_DATA_SIZE], const bool new_parent);
+    typedef bool (*user_callback_load_t)(uint8_t msg_data[SEEL_MSG_DATA_SIZE], SEEL_CB_Info* info);
     // user_callback_presend_t defined in SEEL_Node.h
+    typedef bool (*user_callback_forwarding_t)(uint8_t msg_data[SEEL_MSG_DATA_SIZE], const SEEL_CB_Info* info);
+    typedef void (*user_callback_sleep_t)();
     
     // ***************************************************
     // Member functions
     void init(  SEEL_Scheduler* ref_scheduler,
-                user_callback_load_t user_cb_load, 
+                user_callback_broadcast_t user_cb_bcast,
+                user_callback_load_t user_cb_load,
                 user_callback_presend_t user_cb_presend,
                 user_callback_forwarding_t user_cb_forwarding,
-                uint8_t cs_pin, uint8_t reset_pin, uint8_t int_pin, 
+                user_callback_sleep_t user_cb_sleep,
+                uint8_t cs_pin, uint8_t reset_pin, uint8_t int_pin,
                 uint32_t snode_id, uint32_t tdma_slot);
     
     void blacklist_add(uint8_t node_id)
@@ -101,8 +105,10 @@ private:
     // Member variables
     SEEL_SNode_Msg_Queue<SEEL_Message> _snode_data_queue;
     SEEL_Default_Queue<uint8_t> _bcast_blacklist;
+    user_callback_broadcast_t _user_cb_bcast;
     user_callback_load_t _user_cb_load;
     user_callback_forwarding_t _user_cb_forwarding;
+    user_callback_sleep_t _user_cb_sleep;
     uint32_t _snode_awake_time_secs; // How long node should be awake for, set with bcast
     uint32_t _snode_sleep_time_secs; // How long node should sleep for, set with bcast
     uint32_t _unique_key;

@@ -223,6 +223,7 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
 {
     // Don't use SEEL_Node's send system to bypass collision avoidance; BCAST on GNODE must be sent without delay
     SEEL_Message to_send;
+    memset(to_send.data, 0, sizeof(to_send.data[0]) * SEEL_MSG_DATA_SIZE);
 
     // Print out any pending ID's
     _inst->print_bcast_queue();
@@ -230,7 +231,6 @@ void SEEL_GNode::SEEL_Task_GNode_Bcast::run()
     // Clear ack queue
     _inst->_ack_queue.clear();
 
-    // Large packet info
     uint16_t prev_any_trans = _inst->_cycle_transmissions.get_total_trans();
     _inst->_cycle_transmissions.clear();
 

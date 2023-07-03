@@ -23,10 +23,12 @@ uint32_t SEEL_SNode::generate_id()
 }
 
 void SEEL_SNode::init(  SEEL_Scheduler* ref_scheduler,
-            user_callback_load_t user_cb_load, 
+            user_callback_broadcast_t user_cb_bcast,
+            user_callback_load_t user_cb_load,
             user_callback_presend_t user_cb_presend,
             user_callback_forwarding_t user_cb_forwarding,
-            uint8_t cs_pin, uint8_t reset_pin, uint8_t int_pin, 
+            user_callback_sleep_t user_cb_sleep,
+            uint8_t cs_pin, uint8_t reset_pin, uint8_t int_pin,
             uint32_t snode_id, uint32_t tdma_slot)
 {
     SEEL_Node::init((snode_id == SEEL_GNODE_ID) ? generate_id() : snode_id, tdma_slot);
@@ -34,9 +36,11 @@ void SEEL_SNode::init(  SEEL_Scheduler* ref_scheduler,
 
     // Initialize member variables
     _ref_scheduler = ref_scheduler;
+    _user_cb_bcast = user_cb_bcast;
     _user_cb_load = user_cb_load;
-    _user_cb_forwarding = user_cb_forwarding;
     _user_cb_presend = user_cb_presend; // called in SEEL_Node.cpp
+    _user_cb_forwarding = user_cb_forwarding;
+    _user_cb_sleep = user_cb_sleep;
     _unique_key = random(0, UINT32_MAX);
     _snode_awake_time_secs = 0;
     _snode_sleep_time_secs = 0;
@@ -272,6 +276,11 @@ void SEEL_SNode::SEEL_Task_SNode_Receive::run()
                     _inst->_path_rssi = rssi_mode_value;
                     new_parent = true;
                 }
+            }
+
+            if (_inst->_user_cb_bcast != NULL)
+            {
+                _inst->_user_cb_bcast(msg.data, new_parent);
             }
 
             if(new_parent)
@@ -765,6 +774,11 @@ void SEEL_SNode::sleep()
         sleep_counts = (snode_sleep_time_millis - early_wakeup_time) / _sleep_time_estimate_millis;
     }
     // Else, sleep counts stay at 0
+
+    if (_user_cb_sleep != NULL)
+    {
+        _user_cb_sleep();
+    }
 
     SEEL_Print::print(F("Sleeping for ")); SEEL_Print::print(sleep_counts); SEEL_Print::println(F(" counts"));
     SEEL_Print::flush();

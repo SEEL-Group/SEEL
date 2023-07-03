@@ -39,8 +39,9 @@ const uint8_t SEEL_MSG_SEQ_SIZE     = 1;
 const uint8_t SEEL_MSG_OSEND_INDEX  = 4;
 const uint8_t SEEL_MSG_OSEND_SIZE   = 1;
 const uint8_t SEEL_MSG_MISC_INDEX   = 5;
-const uint8_t SEEL_MSG_MISC_SIZE    = 18;
-const uint8_t SEEL_MSG_USER_INDEX   = 23; // USER_SIZE defined in SEEL_Params.h
+// LED DEMO
+const uint8_t SEEL_MSG_MISC_SIZE    = 19;
+const uint8_t SEEL_MSG_USER_INDEX   = 24; // USER_SIZE defined in SEEL_Params.h
 const uint8_t SEEL_MSG_DATA_SIZE = SEEL_MSG_MISC_SIZE + SEEL_MSG_USER_SIZE;
 const uint8_t SEEL_MSG_TOTAL_SIZE = SEEL_MSG_TARG_SIZE + SEEL_MSG_SEND_SIZE + SEEL_MSG_CMD_SIZE
     + SEEL_MSG_SEQ_SIZE + SEEL_MSG_OSEND_SIZE + SEEL_MSG_MISC_SIZE + SEEL_MSG_USER_SIZE;

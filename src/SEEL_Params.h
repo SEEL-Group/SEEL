@@ -60,11 +60,7 @@ constexpr int8_t SEEL_RFM95_SNODE_CR = 5; // 5 to 8
 // Influences the ToA of a message, which may require changing TDMA parameters (if using TDMA)
 // More allocated bytes lets users send more data at a time, allows more SNODEs to join the network per cycle,
 // and increases the number of NODEs that can be ACK'd per ACK message
-<<<<<<< Updated upstream
-constexpr uint32_t SEEL_MSG_USER_SIZE = 4;
-=======
 constexpr uint32_t SEEL_MSG_USER_SIZE = 0;
->>>>>>> Stashed changes
 
 // Duplicate msg holder
 // How many messages to hold when checking for duplicates
@@ -89,7 +85,7 @@ constexpr uint8_t SEEL_MAX_CYCLE_MISSES = 25;
 // Upperbound transmission duration used to create TDMA slot widths. Also used as initial estimate 
 // to correct for transmission delay when time sychronizing; value will be updated with measured msg send ToA
 // SEEL_Print'ed in RFM send method
-constexpr uint32_t SEEL_TRANSMISSION_UB_DUR_MILLIS = 100;
+constexpr uint32_t SEEL_TRANSMISSION_UB_DUR_MILLIS = 50;
 
 // How long Arduino watchdog timer can sleep at a time
 // Only select values can be used, check Arduino WD specs (SLEEP_8S is maximum duration per sleep instance)
@@ -129,7 +125,7 @@ constexpr uint32_t SEEL_FORCE_SLEEP_RESET_COUNT = 3;
 constexpr bool SEEL_TDMA_USE_TDMA = true; // Otherwise uses Exponential backoff
 constexpr bool SEEL_TDMA_SINGLE_SEND = true; // Only sends 1 message per TDMA slot, otherwise sends as many as possible
 constexpr uint8_t SEEL_TDMA_SLOTS = 10; // Maximum group of nodes, first slot begins at 0
-constexpr uint32_t SEEL_TDMA_BUFFER_MILLIS = 100; // Buffer time between scheduled TMDA transmissions, factors in receive buffer copy delay (SEEL_Print'ed in RFM receive method)
+constexpr uint32_t SEEL_TDMA_BUFFER_MILLIS = 50; // Buffer time between scheduled TMDA transmissions, factors in receive buffer copy delay (SEEL_Print'ed in RFM receive method)
 constexpr uint32_t SEEL_TDMA_SLOT_WAIT_MILLIS = SEEL_TRANSMISSION_UB_DUR_MILLIS + SEEL_TDMA_BUFFER_MILLIS;
 constexpr uint32_t SEEL_TDMA_CYCLE_TIME_MILLIS = SEEL_TDMA_SLOT_WAIT_MILLIS * SEEL_TDMA_SLOTS;
 
