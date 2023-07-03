@@ -60,7 +60,11 @@ constexpr int8_t SEEL_RFM95_SNODE_CR = 5; // 5 to 8
 // Influences the ToA of a message, which may require changing TDMA parameters (if using TDMA)
 // More allocated bytes lets users send more data at a time, allows more SNODEs to join the network per cycle,
 // and increases the number of NODEs that can be ACK'd per ACK message
+<<<<<<< Updated upstream
 constexpr uint32_t SEEL_MSG_USER_SIZE = 4;
+=======
+constexpr uint32_t SEEL_MSG_USER_SIZE = 0;
+>>>>>>> Stashed changes
 
 // Duplicate msg holder
 // How many messages to hold when checking for duplicates
@@ -90,14 +94,14 @@ constexpr uint32_t SEEL_TRANSMISSION_UB_DUR_MILLIS = 100;
 // How long Arduino watchdog timer can sleep at a time
 // Only select values can be used, check Arduino WD specs (SLEEP_8S is maximum duration per sleep instance)
 // Changing this value may require changes to SEEL_ADJUSTED_SLEEP_INITAL_ESTIMATE_MILLIS
-constexpr period_t SEEL_WD_TIMER_DUR = SLEEP_8S; // From LowPower.h
+constexpr period_t SEEL_WD_TIMER_DUR = SLEEP_1S; // From LowPower.h
 
 // Initial estimate for the duration of a single WD sleep duration in milliseconds
 // This value should be an overestimate of the duration (max of the deviation range)
-constexpr uint32_t SEEL_ADJUSTED_SLEEP_INITAL_ESTIMATE_MILLIS = 10000;
+constexpr uint32_t SEEL_ADJUSTED_SLEEP_INITAL_ESTIMATE_MILLIS = 1000;
 // How early to wake up SNODE to prepare for bcast
 // Consider making this value bigger as the sleep time increases to have a safer margin of error from WD's deviation
-constexpr uint32_t SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS = 5000;
+constexpr uint32_t SEEL_ADJUSTED_SLEEP_EARLY_WAKE_MILLIS = 0;
 
 // Enabling force sleep makes SNODEs go to sleep after being awake for the maximum awake time
 // Note awake time for force sleep starts taking awake time since wake up, not when the bcast msg was received
@@ -125,7 +129,7 @@ constexpr uint32_t SEEL_FORCE_SLEEP_RESET_COUNT = 3;
 constexpr bool SEEL_TDMA_USE_TDMA = true; // Otherwise uses Exponential backoff
 constexpr bool SEEL_TDMA_SINGLE_SEND = true; // Only sends 1 message per TDMA slot, otherwise sends as many as possible
 constexpr uint8_t SEEL_TDMA_SLOTS = 10; // Maximum group of nodes, first slot begins at 0
-constexpr uint32_t SEEL_TDMA_BUFFER_MILLIS = 400; // Buffer time between scheduled TMDA transmissions, factors in receive buffer copy delay (SEEL_Print'ed in RFM receive method)
+constexpr uint32_t SEEL_TDMA_BUFFER_MILLIS = 100; // Buffer time between scheduled TMDA transmissions, factors in receive buffer copy delay (SEEL_Print'ed in RFM receive method)
 constexpr uint32_t SEEL_TDMA_SLOT_WAIT_MILLIS = SEEL_TRANSMISSION_UB_DUR_MILLIS + SEEL_TDMA_BUFFER_MILLIS;
 constexpr uint32_t SEEL_TDMA_CYCLE_TIME_MILLIS = SEEL_TDMA_SLOT_WAIT_MILLIS * SEEL_TDMA_SLOTS;
 

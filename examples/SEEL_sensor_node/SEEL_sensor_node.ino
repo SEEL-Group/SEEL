@@ -19,6 +19,13 @@ SEEL_Task user_task;
 uint16_t send_count;
 bool send_ready;
 
+// LED DEMO
+constexpr uint8_t LED_PIN = 13; // Default Arduino Pro Mini LED pin
+constexpr uint8_t NUM_LED_TYPES = 10; // Number of LED types allowed, used for modulo operation
+constexpr uint8_t FLASH_DURATION_MILLIS = 100;
+uint8_t led_parent_id = SEEL_SNODE_ID; // Should be [0, MAX_LED_TYPES)
+SEEL_Task LED_task;
+
 void print_task_info(String msg)
 {
   uint32_t task_time_to_run;
@@ -39,6 +46,23 @@ void user_function()
   ++send_count;
   print_task_info(F("Running user task"));
   send_ready = true;
+}
+
+void LED_flash()
+{
+  uint32_t mod_time = millis() % (NUM_LED_TYPES * FLASH_DURATION_MILLIS);
+
+  if (mod_time >= (led_parent_id * FLASH_DURATION_MILLIS)  && mod_time < (led_parent_id + 1) * FLASH_DURATION_MILLIS)
+  {
+    digitalWrite(LED_PIN, HIGH);
+  }
+  else
+  {
+    digitalWrite(LED_PIN, LOW);
+  }
+
+  // Repeat task until sleep
+  seel_sched.add_task(LED_task);
 }
 
 // This callback function is called when a new message CAN be sent out
@@ -142,7 +166,11 @@ void setup()
 
   // Intialize USER variables
   user_task = SEEL_Task(user_function);
+  LED_task = SEEL_Task(LED_Flash);
   send_count = 0;
+
+  // LED DEMO
+  pinMode(LED_PIN, OUTPUT);
 
   // Initialize SEEL printing
   Serial.begin(9600);

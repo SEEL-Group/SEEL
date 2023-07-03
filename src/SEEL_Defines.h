@@ -74,9 +74,12 @@ const uint8_t SEEL_MSG_DATA_HOP_COUNT_INDEX = 14;
 const uint8_t SEEL_MSG_DATA_HOP_COUNT_SIZE = 1;
 const uint8_t SEEL_MSG_DATA_RSSI_INDEX = 15;
 const uint8_t SEEL_MSG_DATA_RSSI_SIZE = 1;
-const uint8_t SEEL_MSG_DATA_ID_FEEDBACK_INDEX = 16; // Variable size, default is two. Expand with user size
+// LED DEMO
+const uint8_t SEEL_MSG_DATA_LED_PARENT_INDEX = 16;
+const uint8_t SEEL_MSG_DATA_LED_PARENT_SIZE = 1;
+const uint8_t SEEL_MSG_DATA_ID_FEEDBACK_INDEX = 17; // Variable size, default is two. Expand with user size
 const uint8_t SEEL_MSG_DATA_ID_FEEDBACK_DEFAULT_SIZE = 2; // Actual size is 2*floor((SEEL_MSG_DATA_ID_FEEDBACK_DEFAULT_SIZE + SEEL_MSG_USER_SIZE) / 2.0)
-const uint8_t SEEL_MSG_DATA_USER_INDEX = 18;  // USER_SIZE defined in SEEL_Params.h
+const uint8_t SEEL_MSG_DATA_USER_INDEX = 19;  // USER_SIZE defined in SEEL_Params.h
 const uint8_t SEEL_MSG_DATA_ID_FEEDBACK_TOTAL_SIZE = SEEL_MSG_DATA_ID_FEEDBACK_DEFAULT_SIZE + SEEL_MSG_USER_SIZE;
 
 /* MSG Info and Signals */
